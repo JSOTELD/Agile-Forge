@@ -25,6 +25,7 @@ async function fetchTeamData() {
         appData = await res.json();
         renderWorkspace();
         renderJurisdictionBadge();
+        renderAiEngineBadge();
         renderSprintBanner();
         renderRoles();
         renderKanban();

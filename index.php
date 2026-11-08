@@ -39,11 +39,15 @@
                 <span id="chat-badge" class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
             </button>
 
-            <!-- Indicador Director IA -->
-            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Director General Online
-            </div>
+            <!-- Indicador & Selector de Motor IA Activo -->
+            <button onclick="openAiEngineModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 hover:border-indigo-500/50 text-xs transition group shadow-sm" title="Cambiar Motor de IA (Claude, OpenAI, Gemini, DeepSeek, Ollama)">
+                <span id="header-ai-icon" class="text-sm">🟣</span>
+                <div class="text-left">
+                    <span class="block text-[9px] uppercase tracking-wider text-slate-400 font-bold leading-none">Motor IA:</span>
+                    <span id="header-ai-model" class="font-bold text-white group-hover:text-indigo-300 font-mono text-[11px] leading-tight">Claude 3.7 Sonnet</span>
+                </div>
+                <span class="text-[10px] text-slate-400 ml-0.5">⚙️</span>
+            </button>
 
             <!-- Botón Crear Misión / User Story -->
             <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5">
@@ -388,6 +392,106 @@
             <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button type="button" onclick="closeJurisdictionModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
                 <button type="button" onclick="saveJurisdictionSettings()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20">Guardar Jurisdicción</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Conector de Motores IA & Multi-LLM Hub -->
+    <div id="ai-engine-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">🧠</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Multi-LLM Hub & Conectores de IA</h3>
+                        <p class="text-xs text-slate-400">Alterna entre APIs y sabe en todo momento con qué modelo estás desarrollando.</p>
+                    </div>
+                </div>
+                <button onclick="closeAiEngineModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <!-- Banner Explicativo: "¿Cómo saber con qué IA estás desarrollando?" -->
+            <div class="bg-slate-950 border border-slate-800/80 rounded-2xl p-3.5 space-y-2">
+                <h4 class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <span>🔍</span> Trazabilidad: ¿Cómo saber en todo momento qué IA está operando?
+                </h4>
+                <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+                    <div class="p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <strong class="text-white block mb-0.5">1. En el Header:</strong>
+                        Badge en vivo en la barra superior con icono y nombre del modelo.
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <strong class="text-white block mb-0.5">2. En el Tablero Kanban:</strong>
+                        Cada Historia de Usuario lleva el pill de la IA asignada.
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <strong class="text-white block mb-0.5">3. En el Chat:</strong>
+                        Cada respuesta del agente lleva la firma del modelo que la emitió.
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <strong class="text-white block mb-0.5">4. En el Prompt:</strong>
+                        Inyecta el comando CLI exacto (<code class="text-indigo-300">claude</code>, <code class="text-indigo-300">agy</code>, <code class="text-indigo-300">ollama</code>).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuración del Proveedor y Modelo -->
+            <div class="space-y-3 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Proveedor de IA (Engine / API) *</label>
+                        <select id="ai-provider-select" onchange="handleProviderChange(this.value)"
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-medium text-xs focus:border-purple-500 outline-none">
+                            <option value="anthropic">🟣 Anthropic Claude (Claude Code / API)</option>
+                            <option value="openai">🟢 OpenAI (GPT-4o, o3-mini, API)</option>
+                            <option value="google">✨ Google Gemini (Gemini 2.5 Pro, Antigravity)</option>
+                            <option value="deepseek">🐳 DeepSeek (DeepSeek-R1 Reasoner / V3)</option>
+                            <option value="ollama">🦙 Ollama Local (Llama 3.3, 100% On-Premise)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Modelo Específico *</label>
+                        <select id="ai-model-select"
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-medium text-xs focus:border-purple-500 outline-none">
+                            <!-- Opciones dinámicas según proveedor -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Modo de Ejecución</label>
+                        <select id="ai-execution-mode"
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-medium text-xs focus:border-purple-500 outline-none">
+                            <option value="cli">💻 Modo Terminal / CLI (Claude Code, agy, ollama)</option>
+                            <option value="api">🌐 Modo API Directa (HTTP REST / JSON)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Endpoint / URL de Conexión</label>
+                        <input type="text" id="ai-endpoint-input" placeholder="https://api.anthropic.com/v1"
+                               class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-purple-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Toggle: Enrutamiento Inteligente por Rol -->
+                <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+                    <div>
+                        <span class="font-bold text-white block">🎯 Enrutamiento Especializado por Rol (Role Routing)</span>
+                        <p class="text-[11px] text-slate-400">Permite que cada agente use su IA ideal (ej: Abogado y Arquitecto con Claude 3.7, Creativo con Gemini 2.5, QA con DeepSeek-R1).</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="ai-role-routing-toggle" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button type="button" onclick="closeAiEngineModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
+                <button type="button" onclick="saveAiEngineSettings()" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30">Aplicar Motor IA</button>
             </div>
         </div>
     </div>

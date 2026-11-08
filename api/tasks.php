@@ -77,6 +77,41 @@ if ($method === 'POST') {
         exit;
     }
 
+    // 1.2 Actualizar Motor IA (Multi-LLM Hub: Anthropic, OpenAI, Gemini, DeepSeek, Ollama)
+    if ($action === 'update_ai_engine') {
+        $providerId = trim((string)($input['active_provider'] ?? 'anthropic'));
+        $model = trim((string)($input['active_model'] ?? 'Claude 3.7 Sonnet'));
+        $execMode = in_array($input['execution_mode'] ?? '', ['cli', 'api'], true) ? $input['execution_mode'] : 'cli';
+        $roleRouting = !empty($input['role_routing_enabled']);
+        $customEndpoint = trim((string)($input['endpoint'] ?? ''));
+
+        $providers = $data['ai_engine']['available_providers'] ?? [];
+        $providerName = 'Anthropic Claude';
+        $icon = '🟣';
+
+        foreach ($providers as $p) {
+            if ($p['id'] === $providerId) {
+                $providerName = $p['name'];
+                $icon = $p['icon'];
+                break;
+            }
+        }
+
+        $data['ai_engine']['active_provider'] = $providerId;
+        $data['ai_engine']['active_model'] = $model;
+        $data['ai_engine']['provider_name'] = $providerName;
+        $data['ai_engine']['icon'] = $icon;
+        $data['ai_engine']['execution_mode'] = $execMode;
+        $data['ai_engine']['role_routing_enabled'] = $roleRouting;
+        if ($customEndpoint !== '') {
+            $data['ai_engine']['endpoint'] = $customEndpoint;
+        }
+
+        file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        echo json_encode(['success' => true, 'ai_engine' => $data['ai_engine']]);
+        exit;
+    }
+
     // 2. Chat: Enviar consulta a un Agente o a Todos
     if ($action === 'send_chat') {
         $targetRole = (string)($input['target_role'] ?? 'project_manager');
@@ -133,11 +168,22 @@ if ($method === 'POST') {
 
         $replyText = $responses[$targetRole] ?? "Recibido. Analizando requerimiento con mi conjunto de skills asignadas.";
 
+        $aiEngine = $data['ai_engine'] ?? [];
+        $roleRouting = !empty($aiEngine['role_routing_enabled']);
+        $modelUsed = ($roleRouting && !empty($agent['ai_model']))
+            ? $agent['ai_model']
+            : ($aiEngine['active_model'] ?? 'Claude 3.7 Sonnet');
+        $providerUsed = ($roleRouting && !empty($agent['ai_provider']))
+            ? $agent['ai_provider']
+            : ($aiEngine['active_provider'] ?? 'anthropic');
+
         $agentMsg = [
             'id'          => 'MSG-' . (time() + 1),
             'sender_role' => $targetRole,
             'sender_name' => $agentName,
             'avatar'      => $agentAvatar,
+            'ai_model'    => $modelUsed,
+            'ai_provider' => $providerUsed,
             'timestamp'   => date('H:i'),
             'text'        => $replyText,
         ];
@@ -169,8 +215,10 @@ if ($method === 'POST') {
         $alias = 'Expert';
         $specialty = 'Desarrollo de Software';
         $skills = [];
+        $targetRoleObj = null;
         foreach ($data['roles'] as $r) {
             if ($r['id'] === $roleId) {
+                $targetRoleObj = $r;
                 $roleName = $r['name'];
                 $alias = $r['alias'];
                 $specialty = $r['specialty'];
@@ -178,6 +226,27 @@ if ($method === 'POST') {
                 break;
             }
         }
+
+        $aiEngine = $data['ai_engine'] ?? [];
+        $roleRouting = !empty($aiEngine['role_routing_enabled']);
+        $modelUsed = ($roleRouting && !empty($targetRoleObj['ai_model']))
+            ? $targetRoleObj['ai_model']
+            : ($aiEngine['active_model'] ?? 'Claude 3.7 Sonnet');
+        $providerUsed = ($roleRouting && !empty($targetRoleObj['ai_provider']))
+            ? $targetRoleObj['ai_provider']
+            : ($aiEngine['active_provider'] ?? 'anthropic');
+
+        $providerObj = null;
+        foreach (($aiEngine['available_providers'] ?? []) as $p) {
+            if ($p['id'] === $providerUsed) {
+                $providerObj = $p;
+                break;
+            }
+        }
+        $providerName = $providerObj ? $providerObj['name'] : 'Anthropic Claude';
+        $providerIcon = $providerObj ? $providerObj['icon'] : '🟣';
+        $cliCmd = $providerObj ? $providerObj['cli_command'] : 'claude';
+        $execMode = strtoupper($aiEngine['execution_mode'] ?? 'cli');
 
         $skillsFormatted = !empty($skills)
             ? implode(', ', array_map(static fn ($s) => "`$s`", $skills))
@@ -195,9 +264,11 @@ if ($method === 'POST') {
             ? implode("\n", array_map(static fn ($r) => "  - $r", $juris['regulations']))
             : "  - Normativa estándar de comercio electrónico y protección de datos.";
 
-        // Prompt de Scrum Master con Metodología Ágil, Workspace y Jurisdicción Legal
+        // Prompt de Scrum Master con Metodología Ágil, Workspace, Motor IA y Jurisdicción Legal
         $prompt = sprintf(
             "Actúa como %s (%s) especializado en %s.\n\n" .
+            "🤖 MOTOR IA ASIGNADO: %s %s (%s) | Modo: %s\n" .
+            "💻 CLI RECOMENDADO: `%s`\n\n" .
             "📂 CARPETA DE TRABAJO (WORKSPACE ACTIVO):\n%s\n\n" .
             "⚖️ JURISDICCIÓN Y MARCO LEGAL VIGENTE (%s %s):\n%s\n\n" .
             "⚡ SUITE DE SKILLS OBLIGATORIAS:\n%s\n\n" .
@@ -209,6 +280,11 @@ if ($method === 'POST') {
             $roleName,
             $alias,
             $specialty,
+            $providerIcon,
+            $modelUsed,
+            $providerName,
+            $execMode,
+            $cliCmd,
             $ws,
             $juris['country_name'],
             $juris['flag'],
@@ -228,6 +304,8 @@ if ($method === 'POST') {
             'title'           => $title,
             'story_points'    => $points,
             'assigned_to'     => $roleId,
+            'ai_provider'     => $providerUsed,
+            'ai_model'        => $modelUsed,
             'priority'        => $priority,
             'status'          => 'backlog',
             'created_at'      => date('Y-m-d H:i:s'),
