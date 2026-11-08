@@ -207,3 +207,4 @@ export function applyLanguageToDOM() {
         ? 'AgileForge — Scrum 3.0 & Command Center de Agentes IA'
         : 'AgileForge — Scrum 3.0 & AI Agent Command Center';
 }
+

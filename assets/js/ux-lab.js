@@ -69,12 +69,18 @@ export function runDomAccessibilityScan() {
         passedChecks++;
     }
 
-    // 5. Contraste y paleta de colores de fondo
+    // 5. Contraste y paleta de colores de fondo (Soporte temas oscuros y diurnos calibrados)
     totalChecks++;
     const rootTheme = document.documentElement.getAttribute('data-theme') || 'obsidian';
-    const isDark = ['obsidian', 'dracula', 'cyberpunk'].includes(rootTheme);
-    if (isDark) {
+    const validThemes = ['obsidian', 'indigo', 'emerald', 'violet', 'light', 'paper'];
+    if (validThemes.includes(rootTheme)) {
         passedChecks++;
+    } else {
+        issues.push({
+            type: 'warning',
+            title: 'Tema no estandarizado',
+            detail: `El tema actual "${rootTheme}" no está dentro de la paleta contrastada del sistema.`
+        });
     }
 
     const domScore = Math.round((passedChecks / totalChecks) * 100);
