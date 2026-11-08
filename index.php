@@ -52,20 +52,37 @@
         </div>
     </header>
 
-    <!-- Barra de Workspace Activo (Directorio de Trabajo) -->
+    <!-- Barra de Workspace Activo & Jurisdicción Legal -->
     <div class="bg-slate-900 border-b border-slate-800/80 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div class="flex items-center gap-2 text-slate-300">
-            <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Carpeta de Trabajo (Workspace):</span>
-            <span id="active-workspace-display" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2.5 py-1 rounded-lg select-all">
-                D:\xampp\htdocs\canil perruno
-            </span>
-            <button onclick="openChangeWorkspaceModal()" title="Cambiar ruta de trabajo" class="text-slate-400 hover:text-white underline hover:no-underline font-medium ml-1">
-                ✏️ Cambiar Carpeta
-            </button>
+        <div class="flex items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-2 text-slate-300">
+                <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Workspace:</span>
+                <span id="active-workspace-display" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2.5 py-1 rounded-lg select-all">
+                    D:\xampp\htdocs\canil perruno
+                </span>
+                <button onclick="openChangeWorkspaceModal()" title="Cambiar ruta de trabajo" class="text-slate-400 hover:text-white underline hover:no-underline font-medium ml-1">
+                    ✏️ Cambiar
+                </button>
+            </div>
+
+            <div class="h-4 w-px bg-slate-800 hidden sm:block"></div>
+
+            <!-- Jurisdicción y Abogado Legal -->
+            <div class="flex items-center gap-2">
+                <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Jurisdicción Legal:</span>
+                <button onclick="openJurisdictionModal()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-800/80 border border-amber-500/30 text-amber-300 transition group shadow-sm" title="Configurar País y Normativas Legales">
+                    <span id="jurisdiction-flag" class="text-sm">🇵🇪</span>
+                    <span id="jurisdiction-name" class="font-bold text-slate-200 group-hover:text-amber-300">Perú</span>
+                    <span id="jurisdiction-regs-count" class="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-mono border border-amber-500/20">5 leyes</span>
+                    <span class="text-[11px] text-slate-400">⚖️ Configurar</span>
+                </button>
+            </div>
         </div>
-        <div class="flex items-center gap-4 text-slate-400 text-[11px]">
-            <span>Metodología: <strong class="text-slate-200">Scrum + PMBOK 7ma Ed.</strong></span>
-            <span>Estándar: <strong class="text-emerald-400">DoD Cero Deuda Técnica</strong></span>
+
+        <div class="flex items-center gap-3 text-slate-400 text-[11px]">
+            <span class="hidden md:inline">Metodología: <strong class="text-slate-200">Scrum + PMBOK</strong></span>
+            <span>Legal: <strong class="text-amber-400">Abogado IA Online</strong></span>
+            <span>DoD: <strong class="text-emerald-400">100% Blindado</strong></span>
         </div>
     </div>
 
@@ -123,7 +140,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <button onclick="toggleRolesSection()" id="toggle-team-btn" class="text-xs px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition flex items-center gap-1.5">
-                    <span>👥</span> <span id="toggle-team-text">Ver Escuadrón de Agentes (6)</span>
+                    <span>👥</span> <span id="toggle-team-text">Ver Escuadrón de Agentes (7)</span>
                 </button>
             </div>
         </div>
@@ -137,7 +154,7 @@
                     </h3>
                     <p class="text-xs text-slate-400">Cada agente combina roles de ingeniería con paquetes de skills activadas en Claude Code.</p>
                 </div>
-                <span id="role-count" class="text-xs text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full font-mono">6 agentes</span>
+                <span id="role-count" class="text-xs text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full font-mono">7 agentes</span>
             </div>
 
             <div id="roles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
@@ -237,6 +254,9 @@
 
         <!-- Prompts de consulta rápida sugeridos -->
         <div class="px-4 py-1.5 border-t border-slate-800/80 bg-slate-950 flex gap-1.5 overflow-x-auto text-[10px]">
+            <button onclick="quickChatPrompt('¿Qué normativas legales y términos de servicio debemos cumplir en nuestro país?')" class="whitespace-nowrap px-2 py-1 rounded-md bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border border-amber-500/30">
+                ⚖️ Dictamen Legal
+            </button>
             <button onclick="quickChatPrompt('¿Cómo podemos refactorizar este sprint para reducir riesgos?')" class="whitespace-nowrap px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
                 🛡️ Reducir riesgos
             </button>
@@ -278,6 +298,96 @@
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" onclick="closeChangeWorkspaceModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
                 <button type="button" onclick="saveWorkspaceChange()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30">Actualizar Workspace</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Configurar Jurisdicción Legal & Normativas por País -->
+    <div id="jurisdiction-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">⚖️</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Jurisdicción & Normativas Legales</h3>
+                        <p class="text-xs text-amber-300/90">Especialización por país para el Abogado IA & Compliance Officer</p>
+                    </div>
+                </div>
+                <button onclick="closeJurisdictionModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <!-- Botón de Detección Automática Inteligente -->
+            <div class="bg-gradient-to-r from-amber-950/40 via-slate-950 to-slate-950 border border-amber-500/20 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+                <div>
+                    <h4 class="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>⚡</span> Detección Automática de País
+                    </h4>
+                    <p class="text-[11px] text-slate-400">Detecta tu ubicación y marco legal mediante tu zona horaria y red local.</p>
+                </div>
+                <button type="button" onclick="autoDetectCountry()" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow transition flex items-center gap-1.5 whitespace-nowrap">
+                    <span>🌍</span> <span id="autodetect-btn-text">Detectar Ahora</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">País / Marco Jurídico *</label>
+                    <select id="jurisdiction-select" onchange="handleCountryPresetChange(this.value)"
+                            class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-medium text-xs focus:border-amber-500 outline-none">
+                        <option value="PE">🇵🇪 Perú (LPDP, INDECOPI, SUNAT)</option>
+                        <option value="ES">🇪🇸 España / UE (GDPR/RGPD, LSSI, Cookies)</option>
+                        <option value="MX">🇲🇽 México (LFPDPPP, PROFECO, SAT)</option>
+                        <option value="CO">🇨🇴 Colombia (Habeas Data Ley 1581, SIC)</option>
+                        <option value="CL">🇨🇱 Chile (Ley 19.628, SERNAC, SII)</option>
+                        <option value="AR">🇦🇷 Argentina (Habeas Data Ley 25.326, AFIP)</option>
+                        <option value="US">🇺🇸 Estados Unidos (CCPA, ADA, FTC)</option>
+                        <option value="GLOBAL">🌐 Internacional / Multirregional</option>
+                        <option value="CUSTOM">⚙️ Personalizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Nombre & Bandera Personalizados</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="custom-flag-input" placeholder="Bandera (ej: 🇵🇪)" class="w-16 px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center text-sm outline-none focus:border-amber-500">
+                        <input type="text" id="custom-country-input" placeholder="Nombre de país..." class="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-amber-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista Editable de Normativas Legales a Buscar -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="block text-slate-400 uppercase font-bold text-[10px]">Normativas Legales Activas a Auditar</label>
+                    <span id="active-regs-badge" class="text-[10px] font-mono text-amber-300 bg-amber-950/70 px-2 py-0.5 rounded-full border border-amber-500/20">0 activas</span>
+                </div>
+
+                <div id="regulations-list" class="max-h-40 overflow-y-auto space-y-1.5 p-1">
+                    <!-- Chips de normativas dinámicas con botón eliminar -->
+                </div>
+
+                <!-- Input para agregar nueva normativa manual -->
+                <div class="flex gap-2 pt-1">
+                    <input type="text" id="new-regulation-input" placeholder="Agregar ley o normativa (ej: Ley de Cookies o HIPAA)..."
+                           onkeydown="if(event.key === 'Enter'){ event.preventDefault(); addCustomRegulation(); }"
+                           class="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-amber-500">
+                    <button type="button" onclick="addCustomRegulation()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 transition">
+                        + Agregar
+                    </button>
+                </div>
+
+                <!-- Sugerencias rápidas de leyes comunes -->
+                <div class="flex items-center gap-1.5 flex-wrap pt-1 text-[10px]">
+                    <span class="text-slate-500 font-medium">Sugerencias rápidas:</span>
+                    <button type="button" onclick="quickAddRegulation('Libro de Reclamaciones Virtual Obligatorio')" class="px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">+ Libro de Reclamaciones</button>
+                    <button type="button" onclick="quickAddRegulation('Política de Privacidad y Consentimiento Expreso (PII)')" class="px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">+ Privacidad PII</button>
+                    <button type="button" onclick="quickAddRegulation('Términos de Servicio y Exoneración de Responsabilidad')" class="px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">+ Términos & Exoneración</button>
+                    <button type="button" onclick="quickAddRegulation('Consentimiento de Cookies y Rastreadores')" class="px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700">+ Banner de Cookies</button>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button type="button" onclick="closeJurisdictionModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
+                <button type="button" onclick="saveJurisdictionSettings()" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20">Guardar Jurisdicción</button>
             </div>
         </div>
     </div>

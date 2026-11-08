@@ -24,6 +24,7 @@ async function fetchTeamData() {
         const res = await fetch('api/tasks.php');
         appData = await res.json();
         renderWorkspace();
+        renderJurisdictionBadge();
         renderSprintBanner();
         renderRoles();
         renderKanban();
@@ -72,6 +73,289 @@ async function saveWorkspaceChange() {
         }
     } catch (err) {
         alert('Error al actualizar carpeta de trabajo');
+    }
+}
+
+// 1.1 Configuración de Jurisdicción Legal por País & Normativas
+const COUNTRY_PRESETS = {
+    PE: {
+        flag: '🇵🇪',
+        name: 'Perú',
+        regulations: [
+            'Ley N° 29733 (Protección de Datos Personales y Registro de Bancos de Datos)',
+            'Ley N° 29571 (Código de Protección y Defensa del Consumidor)',
+            'D.S. N° 011-2011-PCM (Libro de Reclamaciones Virtual Obligatorio INDECOPI)',
+            'Normativa SUNAT sobre Emisión Electrónica de Comprobantes',
+            'Ley N° 30407 (Protección y Bienestar Animal / Responsabilidad de Custodia)'
+        ]
+    },
+    ES: {
+        flag: '🇪🇸',
+        name: 'España / UE',
+        regulations: [
+            'RGPD / GDPR (Reglamento General de Protección de Datos UE 2016/679)',
+            'LOPD-GDD (Ley Orgánica 3/2018 de Protección de Datos Personales)',
+            'LSSI-CE (Ley de Servicios de la Sociedad de la Información y Comercio Electrónico)',
+            'Directiva de Cookies de la UE y Guía de la AEPD',
+            'Real Decreto Legislativo 1/2007 (Ley General para la Defensa de los Consumidores)'
+        ]
+    },
+    MX: {
+        flag: '🇲🇽',
+        name: 'México',
+        regulations: [
+            'LFPDPPP (Ley Federal de Protección de Datos Personales en Posesión de Particulares)',
+            'Ley Federal de Protección al Consumidor (PROFECO)',
+            'CFDI 4.0 Facturación Electrónica (SAT)',
+            'NOM-151 (Comercio Electrónico y Conservación de Mensajes de Datos)'
+        ]
+    },
+    CO: {
+        flag: '🇨🇴',
+        name: 'Colombia',
+        regulations: [
+            'Ley 1581 de 2012 (Régimen General de Protección de Datos Personales - Habeas Data)',
+            'Ley 1480 de 2011 (Estatuto del Consumidor - SIC)',
+            'Facturación Electrónica DIAN',
+            'Circular Única de Comercio Electrónico de la SIC'
+        ]
+    },
+    CL: {
+        flag: '🇨🇱',
+        name: 'Chile',
+        regulations: [
+            'Ley N° 19.628 (Sobre Protección de la Vida Privada / Datos Personales)',
+            'Ley N° 19.496 (Protección de los Derechos de los Consumidores - SERNAC)',
+            'Resolución Exenta Facturación Electrónica SII'
+        ]
+    },
+    AR: {
+        flag: '🇦🇷',
+        name: 'Argentina',
+        regulations: [
+            'Ley N° 25.326 (Protección de los Datos Personales - Habeas Data)',
+            'Ley N° 24.240 (Defensa del Consumidor) y Botón de Arrepentimiento',
+            'Facturación AFIP RG 4291'
+        ]
+    },
+    US: {
+        flag: '🇺🇸',
+        name: 'Estados Unidos',
+        regulations: [
+            'CCPA / CPRA (California Consumer Privacy Act)',
+            'FTC Act Section 5 (Comercio Electrónico y Prácticas Engañosas)',
+            'ADA Title III (Accesibilidad Web para Personas con Discapacidad)',
+            'CAN-SPAM Act & COPPA (Protección Infantil)'
+        ]
+    },
+    GLOBAL: {
+        flag: '🌐',
+        name: 'Internacional / Multirregional',
+        regulations: [
+            'GDPR / CCPA Harmonized Data Privacy Standard',
+            'WCAG 2.1 AA Legal Accessibility Standard',
+            'ISO/IEC 27001 Information Security Baseline',
+            'Standard Terms of Service & Limitation of Liability'
+        ]
+    }
+};
+
+let tempJurisdiction = {
+    country_code: 'PE',
+    country_name: 'Perú',
+    flag: '🇵🇪',
+    regulations: []
+};
+
+function renderJurisdictionBadge() {
+    const juris = appData.jurisdiction || { country_name: 'Perú', flag: '🇵🇪', regulations: [] };
+    const flagEl = document.getElementById('jurisdiction-flag');
+    const nameEl = document.getElementById('jurisdiction-name');
+    const countEl = document.getElementById('jurisdiction-regs-count');
+
+    if (flagEl) flagEl.textContent = juris.flag || '⚖️';
+    if (nameEl) nameEl.textContent = juris.country_name || 'Perú';
+    if (countEl) countEl.textContent = `${(juris.regulations || []).length} leyes`;
+}
+
+function openJurisdictionModal() {
+    const current = appData.jurisdiction || COUNTRY_PRESETS.PE;
+    tempJurisdiction = {
+        country_code: current.country_code || 'PE',
+        country_name: current.country_name || 'Perú',
+        flag: current.flag || '🇵🇪',
+        regulations: [...(current.regulations || [])]
+    };
+
+    const sel = document.getElementById('jurisdiction-select');
+    if (sel) {
+        sel.value = COUNTRY_PRESETS[tempJurisdiction.country_code] ? tempJurisdiction.country_code : 'CUSTOM';
+    }
+
+    const flagInp = document.getElementById('custom-flag-input');
+    const nameInp = document.getElementById('custom-country-input');
+    if (flagInp) flagInp.value = tempJurisdiction.flag;
+    if (nameInp) nameInp.value = tempJurisdiction.country_name;
+
+    renderRegulationsList();
+    document.getElementById('jurisdiction-modal').classList.remove('hidden');
+}
+
+function closeJurisdictionModal() {
+    document.getElementById('jurisdiction-modal').classList.add('hidden');
+}
+
+function handleCountryPresetChange(presetKey) {
+    if (presetKey === 'CUSTOM') {
+        return;
+    }
+    const preset = COUNTRY_PRESETS[presetKey];
+    if (!preset) return;
+
+    tempJurisdiction.country_code = presetKey;
+    tempJurisdiction.country_name = preset.name;
+    tempJurisdiction.flag = preset.flag;
+    tempJurisdiction.regulations = [...preset.regulations];
+
+    const flagInp = document.getElementById('custom-flag-input');
+    const nameInp = document.getElementById('custom-country-input');
+    if (flagInp) flagInp.value = preset.flag;
+    if (nameInp) nameInp.value = preset.name;
+
+    renderRegulationsList();
+}
+
+function renderRegulationsList() {
+    const container = document.getElementById('regulations-list');
+    const badge = document.getElementById('active-regs-badge');
+    if (!container) return;
+
+    if (badge) badge.textContent = `${tempJurisdiction.regulations.length} activas`;
+
+    if (tempJurisdiction.regulations.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 italic p-2">No hay normativas configuradas. Agrega una o selecciona un preset.</p>`;
+        return;
+    }
+
+    container.innerHTML = tempJurisdiction.regulations.map((reg, idx) => `
+        <div class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-xs text-slate-200">
+            <div class="flex items-center gap-2 truncate">
+                <span class="text-amber-400">⚖️</span>
+                <span class="truncate">${reg}</span>
+            </div>
+            <button type="button" onclick="removeRegulation(${idx})" title="Eliminar normativa" class="text-slate-500 hover:text-red-400 px-1.5 py-0.5 rounded transition">
+                ✕
+            </button>
+        </div>
+    `).join('');
+}
+
+function addCustomRegulation() {
+    const input = document.getElementById('new-regulation-input');
+    if (!input) return;
+    const val = input.value.trim();
+    if (!val) return;
+
+    if (!tempJurisdiction.regulations.includes(val)) {
+        tempJurisdiction.regulations.push(val);
+        renderRegulationsList();
+    }
+    input.value = '';
+    input.focus();
+}
+
+function quickAddRegulation(regName) {
+    if (!tempJurisdiction.regulations.includes(regName)) {
+        tempJurisdiction.regulations.push(regName);
+        renderRegulationsList();
+    }
+}
+
+function removeRegulation(index) {
+    tempJurisdiction.regulations.splice(index, 1);
+    renderRegulationsList();
+}
+
+async function autoDetectCountry() {
+    const btn = document.getElementById('autodetect-btn-text');
+    if (btn) btn.textContent = 'Detectando...';
+
+    let detectedCode = 'PE';
+    let tz = '';
+
+    try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (e) {}
+
+    // Detección por zona horaria de alta precisión
+    if (tz.includes('Lima')) detectedCode = 'PE';
+    else if (tz.includes('Madrid') || tz.includes('Barcelona') || tz.includes('Canary')) detectedCode = 'ES';
+    else if (tz.includes('Mexico') || tz.includes('Monterrey') || tz.includes('Tijuana') || tz.includes('Cancun')) detectedCode = 'MX';
+    else if (tz.includes('Bogota')) detectedCode = 'CO';
+    else if (tz.includes('Santiago') || tz.includes('Easter')) detectedCode = 'CL';
+    else if (tz.includes('Buenos_Aires') || tz.includes('Cordoba') || tz.includes('Mendoza')) detectedCode = 'AR';
+    else if (tz.includes('New_York') || tz.includes('Chicago') || tz.includes('Los_Angeles') || tz.includes('Denver')) detectedCode = 'US';
+
+    // Intento de geolocalización por IP con timeout rápido de 2s
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.country_code && COUNTRY_PRESETS[data.country_code]) {
+                detectedCode = data.country_code;
+            }
+        }
+    } catch (err) {
+        // Fallback robusto a la zona horaria del navegador
+    }
+
+    const sel = document.getElementById('jurisdiction-select');
+    if (sel && COUNTRY_PRESETS[detectedCode]) {
+        sel.value = detectedCode;
+        handleCountryPresetChange(detectedCode);
+    }
+
+    if (btn) {
+        btn.textContent = `¡Detectado: ${COUNTRY_PRESETS[detectedCode]?.name || detectedCode}!`;
+        setTimeout(() => {
+            btn.textContent = 'Detectar Ahora';
+        }, 2500);
+    }
+}
+
+async function saveJurisdictionSettings() {
+    const customFlag = (document.getElementById('custom-flag-input')?.value || '').trim();
+    const customCountry = (document.getElementById('custom-country-input')?.value || '').trim();
+    const sel = document.getElementById('jurisdiction-select')?.value;
+
+    const payload = {
+        action: 'update_jurisdiction',
+        country_code: sel || tempJurisdiction.country_code || 'PE',
+        country_name: customCountry || tempJurisdiction.country_name || 'Perú',
+        flag: customFlag || tempJurisdiction.flag || '🇵🇪',
+        regulations: tempJurisdiction.regulations,
+        auto_detected: false
+    };
+
+    try {
+        const res = await fetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.success) {
+            appData.jurisdiction = result.jurisdiction;
+            renderJurisdictionBadge();
+            closeJurisdictionModal();
+        } else {
+            alert('Error al guardar la jurisdicción');
+        }
+    } catch (err) {
+        alert('Error de conexión');
     }
 }
 
