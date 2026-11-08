@@ -3,93 +3,298 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgileForge · Command Center de Agentes IA</title>
-    <!-- Tailwind CSS CDN para renderizado instantáneo sin compilación pesada -->
+    <title>AgileForge · Command Center Scrum & Multi-Skills de Agentes IA</title>
+    <!-- Tailwind CSS CDN para renderizado instantáneo y dinámico -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        code, pre { font-family: 'JetBrains Mono', monospace; }
+        code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+        /* Scrollbar elegante para paneles y columnas */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- Topbar -->
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
+    <!-- Topbar & Header Principal -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-            <span class="text-3xl p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl">⚡</span>
+            <span class="text-3xl p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl shadow-inner">⚡</span>
             <div>
                 <h1 class="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
-                    AgileForge <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Multi-Skills Engine</span>
+                    AgileForge <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Scrum & PMBOK Engine</span>
                 </h1>
-                <p class="text-xs text-slate-400">Command Center de Agentes IA · Empresa de Software Virtual</p>
+                <p class="text-xs text-slate-400">Command Center de Agentes IA · Empresa de Software Ágil de Primer Nivel</p>
             </div>
         </div>
 
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="flex items-center gap-3 flex-wrap">
+            <!-- Botón para alternar Drawer de Chat de Agentes -->
+            <button onclick="toggleChatDrawer()" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
+                <span>💬</span>
+                <span>Consultar a Agentes</span>
+                <span id="chat-badge" class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+            </button>
+
+            <!-- Indicador Director IA -->
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                Director IA Online (Antigravity)
+                Director General Online
             </div>
-            <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center gap-2">
-                <span>+</span> Asignar Nueva Misión
+
+            <!-- Botón Crear Misión / User Story -->
+            <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5">
+                <span>+</span> Nueva Historia de Usuario
             </button>
         </div>
     </header>
 
-    <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <!-- Barra de Workspace Activo (Directorio de Trabajo) -->
+    <div class="bg-slate-900 border-b border-slate-800/80 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2 text-slate-300">
+            <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Carpeta de Trabajo (Workspace):</span>
+            <span id="active-workspace-display" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2.5 py-1 rounded-lg select-all">
+                D:\xampp\htdocs\canil perruno
+            </span>
+            <button onclick="openChangeWorkspaceModal()" title="Cambiar ruta de trabajo" class="text-slate-400 hover:text-white underline hover:no-underline font-medium ml-1">
+                ✏️ Cambiar Carpeta
+            </button>
+        </div>
+        <div class="flex items-center gap-4 text-slate-400 text-[11px]">
+            <span>Metodología: <strong class="text-slate-200">Scrum + PMBOK 7ma Ed.</strong></span>
+            <span>Estándar: <strong class="text-emerald-400">DoD Cero Deuda Técnica</strong></span>
+        </div>
+    </div>
 
-        <!-- Columna Izquierda: Escuadrón de Agentes Especialistas (5 cols) -->
-        <section class="lg:col-span-5 space-y-4">
-            <div class="flex items-center justify-between mb-2">
-                <h2 class="font-bold text-sm text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                    <span>👥</span> Agentes Especialistas & Multi-Skills
-                </h2>
-                <span id="role-count" class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full font-mono">0 agentes</span>
+    <!-- Sprint Banner (Métricas Scrum) -->
+    <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-2">
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                    <span id="sprint-number-badge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">Sprint 1</span>
+                    <h2 id="sprint-name" class="font-extrabold text-white text-base sm:text-lg">Sprint 1: Experiencia Vareon & Movilidad Inteligente</h2>
+                </div>
+                <p id="sprint-goal" class="text-xs text-slate-300 max-w-2xl">
+                    Desplegar el selector de distritos, cotizador de movilidad por km y refinamiento UX con DoD 100% verde.
+                </p>
             </div>
 
-            <div id="roles-container" class="space-y-3">
-                <!-- Carga dinámica vía JS -->
-            </div>
-        </section>
-
-        <!-- Columna Derecha: Tablero Kanban de Misiones y Generador de Prompts (7 cols) -->
-        <section class="lg:col-span-7 space-y-6">
-
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <!-- Métricas Clave del Sprint -->
+            <div class="flex items-center gap-4 sm:gap-6 bg-slate-950/70 border border-slate-800/80 px-4 py-3 rounded-2xl">
                 <div>
-                    <h2 class="font-extrabold text-xl text-white">Tablero de Operaciones</h2>
-                    <p class="text-xs text-slate-400">Gestiona tareas, copia prompts con skills inyectadas y audita en 1 clic.</p>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Velocidad Sprint</span>
+                    <div class="text-base font-extrabold text-indigo-400 font-mono flex items-baseline gap-1">
+                        <span id="sprint-points-done">0</span>
+                        <span class="text-xs text-slate-500">/ <span id="sprint-velocity">24</span> pts</span>
+                    </div>
                 </div>
-                <div class="flex gap-2 text-xs">
-                    <button onclick="filterTasks('todas')" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium filter-btn" data-f="todas">Todas</button>
-                    <button onclick="filterTasks('en_progreso')" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-medium filter-btn" data-f="en_progreso">En Progreso</button>
-                    <button onclick="filterTasks('completada')" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 font-medium filter-btn" data-f="completada">Completadas</button>
+                <div class="w-px h-8 bg-slate-800"></div>
+                <div>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Tiempo Restante</span>
+                    <div class="text-base font-extrabold text-amber-400 font-mono flex items-baseline gap-1">
+                        <span id="sprint-days-remaining">4</span>
+                        <span class="text-xs text-slate-500">días</span>
+                    </div>
+                </div>
+                <div class="w-px h-8 bg-slate-800"></div>
+                <div>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Cumplimiento DoD</span>
+                    <div class="text-base font-extrabold text-emerald-400 font-mono" id="sprint-dod-pct">
+                        0%
+                    </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Lista de Tareas -->
-            <div id="tasks-container" class="space-y-4">
-                <!-- Carga dinámica vía JS -->
+    <!-- Contenido Principal: Tablero Kanban Scrum (4 Columnas) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+        <!-- Barra de Filtro y Resumen -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+                <h2 class="font-extrabold text-lg text-white flex items-center gap-2">
+                    <span>📌</span> Tablero Kanban de Scrum
+                </h2>
+                <p class="text-xs text-slate-400">Flujo ágil con Historias de Usuario, Story Points, Criterios de Aceptación y DoD estricto.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleRolesSection()" id="toggle-team-btn" class="text-xs px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition flex items-center gap-1.5">
+                    <span>👥</span> <span id="toggle-team-text">Ver Escuadrón de Agentes (6)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Sección Desplegable: Escuadrón de Agentes & Multi-Skills -->
+        <section id="roles-section" class="hidden bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <div>
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                        <span>🤖</span> Escuadrón Especialista de IA & Configuración Multi-Skills
+                    </h3>
+                    <p class="text-xs text-slate-400">Cada agente combina roles de ingeniería con paquetes de skills activadas en Claude Code.</p>
+                </div>
+                <span id="role-count" class="text-xs text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full font-mono">6 agentes</span>
             </div>
 
+            <div id="roles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <!-- Se cargan dinámicamente con renderRoles() -->
+            </div>
         </section>
+
+        <!-- Columnas del Tablero Kanban -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+
+            <!-- Columna 1: Product / Sprint Backlog -->
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl flex flex-col max-h-[750px]">
+                <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 rounded-t-2xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-slate-200">Backlog</h4>
+                    </div>
+                    <span id="col-count-backlog" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 pts</span>
+                </div>
+                <div id="col-backlog" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <!-- Tarjetas dinámicas -->
+                </div>
+            </div>
+
+            <!-- Columna 2: En Progreso -->
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl flex flex-col max-h-[750px]">
+                <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 rounded-t-2xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-amber-300">En Progreso</h4>
+                    </div>
+                    <span id="col-count-en_progreso" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-500/20">0 pts</span>
+                </div>
+                <div id="col-en_progreso" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <!-- Tarjetas dinámicas -->
+                </div>
+            </div>
+
+            <!-- Columna 3: En Revisión / Auditoría DoD -->
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl flex flex-col max-h-[750px]">
+                <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 rounded-t-2xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-purple-300">En Revisión (DoD)</h4>
+                    </div>
+                    <span id="col-count-revision" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-300 border border-purple-500/20">0 pts</span>
+                </div>
+                <div id="col-revision" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <!-- Tarjetas dinámicas -->
+                </div>
+            </div>
+
+            <!-- Columna 4: Completadas -->
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl flex flex-col max-h-[750px]">
+                <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 rounded-t-2xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-emerald-300">Completadas</h4>
+                    </div>
+                    <span id="col-count-completada" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-500/20">0 pts</span>
+                </div>
+                <div id="col-completada" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <!-- Tarjetas dinámicas -->
+                </div>
+            </div>
+
+        </div>
 
     </main>
+
+    <!-- Drawer Lateral: Chat de Consulta Ágil con los Agentes -->
+    <div id="chat-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <!-- Header del Chat -->
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+            <div class="flex items-center gap-2.5">
+                <span class="text-2xl">💬</span>
+                <div>
+                    <h3 class="font-extrabold text-sm text-white">Sala de Consulta Ágil</h3>
+                    <p class="text-[11px] text-slate-400">Pregunta a tu PM, Director Creativo o Arquitecto</p>
+                </div>
+            </div>
+            <button onclick="toggleChatDrawer()" class="text-slate-400 hover:text-white text-xl p-1">✕</button>
+        </div>
+
+        <!-- Selector de Agente Destino para la Consulta -->
+        <div class="px-4 py-2.5 bg-slate-950 border-b border-slate-800 flex items-center gap-2 text-xs">
+            <label class="text-slate-400 whitespace-nowrap">Consultar a:</label>
+            <select id="chat-target-role" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1.5 outline-none focus:border-indigo-500">
+                <!-- Opciones dinámicas -->
+            </select>
+        </div>
+
+        <!-- Feed de Mensajes -->
+        <div id="chat-messages" class="flex-1 p-4 space-y-3 overflow-y-auto">
+            <!-- Mensajes dinámicos -->
+        </div>
+
+        <!-- Prompts de consulta rápida sugeridos -->
+        <div class="px-4 py-1.5 border-t border-slate-800/80 bg-slate-950 flex gap-1.5 overflow-x-auto text-[10px]">
+            <button onclick="quickChatPrompt('¿Cómo podemos refactorizar este sprint para reducir riesgos?')" class="whitespace-nowrap px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
+                🛡️ Reducir riesgos
+            </button>
+            <button onclick="quickChatPrompt('¿Qué elemento innovador podemos sumar a la experiencia?')" class="whitespace-nowrap px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
+                💡 Innovación creativa
+            </button>
+            <button onclick="quickChatPrompt('¿Cumplimos la Definition of Done en los tests?')" class="whitespace-nowrap px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300">
+                ✅ Verificar DoD
+            </button>
+        </div>
+
+        <!-- Formulario de Envío de Mensaje -->
+        <form id="chat-form" onsubmit="handleSendChat(event)" class="p-3.5 border-t border-slate-800 bg-slate-900/90 flex gap-2">
+            <input type="text" id="chat-input" placeholder="Haz una consulta estratégica a este agente..."
+                   class="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500">
+            <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow flex items-center gap-1">
+                <span>Enviar</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Modal: Cambiar Carpeta de Trabajo (Workspace) -->
+    <div id="workspace-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-bold text-base text-white flex items-center gap-2">
+                    <span>📂</span> Cambiar Carpeta de Trabajo
+                </h3>
+                <button onclick="closeChangeWorkspaceModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <p class="text-xs text-slate-300">
+                Ingresa la ruta absoluta de la carpeta sobre la cual operarán los agentes (ej: el repo del proyecto en desarrollo).
+            </p>
+            <div>
+                <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta del Proyecto</label>
+                <input type="text" id="workspace-input" placeholder="D:\xampp\htdocs\canil perruno"
+                       class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-indigo-500 outline-none">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="closeChangeWorkspaceModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
+                <button type="button" onclick="saveWorkspaceChange()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30">Actualizar Workspace</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Configurar Multi-Skills por Agente -->
     <div id="skills-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                    <h3 class="font-bold text-lg text-white">Configurar Toolkit de Skills</h3>
+                    <h3 class="font-bold text-base text-white">Configurar Toolkit de Skills</h3>
                     <p id="skills-modal-agent" class="text-xs text-indigo-400 font-mono">Agente</p>
                 </div>
                 <button onclick="closeSkillsConfig()" class="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
 
             <p class="text-xs text-slate-300">
-                Selecciona las skills de tu carpeta global de Claude Code que este agente domina. Cuando delegues una tarea a este agente, <strong>AgileForge inyectará automáticamente la orden de invocar este paquete de skills</strong>.
+                Selecciona las skills globales de Claude Code que domina este agente. Al delegarle una tarea, <strong>AgileForge inyectará automáticamente la orden de invocar este paquete de skills</strong>.
             </p>
 
             <div id="skills-checkboxes" class="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto p-1">
@@ -103,31 +308,47 @@
         </div>
     </div>
 
-    <!-- Modal: Asignar Nueva Tarea -->
+    <!-- Modal: Asignar Nueva Historia de Usuario (Scrum) -->
     <div id="new-task-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-                <h3 class="font-bold text-lg text-white">Delegar Tarea a un Agente</h3>
+                <div>
+                    <h3 class="font-bold text-base text-white flex items-center gap-2">
+                        <span>🎯</span> Crear Historia de Usuario (Scrum)
+                    </h3>
+                    <p class="text-xs text-slate-400">Inyecta rol, workspace, multi-skills y Definition of Done.</p>
+                </div>
                 <button onclick="closeNewTaskModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
 
-            <form id="task-form" onsubmit="handleCreateTask(event)" class="space-y-4 text-xs">
+            <form id="task-form" onsubmit="handleCreateTask(event)" class="space-y-3.5 text-xs">
                 <div>
-                    <label class="block text-slate-400 uppercase font-bold mb-1">Título de la Misión *</label>
-                    <input type="text" id="task-title" required placeholder="Ej: Implementar cálculo de movilidad por km"
-                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-sm">
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Título de la Misión / Historia *</label>
+                    <input type="text" id="task-title" required placeholder="Ej: Implementar cotizador de movilidad por km y mapa"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs">
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-2.5">
                     <div>
-                        <label class="block text-slate-400 uppercase font-bold mb-1">Asignar al Agente *</label>
-                        <select id="task-role" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none">
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Agente Asignado *</label>
+                        <select id="task-role" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none">
                             <!-- Opciones cargadas dinámicamente -->
                         </select>
                     </div>
                     <div>
-                        <label class="block text-slate-400 uppercase font-bold mb-1">Prioridad</label>
-                        <select id="task-priority" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none">
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Story Points (Fib)</label>
+                        <select id="task-points" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none font-mono">
+                            <option value="1">1 pt (Trivial)</option>
+                            <option value="2">2 pts (Menor)</option>
+                            <option value="3" selected>3 pts (Estándar)</option>
+                            <option value="5">5 pts (Complejo)</option>
+                            <option value="8">8 pts (Épica)</option>
+                            <option value="13">13 pts (Mayor)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Prioridad</label>
+                        <select id="task-priority" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none">
                             <option value="media">Media</option>
                             <option value="alta">Alta</option>
                             <option value="critica">Crítica (Bloqueante)</option>
@@ -137,14 +358,26 @@
                 </div>
 
                 <div>
-                    <label class="block text-slate-400 uppercase font-bold mb-1">Detalles y Especificaciones Técnicas</label>
-                    <textarea id="task-desc" rows="4" placeholder="Describe los requisitos, archivos a tocar o reglas que debe respetar el agente..."
-                              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none"></textarea>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Historia de Usuario (Formato Ágil)</label>
+                    <input type="text" id="task-user-story" placeholder="Como cliente quiero ver el costo por km para presupuestar la estadía de mi perro"
+                           class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs">
                 </div>
 
-                <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Generar Prompt con Multi-Skills</button>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Definition of Done (DoD - Criterios de Aceptación)</label>
+                    <input type="text" id="task-dod" value="Lint 0 errores, tests automatizados en verde, sin romper arquitectura."
+                           class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs">
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Detalles Técnicos y Archivos</label>
+                    <textarea id="task-desc" rows="3" placeholder="Especificaciones de implementación, rutas de archivos a editar o precauciones..."
+                              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Generar Prompt con Multi-Skills</button>
                 </div>
             </form>
         </div>
@@ -156,7 +389,7 @@
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div class="flex items-center gap-2">
                     <span id="prompt-modal-badge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-indigo-500/20 text-indigo-400">Prompt de Misión</span>
-                    <h3 id="prompt-modal-title" class="font-bold text-white text-base">Título</h3>
+                    <h3 id="prompt-modal-title" class="font-bold text-white text-base truncate max-w-md">Título</h3>
                 </div>
                 <button onclick="closePromptModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
@@ -176,7 +409,7 @@
         </div>
     </div>
 
-    <!-- Script de Control -->
+    <!-- Script de Control Frontend -->
     <script src="assets/js/app.js"></script>
 </body>
 </html>
