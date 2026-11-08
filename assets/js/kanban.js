@@ -45,8 +45,15 @@ export function renderKanban() {
         completada: document.getElementById('col-completada')
     };
 
+    // DocumentFragments para batching atómico y prevención de reflows
+    const fragments = {
+        backlog: document.createDocumentFragment(),
+        en_progreso: document.createDocumentFragment(),
+        revision: document.createDocumentFragment(),
+        completada: document.createDocumentFragment()
+    };
+
     const counts = { backlog: 0, en_progreso: 0, revision: 0, completada: 0 };
-    Object.values(cols).forEach(c => { if (c) c.innerHTML = ''; });
 
     const priorityBadge = {
         critica: 'bg-red-950/80 text-red-300 border-red-500/30',
@@ -153,7 +160,14 @@ export function renderKanban() {
             </div>
         `;
 
-        if (cols[t.status]) cols[t.status].appendChild(card);
+        if (fragments[t.status]) fragments[t.status].appendChild(card);
+    });
+
+    // Inyección atómica al DOM (previene reflows múltiples y parpadeos)
+    Object.keys(cols).forEach(status => {
+        const col = cols[status];
+        if (!col) return;
+        col.replaceChildren(fragments[status]);
     });
 
     // Actualizar contador de historias filtradas

@@ -127,12 +127,21 @@ class TaskController
             Bootstrap::jsonResponse(['error' => 'Se requiere evidencia de cambios (archivos modificados o resumen de entrega)'], 422);
         }
 
+        // Generar sello de procedencia de autoría (AI Attribution & IP Provenance)
+        $provHash = hash('sha256', "{$id}|{$roleKey}|" . microtime(true) . '|' . json_encode($evidence));
+        $evidence['provenance'] = [
+            'watermark'         => 'AF-PROV-' . strtoupper(substr($provHash, 0, 12)),
+            'provenance_hash'   => $provHash,
+            'attributable_role' => $roleKey,
+            'certified_at'      => date('c')
+        ];
+
         Database::transaction(function (PDO $pdo) use ($id, $evidence, $roleKey, $summary) {
             $stmt = $pdo->prepare("UPDATE tasks SET status = 'revision', review_evidence_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([json_encode($evidence, JSON_UNESCAPED_UNICODE), $id]);
 
             $this->repo->recordEvent($id, $roleKey, 'submitted_for_review', $evidence, 'mcp');
-            $this->repo->addComment($id, $roleKey, $roleKey, '📤', "Entregado a Revisión: {$summary}");
+            $this->repo->addComment($id, $roleKey, $roleKey, '📤', "Entregado a Revisión (Sello {$evidence['provenance']['watermark']}): {$summary}");
         });
 
         Bootstrap::jsonResponse(['success' => true, 'task_id' => $id, 'status' => 'revision']);

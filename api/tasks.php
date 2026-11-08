@@ -137,6 +137,7 @@ if ($method === 'POST') {
             break;
 
         case 'update_status':
+        case 'update_task_status':
             $taskId = (string)($input['task_id'] ?? '');
             $status = (string)($input['status'] ?? '');
             $note = isset($input['note']) ? (string)$input['note'] : null;
@@ -216,6 +217,20 @@ if ($method === 'POST') {
             break;
 
         // Salas de Reunión
+        case 'start_meeting':
+            $meetingCtrl->start($input);
+            break;
+
+        case 'add_meeting_turn':
+            $meetingId = (string)($input['meeting_id'] ?? '');
+            $meetingCtrl->addTurn($meetingId, $input);
+            break;
+
+        case 'close_meeting':
+            $meetingId = (string)($input['meeting_id'] ?? '');
+            $meetingCtrl->close($meetingId, $input);
+            break;
+
         case 'run_agent_meeting':
         case 'launch_collaborative_meeting':
             $meetingCtrl->runAgentMeeting($input);

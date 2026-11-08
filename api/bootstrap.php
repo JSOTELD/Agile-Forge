@@ -26,6 +26,57 @@ class Bootstrap
 
         self::loadEnv();
         self::verifyHostAndOrigin();
+        self::checkRateLimit();
+    }
+
+    public static function checkRateLimit(int $maxPerMinute = 180): void
+    {
+        // No aplicar límite en pruebas directas por CLI
+        if (php_sapi_name() === 'cli') {
+            return;
+        }
+
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $now = time();
+        $minute = (int)($now / 60);
+
+        // Almacenar conteo en archivo de cache temporal
+        $tempDir = sys_get_temp_dir() . '/agileforge_ratelimit';
+        if (!is_dir($tempDir)) {
+            @mkdir($tempDir, 0777, true);
+        }
+
+        $hashKey = md5($ip . '_' . self::getToken() . '_' . $minute);
+        $file = $tempDir . '/' . $hashKey . '.json';
+
+        $currentCount = 1;
+        if (file_exists($file)) {
+            $data = json_decode((string)file_get_contents($file), true) ?: [];
+            $currentCount = (int)($data['count'] ?? 0) + 1;
+        }
+
+        @file_put_contents($file, json_encode(['count' => $currentCount, 'time' => $now]), LOCK_EX);
+
+        // Limpiar archivos viejos (1 de cada 100 peticiones)
+        if (rand(1, 100) === 1) {
+            foreach (glob($tempDir . '/*.json') ?: [] as $oldFile) {
+                if (filemtime($oldFile) < ($now - 120)) {
+                    @unlink($oldFile);
+                }
+            }
+        }
+
+        // Si excede el límite permitido por minuto
+        if ($currentCount > $maxPerMinute) {
+            http_response_code(429);
+            header('Retry-After: 60');
+            echo json_encode([
+                'error' => 'Rate limit local excedido: detector de bucles de agentes de IA activado.',
+                'detail' => "Se superaron las {$maxPerMinute} peticiones en 60 segundos.",
+                'hint' => 'Verifica si algún subagente está ejecutando herramientas en bucle recursivo sin condición de parada.'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
     }
 
     public static function loadEnv(): void

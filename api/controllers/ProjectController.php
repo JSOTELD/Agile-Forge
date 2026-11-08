@@ -159,8 +159,10 @@ class ProjectController
         $suggestedTasks = [];
 
         if (is_dir($gitDir)) {
-            // Leer los últimos 10 commits para armar backlog sugerido
-            $cmd = 'git -C ' . escapeshellarg($cleanPath) . ' log -n 10 --pretty=format:"%h|%s" 2>&1';
+            // Leer commits con paginación acotada (máx 50) para evitar timeouts en repositorios masivos
+            $limit = min(50, max(5, (int)($input['limit'] ?? 15)));
+            $skip = max(0, (int)($input['skip'] ?? 0));
+            $cmd = 'git -C ' . escapeshellarg($cleanPath) . ' log -n ' . $limit . ' --skip=' . $skip . ' --pretty=format:"%h|%s" 2>&1';
             $output = [];
             $exitCode = 0;
             @exec($cmd, $output, $exitCode);

@@ -78,12 +78,14 @@ class MeetingController
         $title = trim((string)($input['title'] ?? "Reunión: {$topic}"));
         $participants = is_array($input['participants'] ?? null) ? $input['participants'] : ['project_manager', 'lead_architect'];
 
-        Database::transaction(function (PDO $pdo) use ($id, $title, $type, $topic, $participants) {
+        $projectId = trim((string)($input['project_id'] ?? $this->repo->getActiveProject()['id'] ?? 'default'));
+
+        Database::transaction(function (PDO $pdo) use ($id, $projectId, $title, $type, $topic, $participants) {
             $stmt = $pdo->prepare(
                 "INSERT INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted)
-                 VALUES (?, 'default', ?, ?, ?, ?, '', '', '[]', 0)"
+                 VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', 0)"
             );
-            $stmt->execute([$id, $title, $type, $topic, json_encode($participants, JSON_UNESCAPED_UNICODE)]);
+            $stmt->execute([$id, $projectId, $title, $type, $topic, json_encode($participants, JSON_UNESCAPED_UNICODE)]);
         });
 
         $this->show($id);
@@ -443,10 +445,14 @@ class MeetingController
         }
 
         $createdTasks = [];
-        Database::transaction(function (PDO $pdo) use ($meeting, $actionItems, &$createdTasks) {
+        $projectId = !empty($meeting['project_id']) && $meeting['project_id'] !== 'default'
+            ? $meeting['project_id']
+            : ($this->repo->getActiveProject()['id'] ?? 'default');
+
+        Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks) {
             $tStmt = $pdo->prepare(
                 "INSERT INTO tasks (id, project_id, title, story_points, assigned_to, priority, status, user_story, dod, description, skills_json, prompt_template)
-                 VALUES (?, 'default', ?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?)"
+                 VALUES (?, ?, ?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?)"
             );
 
             foreach ($actionItems as $idx => $item) {
@@ -461,7 +467,7 @@ class MeetingController
                 $prompt = "Actúa como {$role}. Ejecuta la tarea: {$title}. DoD: {$dod}";
 
                 $tStmt->execute([
-                    $taskId, $title, $points, $role, $priority, $userStory, $dod, $desc,
+                    $taskId, $projectId, $title, $points, $role, $priority, $userStory, $dod, $desc,
                     json_encode(['lean-compact'], JSON_UNESCAPED_UNICODE), $prompt
                 ]);
 
