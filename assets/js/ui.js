@@ -10,16 +10,27 @@ export function showToast(title, message, type = 'info', duration = 3500) {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'obsidian';
+    const isLight = (currentTheme === 'light' || currentTheme === 'paper');
+
     const toast = document.createElement('div');
     const toastId = 'toast-' + Date.now();
     toast.id = toastId;
 
-    const colors = {
+    const colorsDark = {
         success: 'border-emerald-500/40 bg-slate-900/95 text-emerald-300 shadow-emerald-950/40',
         error:   'border-rose-500/40 bg-slate-900/95 text-rose-300 shadow-rose-950/40',
         warning: 'border-amber-500/40 bg-slate-900/95 text-amber-300 shadow-amber-950/40',
         info:    'border-indigo-500/40 bg-slate-900/95 text-indigo-300 shadow-indigo-950/40',
         magic:   'border-purple-500/40 bg-slate-900/95 text-purple-300 shadow-purple-950/40'
+    };
+
+    const colorsLight = {
+        success: 'border-emerald-200 bg-white text-emerald-700 shadow-xl border-l-4 border-l-emerald-500',
+        error:   'border-rose-200 bg-white text-rose-700 shadow-xl border-l-4 border-l-rose-500',
+        warning: 'border-amber-200 bg-white text-amber-800 shadow-xl border-l-4 border-l-amber-500',
+        info:    'border-indigo-200 bg-white text-indigo-700 shadow-xl border-l-4 border-l-indigo-600',
+        magic:   'border-purple-200 bg-white text-purple-700 shadow-xl border-l-4 border-l-purple-600'
     };
 
     const icons = {
@@ -30,17 +41,17 @@ export function showToast(title, message, type = 'info', duration = 3500) {
         magic:   '⚡'
     };
 
-    const colorClass = colors[type] || colors.info;
+    const colorClass = (isLight ? colorsLight[type] : colorsDark[type]) || (isLight ? colorsLight.info : colorsDark.info);
     const icon = icons[type] || 'ℹ️';
 
-    toast.className = `border rounded-2xl p-4 shadow-xl backdrop-blur-md flex items-start gap-3 transition-all duration-300 transform translate-y-2 opacity-0 max-w-sm w-full ${colorClass}`;
+    toast.className = `toast-card toast-${type} border rounded-2xl p-4 shadow-xl backdrop-blur-md flex items-start gap-3 transition-all duration-300 transform translate-y-2 opacity-0 max-w-sm w-full pointer-events-auto ${colorClass}`;
     toast.innerHTML = `
-        <span class="text-base font-bold select-none">${icon}</span>
+        <span class="text-base font-bold select-none shrink-0">${icon}</span>
         <div class="flex-1 min-w-0">
-            <h5 class="text-xs font-bold text-white tracking-wide">${escapeHtml(title)}</h5>
-            <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed">${escapeHtml(message)}</p>
+            <h5 class="text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'} tracking-wide">${escapeHtml(title)}</h5>
+            <p class="text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-300'} mt-0.5 leading-relaxed">${escapeHtml(message)}</p>
         </div>
-        <button onclick="document.getElementById('${toastId}')?.remove()" class="text-slate-400 hover:text-white text-xs select-none">✕</button>
+        <button onclick="document.getElementById('${toastId}')?.remove()" class="${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-400 hover:text-white'} text-xs select-none">✕</button>
     `;
 
     container.appendChild(toast);

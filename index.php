@@ -472,6 +472,200 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             color: #0f172a !important;
         }
 
+        html.theme-light .kanban-col .text-amber-300,
+        html.theme-paper .kanban-col .text-amber-300 {
+            color: #b45309 !important;
+        }
+
+        html.theme-light .kanban-col .text-purple-300,
+        html.theme-paper .kanban-col .text-purple-300 {
+            color: #7e22ce !important;
+        }
+
+        html.theme-light .kanban-col .text-emerald-300,
+        html.theme-paper .kanban-col .text-emerald-300 {
+            color: #047857 !important;
+        }
+
+        html.theme-light .kanban-col .text-slate-200,
+        html.theme-paper .kanban-col .text-slate-200 {
+            color: #334155 !important;
+        }
+
+        html.theme-light .kanban-col #col-count-backlog,
+        html.theme-paper .kanban-col #col-count-backlog {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        html.theme-light .kanban-col #col-count-en_progreso,
+        html.theme-paper .kanban-col #col-count-en_progreso {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1px solid #fde68a !important;
+        }
+
+        html.theme-light .kanban-col #col-count-revision,
+        html.theme-paper .kanban-col #col-count-revision {
+            background-color: #f3e8ff !important;
+            color: #6b21a8 !important;
+            border: 1px solid #e9d5ff !important;
+        }
+
+        html.theme-light .kanban-col #col-count-completada,
+        html.theme-paper .kanban-col #col-count-completada {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1px solid #a7f3d0 !important;
+        }
+
+        /* 5. Barra de Filtros en Modo Día */
+        html.theme-light #kanban-search,
+        html.theme-paper #kanban-search,
+        html.theme-light #kanban-filter-role,
+        html.theme-paper #kanban-filter-role,
+        html.theme-light #kanban-filter-priority,
+        html.theme-paper #kanban-filter-priority,
+        html.theme-light #kanban-filter-skill,
+        html.theme-paper #kanban-filter-skill,
+        html.theme-light #kanban-filter-count,
+        html.theme-paper #kanban-filter-count {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        /* 6. Botones de Cabecera con bordes nítidos */
+        html.theme-light header button,
+        html.theme-paper header button {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #1e293b !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        html.theme-light header button:hover,
+        html.theme-paper header button:hover {
+            background-color: #f8fafc !important;
+            border-color: #94a3b8 !important;
+            color: #0f172a !important;
+        }
+
+        html.theme-light header .text-slate-400,
+        html.theme-paper header .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        html.theme-light header .text-slate-200,
+        html.theme-paper header .text-slate-200 {
+            color: #1e293b !important;
+        }
+
+        /* 7. Tabs de Navegación */
+        html.theme-light .tab-inactive,
+        html.theme-paper .tab-inactive {
+            color: #475569 !important;
+        }
+
+        html.theme-light .tab-inactive:hover,
+        html.theme-paper .tab-inactive:hover {
+            color: #0f172a !important;
+            background-color: #f1f5f9 !important;
+        }
+
+        /* 8. Barra de Proyecto */
+        html.theme-light nav .bg-slate-900\/60,
+        html.theme-paper nav .bg-slate-900\/60,
+        html.theme-light #project-selector,
+        html.theme-paper #project-selector {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+
+        /* 9. Notificaciones Toast en Modo Día */
+        html.theme-light .toast-card,
+        html.theme-paper .toast-card {
+            background-color: #ffffff !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        html.theme-light .toast-card h5,
+        html.theme-paper .toast-card h5 {
+            color: #0f172a !important;
+        }
+
+        html.theme-light .toast-card p,
+        html.theme-paper .toast-card p {
+            color: #475569 !important;
+        }
+
+        html.theme-light .toast-card button,
+        html.theme-paper .toast-card button {
+            color: #94a3b8 !important;
+        }
+
+        html.theme-light .toast-card button:hover,
+        html.theme-paper .toast-card button:hover {
+            color: #0f172a !important;
+        }
+
+        html.theme-light .toast-card.toast-success,
+        html.theme-paper .toast-card.toast-success {
+            background-color: #ffffff !important;
+            border-color: #a7f3d0 !important;
+            border-left: 4px solid #10b981 !important;
+        }
+        html.theme-light .toast-card.toast-success > span:first-child,
+        html.theme-paper .toast-card.toast-success > span:first-child {
+            color: #059669 !important;
+        }
+
+        html.theme-light .toast-card.toast-error,
+        html.theme-paper .toast-card.toast-error {
+            background-color: #ffffff !important;
+            border-color: #fecdd3 !important;
+            border-left: 4px solid #f43f5e !important;
+        }
+        html.theme-light .toast-card.toast-error > span:first-child,
+        html.theme-paper .toast-card.toast-error > span:first-child {
+            color: #e11d48 !important;
+        }
+
+        html.theme-light .toast-card.toast-warning,
+        html.theme-paper .toast-card.toast-warning {
+            background-color: #ffffff !important;
+            border-color: #fde68a !important;
+            border-left: 4px solid #f59e0b !important;
+        }
+        html.theme-light .toast-card.toast-warning > span:first-child,
+        html.theme-paper .toast-card.toast-warning > span:first-child {
+            color: #d97706 !important;
+        }
+
+        html.theme-light .toast-card.toast-info,
+        html.theme-paper .toast-card.toast-info {
+            background-color: #ffffff !important;
+            border-color: #c7d2fe !important;
+            border-left: 4px solid #6366f1 !important;
+        }
+        html.theme-light .toast-card.toast-info > span:first-child,
+        html.theme-paper .toast-card.toast-info > span:first-child {
+            color: #4f46e5 !important;
+        }
+
+        html.theme-light .toast-card.toast-magic,
+        html.theme-paper .toast-card.toast-magic {
+            background-color: #ffffff !important;
+            border-color: #ddd6fe !important;
+            border-left: 4px solid #8b5cf6 !important;
+        }
+        html.theme-light .toast-card.toast-magic > span:first-child,
+        html.theme-paper .toast-card.toast-magic > span:first-child {
+            color: #7c3aed !important;
+        }
+
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: var(--bg-base);
