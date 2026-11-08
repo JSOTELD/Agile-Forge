@@ -36,10 +36,10 @@ if ($method === 'POST') {
 
     $action = $input['action'];
 
-    // 1. Crear nueva tarea y autogenerar prompt
+    // 1. Crear nueva tarea y autogenerar prompt con Multi-Skills inyectadas
     if ($action === 'create_task') {
         $title = trim((string)($input['title'] ?? ''));
-        $roleId = trim((string)($input['assigned_to'] ?? 'backend_engineer'));
+        $roleId = trim((string)($input['assigned_to'] ?? 'backend_architect'));
         $priority = in_array($input['priority'] ?? '', ['baja', 'media', 'alta', 'critica'], true) ? $input['priority'] : 'media';
         $desc = trim((string)($input['description'] ?? ''));
 
@@ -49,28 +49,40 @@ if ($method === 'POST') {
             exit;
         }
 
-        // Buscar el rol
+        // Buscar el rol y sus skills asignadas
         $roleName = 'Especialista';
+        $alias = 'Expert';
         $specialty = 'Desarrollo de Software';
+        $skills = [];
         foreach ($data['roles'] as $r) {
             if ($r['id'] === $roleId) {
                 $roleName = $r['name'];
+                $alias = $r['alias'];
                 $specialty = $r['specialty'];
+                $skills = $r['assigned_skills'] ?? [];
                 break;
             }
         }
 
-        // Autogenerador de Prompt de Alta Precisión
+        $skillsFormatted = !empty($skills)
+            ? implode(', ', array_map(static fn ($s) => "`$s`", $skills))
+            : '`context-sentinel`';
+
+        // Autogenerador de Prompt de Alta Precisión con Multi-Skills
         $prompt = sprintf(
-            "Actúa como %s de clase mundial especializado en %s.\n" .
-            "Tu misión es: %s.\n\n" .
-            "Contexto y Detalles:\n%s\n\n" .
-            "Criterios de Éxito y Calidad:\n" .
-            "- Aplica estándares estrictos de Clean Code, SOLID y modularidad.\n" .
-            "- No dejes errores de sintaxis ni archivos rotos a medio terminar.\n" .
-            "- Al finalizar, resume los cambios exactos y entrega la validación.",
+            "Actúa como %s (%s) de clase mundial especializado en %s.\n\n" .
+            "⚡ SKILLS ACTIVAS Y OBLIGATORIAS PARA ESTA MISIÓN:\n" .
+            "Debes invocar y aplicar rigurosamente las reglas y heurísticas de tu suite de skills: %s.\n\n" .
+            "🎯 TU MISIÓN ES:\n%s\n\n" .
+            "📋 CONTEXTO Y DETALLES TÉCNICOS:\n%s\n\n" .
+            "🛡️ CRITERIOS DE CALIDAD Y ENTREGA:\n" .
+            "- Aplica las buenas prácticas de tus skills sin inventar soluciones genéricas.\n" .
+            "- Ejecuta pruebas locales y lint antes de dar por terminada la tarea.\n" .
+            "- Al finalizar, resume los archivos modificados con precisión quirúrgica.",
             $roleName,
+            $alias,
             $specialty,
+            $skillsFormatted,
             $title,
             $desc !== '' ? $desc : 'Implementación requerida según las especificaciones del proyecto.'
         );
@@ -94,7 +106,32 @@ if ($method === 'POST') {
         exit;
     }
 
-    // 2. Cambiar estado de tarea
+    // 2. Modificar skills de un agente
+    if ($action === 'update_agent_skills') {
+        $roleId = (string)($input['role_id'] ?? '');
+        $skills = is_array($input['skills'] ?? null) ? $input['skills'] : [];
+
+        $found = false;
+        foreach ($data['roles'] as $i => $r) {
+            if ($r['id'] === $roleId) {
+                $data['roles'][$i]['assigned_skills'] = array_values(array_unique($skills));
+                $found = true;
+                break;
+            }
+        }
+
+        if (!$found) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Agente no encontrado']);
+            exit;
+        }
+
+        file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // 3. Cambiar estado de tarea
     if ($action === 'update_status') {
         $taskId = (string)($input['task_id'] ?? '');
         $status = (string)($input['status'] ?? '');
@@ -125,7 +162,7 @@ if ($method === 'POST') {
         exit;
     }
 
-    // 3. Generar Prompt de Revisión / Auditoría
+    // 4. Generar Prompt de Revisión / Auditoría
     if ($action === 'generate_review_prompt') {
         $taskId = (string)($input['task_id'] ?? '');
         $task = null;
@@ -143,7 +180,8 @@ if ($method === 'POST') {
         }
 
         $reviewPrompt = sprintf(
-            "Actúa como Auditor de Calidad y Director de Software Senior.\n" .
+            "Actúa como QA, Pentester & Reliability Engineer (The Gatekeeper).\n" .
+            "Skills obligatorias a invocar: `e2e-playwright-lean`, `webapp-testing`, `mutation-verifier`, `context-sentinel`.\n\n" .
             "Revisa exhaustivamente la solución entregada para la tarea [%s]: %s.\n\n" .
             "Checklist de Auditoría:\n" .
             "1. Inspecciona los archivos modificados con git diff.\n" .

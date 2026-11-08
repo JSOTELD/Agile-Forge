@@ -1,8 +1,9 @@
 /**
  * Controlador de Frontend para AgileForge · Open-to-code
+ * Soporte de Multi-Skills por Agente y Gestión de Misiones
  */
 
-let appData = { roles: [], tasks: [] };
+let appData = { roles: [], tasks: [], available_skills_pool: [] };
 let currentFilter = 'todas';
 
 async function init() {
@@ -27,8 +28,10 @@ function renderRoles() {
     if (!container || !appData.roles) return;
 
     countEl.textContent = `${appData.roles.length} agentes`;
-    container.innerHTML = appData.roles.map(r => `
-        <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 p-4 rounded-2xl transition space-y-2 group">
+    container.innerHTML = appData.roles.map(r => {
+        const skillsList = r.assigned_skills || [];
+        return `
+        <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 p-4 rounded-2xl transition space-y-3 group shadow-sm">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2.5">
                     <span class="text-2xl">${r.avatar}</span>
@@ -37,14 +40,25 @@ function renderRoles() {
                         <span class="text-[11px] text-slate-400 font-mono">${r.alias}</span>
                     </div>
                 </div>
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <button onclick="openSkillsConfig('${r.id}')" title="Configurar Skills del Agente" class="text-xs px-2 py-1 rounded-lg bg-slate-800 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/20 transition">
+                    ⚙️ Skills (${skillsList.length})
+                </button>
             </div>
+            
             <p class="text-xs text-slate-300 leading-relaxed">${r.description}</p>
-            <div class="pt-1">
-                <span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700 font-mono">${r.specialty}</span>
+            
+            <!-- Tags de Multi-Skills asignadas -->
+            <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Skills en su Toolkit:</span>
+                <div class="flex flex-wrap gap-1">
+                    ${skillsList.map(s => `
+                        <span class="text-[10px] px-2 py-0.5 rounded-md bg-indigo-950/60 text-indigo-300 border border-indigo-500/20 font-mono">${s}</span>
+                    `).join('')}
+                </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function renderTasks() {
@@ -80,7 +94,7 @@ function renderTasks() {
     };
 
     container.innerHTML = filtered.map(t => {
-        const assignedRole = appData.roles.find(r => r.id === t.assigned_to) || { name: t.assigned_to, avatar: '🤖' };
+        const assignedRole = appData.roles.find(r => r.id === t.assigned_to) || { name: t.assigned_to, avatar: '🤖', assigned_skills: [] };
         return `
             <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 hover:border-slate-700 transition shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
@@ -103,6 +117,7 @@ function renderTasks() {
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800 text-slate-200 font-semibold border border-slate-700">
                             <span>${assignedRole.avatar}</span> ${assignedRole.name}
                         </span>
+                        <span class="text-[10px] text-slate-400 font-mono">(${assignedRole.assigned_skills ? assignedRole.assigned_skills.length : 0} skills activas)</span>
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -151,7 +166,7 @@ function populateRoleSelect() {
     const sel = document.getElementById('task-role');
     if (!sel || !appData.roles) return;
     sel.innerHTML = appData.roles.map(r => `
-        <option value="${r.id}">${r.avatar} ${r.name}</option>
+        <option value="${r.id}">${r.avatar} ${r.name} (${(r.assigned_skills || []).length} skills)</option>
     `).join('');
 }
 
@@ -252,6 +267,50 @@ function copyPromptText() {
 function resetCopyBtn() {
     const btnText = document.getElementById('copy-btn-text');
     if (btnText) btnText.textContent = 'Copiar Prompt';
+}
+
+// Configuración Interactiva de Multi-Skills por Agente
+let activeConfigRoleId = null;
+function openSkillsConfig(roleId) {
+    activeConfigRoleId = roleId;
+    const role = appData.roles.find(r => r.id === roleId);
+    if (!role) return;
+
+    document.getElementById('skills-modal-agent').textContent = `${role.avatar} ${role.name}`;
+    const pool = appData.available_skills_pool || [];
+    const assigned = new Set(role.assigned_skills || []);
+
+    const container = document.getElementById('skills-checkboxes');
+    container.innerHTML = pool.map(skill => `
+        <label class="flex items-center gap-2.5 p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 cursor-pointer text-xs">
+            <input type="checkbox" value="${skill}" ${assigned.has(skill) ? 'checked' : ''} class="w-4 h-4 accent-indigo-500 rounded">
+            <span class="font-mono text-indigo-300">${skill}</span>
+        </label>
+    `).join('');
+
+    document.getElementById('skills-modal').classList.remove('hidden');
+}
+
+function closeSkillsConfig() {
+    document.getElementById('skills-modal').classList.add('hidden');
+    activeConfigRoleId = null;
+}
+
+async function saveAgentSkills() {
+    if (!activeConfigRoleId) return;
+    const checked = Array.from(document.querySelectorAll('#skills-checkboxes input:checked')).map(i => i.value);
+
+    try {
+        await fetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update_agent_skills', role_id: activeConfigRoleId, skills: checked })
+        });
+        closeSkillsConfig();
+        await fetchTeamData();
+    } catch (err) {
+        alert('Error al guardar skills');
+    }
 }
 
 // Iniciar al cargar la ventana

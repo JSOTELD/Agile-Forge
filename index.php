@@ -20,7 +20,7 @@
             <span class="text-3xl p-2 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl">⚡</span>
             <div>
                 <h1 class="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
-                    AgileForge <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">v1.0 Local</span>
+                    AgileForge <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Multi-Skills Engine</span>
                 </h1>
                 <p class="text-xs text-slate-400">Command Center de Agentes IA · Empresa de Software Virtual</p>
             </div>
@@ -39,11 +39,11 @@
 
     <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-        <!-- Columna Izquierda: Escuadrón de Agentes Especialistas (4 cols) -->
-        <section class="lg:col-span-4 space-y-4">
+        <!-- Columna Izquierda: Escuadrón de Agentes Especialistas (5 cols) -->
+        <section class="lg:col-span-5 space-y-4">
             <div class="flex items-center justify-between mb-2">
                 <h2 class="font-bold text-sm text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                    <span>👥</span> Equipo Especialista
+                    <span>👥</span> Agentes Especialistas & Multi-Skills
                 </h2>
                 <span id="role-count" class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full font-mono">0 agentes</span>
             </div>
@@ -53,13 +53,13 @@
             </div>
         </section>
 
-        <!-- Columna Derecha: Tablero Kanban de Misiones y Generador de Prompts (8 cols) -->
-        <section class="lg:col-span-8 space-y-6">
+        <!-- Columna Derecha: Tablero Kanban de Misiones y Generador de Prompts (7 cols) -->
+        <section class="lg:col-span-7 space-y-6">
 
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div>
                     <h2 class="font-extrabold text-xl text-white">Tablero de Operaciones</h2>
-                    <p class="text-xs text-slate-400">Gestiona tareas, copia prompts en 1 clic y manda a auditar a cada agente.</p>
+                    <p class="text-xs text-slate-400">Gestiona tareas, copia prompts con skills inyectadas y audita en 1 clic.</p>
                 </div>
                 <div class="flex gap-2 text-xs">
                     <button onclick="filterTasks('todas')" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium filter-btn" data-f="todas">Todas</button>
@@ -76,6 +76,32 @@
         </section>
 
     </main>
+
+    <!-- Modal: Configurar Multi-Skills por Agente -->
+    <div id="skills-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                    <h3 class="font-bold text-lg text-white">Configurar Toolkit de Skills</h3>
+                    <p id="skills-modal-agent" class="text-xs text-indigo-400 font-mono">Agente</p>
+                </div>
+                <button onclick="closeSkillsConfig()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <p class="text-xs text-slate-300">
+                Selecciona las skills de tu carpeta global de Claude Code que este agente domina. Cuando delegues una tarea a este agente, <strong>AgileForge inyectará automáticamente la orden de invocar este paquete de skills</strong>.
+            </p>
+
+            <div id="skills-checkboxes" class="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto p-1">
+                <!-- Checkboxes dinámicos -->
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button type="button" onclick="closeSkillsConfig()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
+                <button type="button" onclick="saveAgentSkills()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30">Guardar Toolkit</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal: Asignar Nueva Tarea -->
     <div id="new-task-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -118,7 +144,7 @@
 
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
-                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Generar Prompt y Delegar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Generar Prompt con Multi-Skills</button>
                 </div>
             </form>
         </div>
