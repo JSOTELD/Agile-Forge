@@ -1,9 +1,18 @@
+<?php
+require_once __DIR__ . '/api/bootstrap.php';
+\AgileForge\Bootstrap::loadEnv();
+$apiToken = \AgileForge\Bootstrap::getToken();
+?>
 <!DOCTYPE html>
 <html lang="es" class="theme-obsidian">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="agileforge-token" content="<?= htmlspecialchars($apiToken, ENT_QUOTES, 'UTF-8') ?>">
     <title>AgileForge · Command Center Scrum & Multi-Skills de Agentes IA</title>
+    <!-- Favicon Oficial AgileForge -->
+    <link rel="icon" type="image/png" href="assets/brand/favicon.png">
+    <link rel="apple-touch-icon" href="assets/brand/favicon.png">
     <!-- Tailwind CSS CDN para renderizado dinámico -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -114,7 +123,9 @@
     <!-- Topbar & Header Principal -->
     <header class="border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-            <span class="text-2xl p-2 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-indigo-500/30 rounded-2xl shadow-inner">⚡</span>
+            <div class="h-10 w-10 p-1 bg-gradient-to-br from-indigo-500/20 via-purple-600/15 to-pink-500/10 border border-indigo-500/30 rounded-2xl shadow-inner flex items-center justify-center shrink-0">
+                <img src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge Logo" class="h-full w-full object-contain filter drop-shadow">
+            </div>
             <div>
                 <h1 class="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
                     AgileForge <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Scrum 3.0</span>
@@ -179,7 +190,7 @@
             </button>
             <button onclick="switchMainTab('ux')" id="tab-btn-ux" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
                 <span>🎨</span> <span>Laboratorio UX/UI & Diseño</span>
-                <span id="nav-ux-score" class="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-mono">98%</span>
+                <span id="nav-ux-score" class="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-mono">94%</span>
             </button>
             <button onclick="switchMainTab('legal')" id="tab-btn-legal" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
                 <span>⚖️</span> <span>Auditoría Legal</span>
@@ -197,10 +208,17 @@
 
         <div class="flex items-center gap-3 text-[11px] text-slate-400 whitespace-nowrap">
             <div class="flex items-center gap-1.5 text-slate-300">
-                <span class="text-slate-500 font-bold uppercase text-[9px]">Workspace:</span>
-                <span id="active-workspace-display" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2 py-0.5 rounded-lg text-[11px]">
-                    D:\xampp\htdocs\canil perruno
-                </span>
+                <span class="text-slate-500 font-bold uppercase text-[9px]">Proyecto:</span>
+                <select id="project-selector-dropdown" onchange="handleSwitchProject(this.value)" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2 py-0.5 rounded-lg text-[11px] outline-none cursor-pointer hover:border-indigo-500">
+                    <option value="default">AgileForge Default</option>
+                </select>
+                <button onclick="openNewProjectModal()" class="text-xs px-2 py-0.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-bold transition" title="Crear nuevo proyecto">+</button>
+                <button onclick="openImportWorkspaceModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition" title="Importar workspace existente con git log">📥</button>
+            </div>
+            <span class="hidden md:inline text-slate-500">|</span>
+            <div class="hidden lg:flex items-center gap-1.5 text-slate-400 text-[10px]">
+                <span class="text-slate-500 font-bold uppercase">Ruta:</span>
+                <span id="active-workspace-display" class="font-mono truncate max-w-xs text-slate-300">D:\xampp\htdocs\canil perruno</span>
                 <button onclick="openChangeWorkspaceModal()" class="text-slate-400 hover:text-white underline text-[10px]" title="Cambiar ruta de trabajo">✏️</button>
             </div>
             <span class="hidden md:inline text-slate-500">|</span>
@@ -246,6 +264,14 @@
                             0%
                         </div>
                     </div>
+                    <div class="w-px h-7 bg-slate-800"></div>
+                    <div class="cursor-pointer hover:opacity-80 transition group" onclick="openCostsModal()" title="Ver auditoría contable de tokens y costos por agente">
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider group-hover:text-purple-300">Inversión IA</span>
+                        <div class="text-base font-extrabold text-purple-400 font-mono flex items-baseline gap-1">
+                            <span id="sprint-total-cost">$0.0000</span>
+                            <span class="text-xs text-slate-500 font-normal">(<span id="sprint-total-tokens">0</span> tok)</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -289,7 +315,16 @@
                         <option value="baja">Baja</option>
                     </select>
 
-                    <button onclick="openNewTaskModal()" class="text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center gap-1 shadow-sm">
+                    <select id="kanban-filter-skill" onchange="renderKanban()" class="bg-slate-950 border border-slate-700 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 outline-none">
+                        <option value="all">Todas las Skills</option>
+                        <!-- Dinámicos -->
+                    </select>
+
+                    <span id="kanban-filter-count" class="text-[10px] font-mono text-slate-400 px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 whitespace-nowrap">
+                        Cargando...
+                    </span>
+
+                    <button onclick="openNewTaskModal()" class="text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center gap-1 shadow-sm whitespace-nowrap">
                         <span>+</span> Nueva Historia
                     </button>
                 </div>
@@ -355,6 +390,28 @@
                 </div>
 
             </div>
+
+            <!-- Feed de Actividad en Vivo de Agentes IA (Trazabilidad MCP) -->
+            <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm">📡</span>
+                        <h4 class="font-bold text-xs uppercase tracking-wider text-slate-200">Feed de Actividad de Agentes IA (Trazabilidad MCP)</h4>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="flex h-2 w-2 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                        </span>
+                        <span class="text-[10px] font-mono text-indigo-400 bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-500/30">
+                            En vivo · SQLite WAL
+                        </span>
+                    </div>
+                </div>
+                <div id="mcp-activity-feed" class="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                    <!-- Eventos dinámicos de task_events -->
+                </div>
+            </div>
         </section>
 
         <!-- VISTA 2: LABORATORIO UX/UI & AUDITORÍA DE DISEÑO (Especialistas Evaluando y Actuando) -->
@@ -366,11 +423,11 @@
                         <span class="text-3xl p-2.5 bg-pink-500/10 border border-pink-500/30 rounded-2xl">🎨</span>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h3 class="font-black text-xl text-white">Laboratorio Heurístico UX/UI & Auditoría de Diseño</h3>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono font-bold">Grade A+ Élite</span>
+                                <h3 class="font-black text-xl text-white">Laboratorio Heurístico UX/UI & Auditoría en Vivo</h3>
+                                <span class="text-[10px] px-2.5 py-0.5 rounded-full bg-pink-500/10 text-pink-300 border border-pink-500/30 font-mono font-bold">10 Heurísticas de Nielsen</span>
                             </div>
                             <p class="text-xs text-pink-300/90">
-                                Evaluación y optimización continua dirigida por <strong>Pixel Master</strong> (Frontend UI/UX) y <strong>The Visionary</strong> (Director Creativo).
+                                Métricas reales calculadas sobre el DOM y checklist interactivo evaluado por <strong>Pixel Master</strong> y <strong>The Visionary</strong>.
                             </p>
                         </div>
                     </div>
@@ -378,15 +435,16 @@
 
                 <div class="flex items-center gap-4">
                     <div class="text-right">
-                        <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Score Heurístico Activo</span>
-                        <div id="ux-overall-score" class="text-3xl font-black text-pink-400 font-mono">98%</div>
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Cumplimiento Heurístico</span>
+                        <div id="ux-overall-score" class="text-3xl font-black text-pink-400 font-mono">92%</div>
+                        <span class="text-[9px] text-slate-500 font-mono block">Persistido en SQLite</span>
                     </div>
                     <div class="flex flex-col gap-2">
-                        <button onclick="applyUxDesignEnhancements()" id="apply-ux-btn" class="px-4 py-2 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap glow-fx">
-                            <span>✨</span> <span id="apply-ux-btn-text">Aplicar Mejoras del Diseñador</span>
+                        <button onclick="renderUxHonestView()" id="apply-ux-btn" class="px-4 py-2 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap glow-fx">
+                            <span>🔄</span> <span id="apply-ux-btn-text">Re-escanear DOM Actual</span>
                         </button>
                         <button onclick="exportUxReport()" class="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[11px] rounded-xl transition flex items-center justify-center gap-1.5">
-                            <span>📄</span> <span>Exportar Dictamen de Diseño</span>
+                            <span>📄</span> <span>Exportar Dictamen Honesto</span>
                         </button>
                     </div>
                 </div>
@@ -463,24 +521,24 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2 text-xs font-bold text-white">
                             <span class="text-lg">🎨</span>
-                            <span>Dictamen de Accesibilidad & Frontend (Pixel Master)</span>
+                            <span>Inspección de Accesibilidad & DOM (Pixel Master)</span>
                         </div>
-                        <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/20">98% WCAG AAA</span>
+                        <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/20">DOM en Vivo</span>
                     </div>
                     <p id="ux-specialist-notes" class="text-xs text-slate-300 leading-relaxed">
-                        Cargando evaluación...
+                        Cargando evaluación del DOM...
                     </p>
                 </div>
                 <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-2">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2 text-xs font-bold text-white">
                             <span class="text-lg">💡</span>
-                            <span>Dictamen del Director Creativo (The Visionary)</span>
+                            <span>Métricas de Viewport & Ergonomía (The Visionary)</span>
                         </div>
-                        <span class="text-[10px] font-mono text-pink-400 bg-pink-950/80 px-2 py-0.5 rounded border border-pink-500/20">Design System Sólido</span>
+                        <span class="text-[10px] font-mono text-pink-400 bg-pink-950/80 px-2 py-0.5 rounded border border-pink-500/20">Responsividad Real</span>
                     </div>
                     <p id="ux-designer-notes" class="text-xs text-slate-300 leading-relaxed">
-                        Cargando evaluación...
+                        Cargando métricas de ventana...
                     </p>
                 </div>
             </div>
@@ -719,6 +777,26 @@
         </section>
 
     </main>
+
+    <!-- Footer Oficial AgileForge -->
+    <footer class="border-t border-slate-800/80 bg-[#070a12]/90 px-6 py-6 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <img src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge" class="h-7 w-auto object-contain">
+                <div>
+                    <p class="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
+                        AgileForge <span class="text-xs text-indigo-400 font-normal">· Command Center Scrum 3.0</span>
+                    </p>
+                    <p class="text-[11px] text-slate-500">Suite de Agentes Autónomos, Métricas Scrum & Compliance Legal</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-xs text-slate-500">
+                <span>Versión 3.0.0</span>
+                <span>•</span>
+                <span class="font-mono text-[11px]">AgileForge System</span>
+            </div>
+        </div>
+    </footer>
 
     <!-- Drawer Lateral: Chat de Consulta Ágil con los Agentes -->
     <div id="chat-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
@@ -1048,6 +1126,132 @@
         </div>
     </div>
 
+    <!-- Modal: Auditoría de Costos y Tokens por Agente/Sprint -->
+    <div id="costs-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">💰</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Auditoría Contable de Tokens & Inversión IA</h3>
+                        <p class="text-xs text-slate-400">Consumo real medido por llamada, agente, modelo y sprint activo.</p>
+                    </div>
+                </div>
+                <button onclick="closeCostsModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <!-- Resumen numérico -->
+            <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800/80">
+                    <span class="text-[10px] text-slate-400 block uppercase font-bold">Llamadas API</span>
+                    <span id="modal-costs-calls" class="text-base font-extrabold text-white font-mono">0</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800/80">
+                    <span class="text-[10px] text-slate-400 block uppercase font-bold">Tokens Entrada</span>
+                    <span id="modal-costs-input-tok" class="text-base font-extrabold text-indigo-400 font-mono">0</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800/80">
+                    <span class="text-[10px] text-slate-400 block uppercase font-bold">Tokens Salida</span>
+                    <span id="modal-costs-output-tok" class="text-base font-extrabold text-purple-400 font-mono">0</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800/80">
+                    <span class="text-[10px] text-slate-400 block uppercase font-bold">Inversión (USD)</span>
+                    <span id="modal-costs-total-usd" class="text-base font-extrabold text-emerald-400 font-mono">$0.0000</span>
+                </div>
+            </div>
+
+            <!-- Desglose por agente -->
+            <div class="space-y-2 flex-1 overflow-y-auto">
+                <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Desglose por Agente</h4>
+                <div id="modal-costs-by-agent" class="space-y-1.5 text-xs">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+                <span class="text-slate-500 text-[11px]">Tarifas basadas en <code class="text-purple-300">config/models.json</code> por millón de tokens.</span>
+                <button type="button" onclick="closeCostsModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Crear Nuevo Proyecto -->
+    <div id="new-project-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">📁</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Nuevo Proyecto / Módulo</h3>
+                        <p class="text-xs text-slate-400">Crea un espacio de trabajo aislado con su propio sprint y backlog en SQLite.</p>
+                    </div>
+                </div>
+                <button onclick="closeNewProjectModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Nombre del Proyecto *</label>
+                    <input type="text" id="new-project-name" placeholder="Ej: Vareon Mobile App, Core Backend, Portal B2B"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta en Servidor Local (Opcional)</label>
+                    <input type="text" id="new-project-path" placeholder="Ej: D:\xampp\htdocs\vareon-mobile"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs outline-none focus:border-indigo-500">
+                    <span class="text-[10px] text-slate-500 mt-0.5 block">Si se deja vacío, usará el directorio raíz de AgileForge.</span>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-800 text-xs">
+                <button type="button" onclick="closeNewProjectModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
+                <button type="button" onclick="submitNewProject()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Crear Proyecto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Importar Workspace Existente (Git Log Scanner) -->
+    <div id="import-workspace-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">📥</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Importar Workspace Existente</h3>
+                        <p class="text-xs text-slate-400">Escanea repositorios locales y lee el <code class="text-purple-300">git log</code> para sugerir un backlog inicial.</p>
+                    </div>
+                </div>
+                <button onclick="closeImportWorkspaceModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta Absoluta del Directorio Local *</label>
+                    <input type="text" id="import-workspace-path" placeholder="Ej: D:\xampp\htdocs\canil perruno"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs outline-none focus:border-purple-500">
+                    <span class="text-[10px] text-slate-500 mt-0.5 block">Debe ser un directorio existente dentro de localhost / htdocs.</span>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Nombre del Proyecto (Opcional)</label>
+                    <input type="text" id="import-workspace-name" placeholder="Se detectará automáticamente del nombre de la carpeta"
+                           class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-purple-500">
+                </div>
+            </div>
+
+            <div class="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <strong class="text-purple-300 flex items-center gap-1"><span>🔍</span> Proceso de Onboarding Automatizado:</strong>
+                <p>Si la carpeta contiene un repositorio <code class="text-slate-300">.git</code>, AgileForge leerá los últimos commits, calculará puntos de historia sugeridos y asignará agentes especialistas para poblar el Backlog inicial sin trabajo manual.</p>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-800 text-xs">
+                <button type="button" onclick="closeImportWorkspaceModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
+                <button type="button" onclick="submitImportWorkspace()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/30">
+                    📥 Importar y Generar Backlog
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Configurar Multi-Skills por Agente con Buscador y Creación -->
     <div id="skills-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
@@ -1304,7 +1508,7 @@
     <!-- Contenedor Flotante de Toast Notifications -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
 
-    <!-- Script de Control Frontend -->
-    <script src="assets/js/app.js"></script>
+    <!-- Script de Control Frontend con Cache-Busting y Módulos ES -->
+    <script type="module" src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
 </body>
 </html>

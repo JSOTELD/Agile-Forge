@@ -1,0 +1,7 @@
+# AgileForge - API Security Configuration
+Options -Indexes
+
+<FilesMatch "\.(sqlite|db|json|env|md|log|sh|bat)$">
+    Require all denied
+</FilesMatch>
+

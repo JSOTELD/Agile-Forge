@@ -1,0 +1,12 @@
+{
+  "name": "agileforge",
+  "version": "2.0.0",
+  "description": "Equipo de desarrollo multi-agente para Claude Code y asistentes MCP bajo metodología Scrum y PMBOK 7ma Edición.",
+  "author": {
+    "name": "AgileForge Ecosystem",
+    "email": "dev@agileforge.local"
+  },
+  "keywords": ["scrum", "agile", "pmbok", "multi-agent", "mcp", "teamwork"],
+  "homepage": "http://localhost/Open-to-code/"
+}
+

@@ -1,0 +1,3 @@
+# Bloqueo total de acceso web al directorio de persistencia
+Require all denied
+

@@ -1,0 +1,18 @@
+# AgileForge - Root Security Configuration
+Options -Indexes
+
+# Pasar Authorization Header a PHP en Apache
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteRule ^data/ - [F,L]
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase ^Authorization$ "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+# Bloquear acceso a archivos sensibles y bases de datos
+<FilesMatch "^\.(env|git)|(\.sqlite|\.sqlite-wal|\.sqlite-shm|\.db|\.json|\.md|\.log)$">
+    Require all denied
+</FilesMatch>

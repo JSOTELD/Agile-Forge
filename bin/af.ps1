@@ -27,24 +27,50 @@ if (-not (Test-Path $DataFile)) {
     }
 }
 
-$ApiUrl = "http://127.0.0.1:8095/api/tasks.php"
+if ($env:AGILEFORGE_API_URL) {
+    $ApiUrl = $env:AGILEFORGE_API_URL
+} else {
+    $ApiUrl = "http://localhost/Open-to-code/api/tasks.php"
+}
+
+# Cargar token de autenticacion desde .env o variable de entorno
+$ApiToken = $env:AGILEFORGE_API_TOKEN
+$EnvFile = Join-Path $BaseDir ".env"
+if (-not $ApiToken -and (Test-Path $EnvFile)) {
+    Get-Content $EnvFile | ForEach-Object {
+        if ($_ -match '^\s*AGILEFORGE_API_TOKEN\s*=\s*(.+)$') {
+            $ApiToken = $matches[1].Trim().Trim('"').Trim("'")
+        }
+    }
+}
+
+function Get-AfHeaders {
+    $headers = @{}
+    if ($ApiToken) {
+        $headers["Authorization"] = "Bearer $ApiToken"
+    }
+    return $headers
+}
 
 function Invoke-AfApi {
     param ([hashtable]$Body)
     try {
         $json = $Body | ConvertTo-Json -Depth 5
-        $res = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $json -ContentType "application/json" -TimeoutSec 3
+        $res = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $json -ContentType "application/json" -Headers (Get-AfHeaders) -TimeoutSec 5
         return $res
     } catch {
+        Write-Warning "Error comunicando con AgileForge API ($ApiUrl): $_"
         return $null
     }
 }
 
 function Get-AfData {
     try {
-        $res = Invoke-RestMethod -Uri $ApiUrl -Method Get -TimeoutSec 2
+        $res = Invoke-RestMethod -Uri $ApiUrl -Method Get -Headers (Get-AfHeaders) -TimeoutSec 3
         if ($res -and $res.tasks) { return $res }
-    } catch {}
+    } catch {
+        Write-Warning "Fallo consulta a AgileForge API: $_"
+    }
 
     if (Test-Path $DataFile) {
         $raw = Get-Content $DataFile -Raw -Encoding UTF8

@@ -1,0 +1,156 @@
+{
+  "providers": {
+    "anthropic": {
+      "id": "anthropic",
+      "name": "Anthropic Claude",
+      "env_key": "ANTHROPIC_API_KEY",
+      "icon": "🟣",
+      "badge_color": "bg-purple-950/70 text-purple-300 border-purple-500/30",
+      "default_model": "claude-sonnet-5-5",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "models": [
+        {
+          "id": "claude-opus-5-5",
+          "name": "Claude Opus 5.5",
+          "context_window": 200000,
+          "input_cost_per_m": 15.0,
+          "output_cost_per_m": 75.0,
+          "recommended_for": "Arquitectura Crítica, Auditorías Legales y Razonamiento Complejo"
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5",
+          "context_window": 200000,
+          "input_cost_per_m": 3.0,
+          "output_cost_per_m": 15.0,
+          "recommended_for": "Scrum Master, Desarrollo Backend y Refactorización"
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5",
+          "context_window": 200000,
+          "input_cost_per_m": 0.8,
+          "output_cost_per_m": 4.0,
+          "recommended_for": "Daily Standup, Clasificación Rápida y Tareas Ligeras"
+        }
+      ]
+    },
+    "openai": {
+      "id": "openai",
+      "name": "OpenAI GPT",
+      "env_key": "OPENAI_API_KEY",
+      "icon": "🟢",
+      "badge_color": "bg-emerald-950/70 text-emerald-300 border-emerald-500/30",
+      "default_model": "gpt-4o",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "models": [
+        {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "context_window": 128000,
+          "input_cost_per_m": 2.5,
+          "output_cost_per_m": 10.0,
+          "recommended_for": "Frontend UI/UX, APIs REST y Microinteracciones"
+        },
+        {
+          "id": "gpt-4o-mini",
+          "name": "GPT-4o Mini",
+          "context_window": 128000,
+          "input_cost_per_m": 0.15,
+          "output_cost_per_m": 0.6,
+          "recommended_for": "Tareas Rápidas y Validaciones Livianas"
+        },
+        {
+          "id": "o3-mini",
+          "name": "o3-mini",
+          "context_window": 200000,
+          "input_cost_per_m": 1.1,
+          "output_cost_per_m": 4.4,
+          "recommended_for": "Razonamiento Lógico y Algoritmos Complejos"
+        }
+      ]
+    },
+    "google": {
+      "id": "google",
+      "name": "Google Gemini",
+      "env_key": "GEMINI_API_KEY",
+      "icon": "✨",
+      "badge_color": "bg-blue-950/70 text-blue-300 border-blue-500/30",
+      "default_model": "gemini-2.5-pro",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta",
+      "models": [
+        {
+          "id": "gemini-2.5-pro",
+          "name": "Gemini 2.5 Pro",
+          "context_window": 2000000,
+          "input_cost_per_m": 1.25,
+          "output_cost_per_m": 5.0,
+          "recommended_for": "Creatividad, Ventana Masiva de 2M tokens y Antigravity SDK"
+        },
+        {
+          "id": "gemini-2.5-flash",
+          "name": "Gemini 2.5 Flash",
+          "context_window": 1000000,
+          "input_cost_per_m": 0.075,
+          "output_cost_per_m": 0.3,
+          "recommended_for": "Respuestas Ultrarrápidas y Streaming"
+        }
+      ]
+    },
+    "deepseek": {
+      "id": "deepseek",
+      "name": "DeepSeek AI",
+      "env_key": "DEEPSEEK_API_KEY",
+      "icon": "🐳",
+      "badge_color": "bg-cyan-950/70 text-cyan-300 border-cyan-500/30",
+      "default_model": "deepseek-reasoner",
+      "endpoint": "https://api.deepseek.com/chat/completions",
+      "models": [
+        {
+          "id": "deepseek-reasoner",
+          "name": "DeepSeek-R1 (Reasoner)",
+          "context_window": 64000,
+          "input_cost_per_m": 0.55,
+          "output_cost_per_m": 2.19,
+          "recommended_for": "QA, Pentesting, Hardening y Auditoría de Vulnerabilidades"
+        },
+        {
+          "id": "deepseek-chat",
+          "name": "DeepSeek-V3",
+          "context_window": 64000,
+          "input_cost_per_m": 0.14,
+          "output_cost_per_m": 0.28,
+          "recommended_for": "Desarrollo de Código General y Refactorización"
+        }
+      ]
+    },
+    "ollama": {
+      "id": "ollama",
+      "name": "Ollama (Modelos Locales)",
+      "env_key": "",
+      "icon": "🦙",
+      "badge_color": "bg-amber-950/70 text-amber-300 border-amber-500/30",
+      "default_model": "llama3.3:70b",
+      "endpoint": "http://localhost:11434/api/generate",
+      "models": [
+        {
+          "id": "llama3.3:70b",
+          "name": "Llama 3.3 70B",
+          "context_window": 128000,
+          "input_cost_per_m": 0.0,
+          "output_cost_per_m": 0.0,
+          "recommended_for": "Privacidad 100% On-Premise (Sin Nube)"
+        },
+        {
+          "id": "qwen2.5-coder:32b",
+          "name": "Qwen 2.5 Coder 32B",
+          "context_window": 32000,
+          "input_cost_per_m": 0.0,
+          "output_cost_per_m": 0.0,
+          "recommended_for": "Generación y Análisis de Código Local"
+        }
+      ]
+    }
+  }
+}
+
