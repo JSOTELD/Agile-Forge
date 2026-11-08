@@ -9,6 +9,17 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="agileforge-token" content="<?= htmlspecialchars($apiToken, ENT_QUOTES, 'UTF-8') ?>">
+    <script>
+        (function() {
+            try {
+                var t = localStorage.getItem('agileforge_theme');
+                if (t) {
+                    document.documentElement.className = 'theme-' + t;
+                    document.documentElement.setAttribute('data-theme', t);
+                }
+            } catch(e) {}
+        })();
+    </script>
     <title>AgileForge · Command Center Scrum & Multi-Skills de Agentes IA</title>
     <!-- Favicon Oficial AgileForge -->
     <link rel="icon" type="image/png" href="assets/brand/favicon.png">
@@ -156,17 +167,309 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             border-color: #cbd5e1 !important;
         }
 
-        html.theme-light .kanban-column,
-        html.theme-paper .kanban-column {
+        /* 1. Adaptación del Logo para Modo Día: negro azabache de máximo contraste */
+        html.theme-light .brand-logo-img,
+        html.theme-paper .brand-logo-img {
+            filter: brightness(0) contrast(200%) !important;
+        }
+
+        html.theme-light .brand-logo-container,
+        html.theme-paper .brand-logo-container {
+            background: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        /* 2. Tarjetas Kanban en Modo Día: Fondo blanco puro, texto oscuro legible */
+        html.theme-light .kanban-card,
+        html.theme-paper .kanban-card {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        html.theme-light .kanban-card:hover,
+        html.theme-paper .kanban-card:hover {
+            border-color: #cbd5e1 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        html.theme-light .kanban-title,
+        html.theme-paper .kanban-title {
+            color: #0f172a !important;
+        }
+
+        html.theme-light .kanban-title:hover,
+        html.theme-paper .kanban-title:hover {
+            color: #4f46e5 !important;
+        }
+
+        html.theme-light .kanban-card .text-indigo-400,
+        html.theme-paper .kanban-card .text-indigo-400 {
+            color: #4338ca !important;
+        }
+
+        /* Chips y badges de prioridad dentro de las tarjetas */
+        html.theme-light .kanban-card .bg-red-950\/80,
+        html.theme-paper .kanban-card .bg-red-950\/80 {
+            background-color: #fee2e2 !important;
+            color: #991b1b !important;
+            border: 1px solid #fca5a5 !important;
+        }
+
+        html.theme-light .kanban-card .bg-orange-950\/80,
+        html.theme-paper .kanban-card .bg-orange-950\/80 {
+            background-color: #ffedd5 !important;
+            color: #9a3412 !important;
+            border: 1px solid #fdba74 !important;
+        }
+
+        html.theme-light .kanban-card .bg-slate-800,
+        html.theme-paper .kanban-card .bg-slate-800 {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+
+        html.theme-light .kanban-card .bg-slate-900,
+        html.theme-paper .kanban-card .bg-slate-900,
+        html.theme-light .kanban-card .bg-slate-950,
+        html.theme-paper .kanban-card .bg-slate-950 {
+            background-color: #f1f5f9 !important;
+            border-color: #e2e8f0 !important;
+            color: #334155 !important;
+        }
+
+        html.theme-light .kanban-card .bg-purple-950\/60,
+        html.theme-paper .kanban-card .bg-purple-950\/60 {
+            background-color: #f5f3ff !important;
+            border-color: #ddd6fe !important;
+            color: #6d28d9 !important;
+        }
+
+        html.theme-light .kanban-card .bg-indigo-950\/80,
+        html.theme-paper .kanban-card .bg-indigo-950\/80 {
+            background-color: #eef2ff !important;
+            border-color: #c7d2fe !important;
+            color: #4338ca !important;
+        }
+
+        html.theme-light .kanban-card .border-slate-900,
+        html.theme-paper .kanban-card .border-slate-900 {
+            border-color: #f1f5f9 !important;
+        }
+
+        html.theme-light .kanban-card .text-slate-300,
+        html.theme-paper .kanban-card .text-slate-300,
+        html.theme-light .kanban-card .text-slate-400,
+        html.theme-paper .kanban-card .text-slate-400 {
+            color: #475569 !important;
+        }
+
+        /* Botones de acción dentro de las tarjetas */
+        html.theme-light .kanban-card button,
+        html.theme-paper .kanban-card button {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #334155 !important;
+        }
+
+        html.theme-light .kanban-card button:hover,
+        html.theme-paper .kanban-card button:hover {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            border-color: #94a3b8 !important;
+        }
+
+        html.theme-light .kanban-card button[data-action="show-task-prompt"],
+        html.theme-paper .kanban-card button[data-action="show-task-prompt"] {
+            background-color: #eef2ff !important;
+            border-color: #c7d2fe !important;
+            color: #4338ca !important;
+        }
+
+        html.theme-light .kanban-card button[data-action="show-task-prompt"]:hover,
+        html.theme-paper .kanban-card button[data-action="show-task-prompt"]:hover {
+            background-color: #e0e7ff !important;
+            color: #3730a3 !important;
+        }
+
+        html.theme-light .kanban-card button[data-action="move-task-forward"],
+        html.theme-paper .kanban-card button[data-action="move-task-forward"] {
+            color: #4338ca !important;
+            font-weight: 700 !important;
+        }
+
+        /* 3. Hero Banner de Sprint en Modo Día */
+        html.theme-light #sprint-hero-banner,
+        html.theme-paper #sprint-hero-banner {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03) !important;
+        }
+
+        html.theme-light #sprint-hero-banner #sprint-name,
+        html.theme-paper #sprint-hero-banner #sprint-name {
+            color: #0f172a !important;
+        }
+
+        html.theme-light #sprint-hero-banner #sprint-goal,
+        html.theme-paper #sprint-hero-banner #sprint-goal {
+            color: #475569 !important;
+        }
+
+        html.theme-light #sprint-hero-banner .bg-slate-950\/80,
+        html.theme-paper #sprint-hero-banner .bg-slate-950\/80 {
             background-color: #f8fafc !important;
             border-color: #e2e8f0 !important;
         }
 
-        html.theme-light .task-card,
-        html.theme-paper .task-card {
+        html.theme-light #sprint-hero-banner .bg-indigo-500\/20,
+        html.theme-paper #sprint-hero-banner .bg-indigo-500\/20 {
+            background-color: #e0e7ff !important;
+            color: #3730a3 !important;
+            border-color: #c7d2fe !important;
+        }
+
+        html.theme-light #sprint-hero-banner .bg-slate-950\/90,
+        html.theme-paper #sprint-hero-banner .bg-slate-950\/90 {
+            background-color: #e2e8f0 !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        html.theme-light #sprint-hero-banner .bg-slate-800,
+        html.theme-paper #sprint-hero-banner .bg-slate-800 {
+            background-color: #e2e8f0 !important;
+        }
+
+        html.theme-light #sprint-hero-banner .text-slate-400,
+        html.theme-paper #sprint-hero-banner .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        /* 4. Columnas Kanban y Encabezados con Alto Contraste */
+        html.theme-light .kanban-col,
+        html.theme-paper .kanban-col {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        html.theme-light .kanban-col > div:first-child,
+        html.theme-paper .kanban-col > div:first-child {
             background-color: #ffffff !important;
             border-color: #e2e8f0 !important;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        }
+
+        html.theme-light .kanban-col .text-amber-300,
+        html.theme-paper .kanban-col .text-amber-300 {
+            color: #b45309 !important;
+        }
+
+        html.theme-light .kanban-col .text-purple-300,
+        html.theme-paper .kanban-col .text-purple-300 {
+            color: #7e22ce !important;
+        }
+
+        html.theme-light .kanban-col .text-emerald-300,
+        html.theme-paper .kanban-col .text-emerald-300 {
+            color: #047857 !important;
+        }
+
+        html.theme-light .kanban-col .text-slate-200,
+        html.theme-paper .kanban-col .text-slate-200 {
+            color: #334155 !important;
+        }
+
+        html.theme-light .kanban-col #col-count-backlog,
+        html.theme-paper .kanban-col #col-count-backlog {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        html.theme-light .kanban-col #col-count-en_progreso,
+        html.theme-paper .kanban-col #col-count-en_progreso {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1px solid #fde68a !important;
+        }
+
+        html.theme-light .kanban-col #col-count-revision,
+        html.theme-paper .kanban-col #col-count-revision {
+            background-color: #f3e8ff !important;
+            color: #6b21a8 !important;
+            border: 1px solid #e9d5ff !important;
+        }
+
+        html.theme-light .kanban-col #col-count-completada,
+        html.theme-paper .kanban-col #col-count-completada {
+            background-color: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1px solid #a7f3d0 !important;
+        }
+
+        /* 5. Barra de Filtros en Modo Día */
+        html.theme-light #kanban-search,
+        html.theme-paper #kanban-search,
+        html.theme-light #kanban-filter-role,
+        html.theme-paper #kanban-filter-role,
+        html.theme-light #kanban-filter-priority,
+        html.theme-paper #kanban-filter-priority,
+        html.theme-light #kanban-filter-skill,
+        html.theme-paper #kanban-filter-skill,
+        html.theme-light #kanban-filter-count,
+        html.theme-paper #kanban-filter-count {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        /* 6. Botones de Cabecera con bordes nítidos */
+        html.theme-light header button,
+        html.theme-paper header button {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #1e293b !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        }
+
+        html.theme-light header button:hover,
+        html.theme-paper header button:hover {
+            background-color: #f8fafc !important;
+            border-color: #94a3b8 !important;
+            color: #0f172a !important;
+        }
+
+        html.theme-light header .text-slate-400,
+        html.theme-paper header .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        html.theme-light header .text-slate-200,
+        html.theme-paper header .text-slate-200 {
+            color: #1e293b !important;
+        }
+
+        /* 7. Tabs de Navegación */
+        html.theme-light .tab-inactive,
+        html.theme-paper .tab-inactive {
+            color: #475569 !important;
+        }
+
+        html.theme-light .tab-inactive:hover,
+        html.theme-paper .tab-inactive:hover {
+            color: #0f172a !important;
+            background-color: #f1f5f9 !important;
+        }
+
+        /* 8. Barra de Proyecto */
+        html.theme-light nav .bg-slate-900\/60,
+        html.theme-paper nav .bg-slate-900\/60,
+        html.theme-light #project-selector,
+        html.theme-paper #project-selector {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
         }
 
         body {
@@ -230,8 +533,8 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <!-- Topbar & Header Principal -->
     <header class="border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-            <div class="h-10 w-10 p-1 bg-gradient-to-br from-indigo-500/20 via-purple-600/15 to-pink-500/10 border border-indigo-500/30 rounded-2xl shadow-inner flex items-center justify-center shrink-0">
-                <img src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge Logo" class="h-full w-full object-contain filter drop-shadow">
+            <div class="brand-logo-container h-10 w-10 p-1 bg-gradient-to-br from-indigo-500/20 via-purple-600/15 to-pink-500/10 border border-indigo-500/30 rounded-2xl shadow-inner flex items-center justify-center shrink-0">
+                <img id="header-brand-logo" src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge Logo" class="brand-logo-img h-full w-full object-contain filter drop-shadow">
             </div>
             <div>
                 <h1 class="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
@@ -367,7 +670,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
     <!-- Sprint Banner (Métricas Scrum & Barra de Progreso) -->
     <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-2">
-        <div class="bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 border border-slate-800/80 rounded-3xl p-5 shadow-lg space-y-4">
+        <div id="sprint-hero-banner" class="sprint-banner bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 border border-slate-800/80 rounded-3xl p-5 shadow-lg space-y-4">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">
@@ -921,7 +1224,9 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <footer class="border-t border-slate-800/80 bg-[#070a12]/90 px-6 py-6 mt-auto">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <img src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge" class="h-7 w-auto object-contain">
+                <div class="brand-logo-container h-8 w-8 p-1 rounded-xl flex items-center justify-center shrink-0">
+                    <img id="footer-brand-logo" src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge" class="brand-logo-img h-full w-full object-contain">
+                </div>
                 <div>
                     <p class="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
                         AgileForge <span class="text-xs text-indigo-400 font-normal">· Command Center Scrum 3.0</span>

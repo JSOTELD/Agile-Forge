@@ -85,7 +85,9 @@ export function switchMainTab(tabId) {
 
 export function applySavedTheme() {
     const saved = appData.ui_preferences || {};
-    const theme = saved.theme || 'obsidian';
+    let localTheme = null;
+    try { localTheme = localStorage.getItem('agileforge_theme'); } catch (e) {}
+    const theme = localTheme || saved.theme || 'obsidian';
     const density = saved.density || 'compact';
 
     selectTheme(theme, false);
@@ -99,6 +101,7 @@ export async function selectTheme(themeId, saveToBackend = true) {
     // Establecer atributo y clase en HTML
     document.documentElement.setAttribute('data-theme', themeId);
     document.documentElement.className = `theme-${themeId}`;
+    try { localStorage.setItem('agileforge_theme', themeId); } catch (e) {}
 
     // Actualizar botones indicadores en la barra superior
     updateThemeIndicators(themeId);
@@ -129,6 +132,16 @@ export function toggleDayNightMode() {
 
 function updateThemeIndicators(themeId) {
     const isLight = (themeId === 'light' || themeId === 'paper');
+
+    // Cambiar logos según el tema (logo oscuro para modo día, logo luminoso para modo noche)
+    const headerLogo = document.getElementById('header-brand-logo');
+    if (headerLogo) {
+        headerLogo.src = isLight ? 'assets/brand/symbol-agileforge.png' : 'assets/brand/symbol-agileforge-dark.png';
+    }
+    const footerLogo = document.getElementById('footer-brand-logo');
+    if (footerLogo) {
+        footerLogo.src = isLight ? 'assets/brand/symbol-agileforge.png' : 'assets/brand/symbol-agileforge-dark.png';
+    }
 
     // Botón indicador de tema
     const themeBtnText = document.getElementById('theme-btn-text');
