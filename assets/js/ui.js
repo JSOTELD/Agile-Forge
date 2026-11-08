@@ -1,6 +1,7 @@
 /**
  * AgileForge v2 - UI & Notifications Manager
- * Notificaciones toast, navegación entre pestañas, temas y atajos de teclado.
+ * Notificaciones toast, navegación entre pestañas, temas (Modo Día/Noche),
+ * manual para novatos y atajos de teclado.
  */
 
 import { appData, currentTab, setCurrentTab, escapeHtml, apiFetch } from './state.js';
@@ -87,15 +88,21 @@ export function applySavedTheme() {
     const theme = saved.theme || 'obsidian';
     const density = saved.density || 'compact';
 
-    document.documentElement.setAttribute('data-theme', theme);
+    selectTheme(theme, false);
     document.documentElement.setAttribute('data-density', density);
-
-    const themeSelect = document.getElementById('theme-select');
-    if (themeSelect) themeSelect.value = theme;
 }
 
 export async function selectTheme(themeId, saveToBackend = true) {
+    const validThemes = ['obsidian', 'indigo', 'emerald', 'violet', 'light', 'paper'];
+    if (!validThemes.includes(themeId)) themeId = 'obsidian';
+
+    // Establecer atributo y clase en HTML
     document.documentElement.setAttribute('data-theme', themeId);
+    document.documentElement.className = `theme-${themeId}`;
+
+    // Actualizar botones indicadores en la barra superior
+    updateThemeIndicators(themeId);
+
     if (!saveToBackend) return;
 
     try {
@@ -107,10 +114,66 @@ export async function selectTheme(themeId, saveToBackend = true) {
                 theme: themeId
             })
         });
-        showToast('Tema Aplicado', `Tema cambiado a ${themeId}`, 'success');
+        showToast('Tema Aplicado', `Tema visual cambiado a: ${formatThemeName(themeId)}`, 'success', 2500);
     } catch (err) {
         console.error('Error al guardar tema:', err);
     }
+}
+
+export function toggleDayNightMode() {
+    const current = document.documentElement.getAttribute('data-theme') || 'obsidian';
+    const isLight = (current === 'light' || current === 'paper');
+    const newTheme = isLight ? 'obsidian' : 'light';
+    selectTheme(newTheme, true);
+}
+
+function updateThemeIndicators(themeId) {
+    const isLight = (themeId === 'light' || themeId === 'paper');
+
+    // Botón indicador de tema
+    const themeBtnText = document.getElementById('theme-btn-text');
+    if (themeBtnText) themeBtnText.textContent = formatThemeName(themeId);
+
+    // Botón directo Día/Noche
+    const dayNightIcon = document.getElementById('day-night-icon');
+    const dayNightText = document.getElementById('day-night-text');
+    if (dayNightIcon) dayNightIcon.textContent = isLight ? '☀️' : '🌙';
+    if (dayNightText) dayNightText.textContent = isLight ? 'Día' : 'Noche';
+
+    // Resaltar opción seleccionada en el modal de temas
+    const validThemes = ['obsidian', 'indigo', 'emerald', 'violet', 'light', 'paper'];
+    validThemes.forEach(t => {
+        const el = document.getElementById(`theme-opt-${t}`);
+        if (el) {
+            if (t === themeId) {
+                el.classList.add('border-indigo-500', 'ring-2', 'ring-indigo-500/30');
+            } else {
+                el.classList.remove('border-indigo-500', 'ring-2', 'ring-indigo-500/30');
+            }
+        }
+    });
+}
+
+function formatThemeName(themeId) {
+    const names = {
+        obsidian: 'Obsidian',
+        indigo: 'Indigo',
+        emerald: 'Emerald',
+        violet: 'Violet',
+        light: 'Solar Day',
+        paper: 'Clean Paper'
+    };
+    return names[themeId] || themeId;
+}
+
+export function openBeginnerManualModal() {
+    const modal = document.getElementById('beginner-manual-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+export function closeBeginnerManualModal() {
+    const modal = document.getElementById('beginner-manual-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 export function closeAllModals() {
@@ -126,7 +189,10 @@ export function closeAllModals() {
         'change-workspace-modal',
         'jurisdiction-modal',
         'new-project-modal',
-        'import-workspace-modal'
+        'import-workspace-modal',
+        'theme-modal',
+        'command-palette-modal',
+        'beginner-manual-modal'
     ];
     modals.forEach(id => {
         const el = document.getElementById(id);
@@ -166,6 +232,11 @@ export function initKeyboardShortcuts() {
             const map = { '1': 'kanban', '2': 'ux', '3': 'legal', '4': 'meetings', '5': 'team' };
             if (map[e.key]) switchMainTab(map[e.key]);
         }
+
+        // Alt+M abre manual de novatos
+        if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+            e.preventDefault();
+            openBeginnerManualModal();
+        }
     });
 }
-

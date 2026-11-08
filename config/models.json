@@ -130,27 +130,26 @@
       "env_key": "",
       "icon": "🦙",
       "badge_color": "bg-amber-950/70 text-amber-300 border-amber-500/30",
-      "default_model": "llama3.3:70b",
-      "endpoint": "http://localhost:11434/api/generate",
+      "default_model": "gemma4:e4b",
+      "endpoint": "http://127.0.0.1:11434/api/generate",
       "models": [
         {
-          "id": "llama3.3:70b",
-          "name": "Llama 3.3 70B",
+          "id": "gemma4:e4b",
+          "name": "Gemma 4 E4B (rápido)",
           "context_window": 128000,
           "input_cost_per_m": 0.0,
           "output_cost_per_m": 0.0,
-          "recommended_for": "Privacidad 100% On-Premise (Sin Nube)"
+          "recommended_for": "Respuestas rápidas en la tarjeta gráfica (8 GB)"
         },
         {
-          "id": "qwen2.5-coder:32b",
-          "name": "Qwen 2.5 Coder 32B",
-          "context_window": 32000,
+          "id": "gemma4:26b",
+          "name": "Gemma 4 26B MoE (calidad)",
+          "context_window": 256000,
           "input_cost_per_m": 0.0,
           "output_cost_per_m": 0.0,
-          "recommended_for": "Generación y Análisis de Código Local"
+          "recommended_for": "Mejor calidad local usando GPU + RAM"
         }
       ]
     }
   }
 }
-

@@ -19,9 +19,19 @@ import {
     switchMainTab,
     selectTheme,
     applySavedTheme,
+    toggleDayNightMode,
+    openBeginnerManualModal,
+    closeBeginnerManualModal,
     closeAllModals,
     initKeyboardShortcuts
 } from './ui.js';
+
+import {
+    toggleLanguage,
+    setLanguage,
+    getLanguage,
+    applyLanguageToDOM
+} from './i18n.js';
 
 import {
     renderProjectSelector,
@@ -100,6 +110,11 @@ import {
     handleGenerateLegalDoc
 } from './legal.js';
 
+import {
+    renderLocalAiControls,
+    detectLocalAi
+} from './local-ai.js';
+
 // -------------------------------------------------------------
 // 1. CARGA DE DATOS & SINCRONIZACIÓN CON BACKEND SQLITE
 // -------------------------------------------------------------
@@ -131,6 +146,7 @@ export async function fetchTeamData() {
         renderUxHonestView();
         renderMeetingsBadge();
         renderActivityFeed();
+        renderLocalAiControls();
         if (currentTab === 'meetings') renderMeetingsView();
     } catch (renderErr) {
         console.error('Error de renderizado en frontend:', renderErr);
@@ -429,13 +445,9 @@ export async function saveJurisdiction() {
 }
 
 export function renderAiEngineBadge() {
-    const engine = appData.ai_engine || {};
-    const badge = document.getElementById('ai-engine-badge');
-    if (badge) {
-        const icon = engine.icon || '🟣';
-        const name = (engine.active_model || 'Claude Sonnet').split(' ')[0];
-        badge.innerHTML = `<span>${icon}</span> <span>${name}</span>`;
-    }
+    // El badge "Motor IA" de la barra superior (header-ai-icon / header-ai-model) lo pinta local-ai.js,
+    // porque muestra el modelo local cuando la IA local está activada.
+    renderLocalAiControls();
 }
 
 export function openAiEngineModal() {
@@ -581,7 +593,7 @@ window.runLegalWorkspaceAudit = runLegalWorkspaceAudit;
 window.renderLegalPillars = renderLegalPillars;
 window.handleGenerateLegalDoc = handleGenerateLegalDoc;
 
-// Modales globales
+// Modales globales & Preferencias (Temas / Idioma / Manual)
 window.openChangeWorkspaceModal = openChangeWorkspaceModal;
 window.closeChangeWorkspaceModal = closeChangeWorkspaceModal;
 window.saveWorkspace = saveWorkspace;
@@ -591,6 +603,11 @@ window.saveJurisdiction = saveJurisdiction;
 window.openAiEngineModal = openAiEngineModal;
 window.closeAiEngineModal = closeAiEngineModal;
 window.saveAiEngineSettings = saveAiEngineSettings;
+window.toggleDayNightMode = toggleDayNightMode;
+window.openBeginnerManualModal = openBeginnerManualModal;
+window.closeBeginnerManualModal = closeBeginnerManualModal;
+window.toggleLanguage = toggleLanguage;
+window.setLanguage = setLanguage;
 
 // -------------------------------------------------------------
 // 6. INICIALIZACIÓN AL CARGAR EL DOM
@@ -599,6 +616,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     initKeyboardShortcuts();
     await fetchTeamData();
     applySavedTheme();
+    applyLanguageToDOM();
+
+    // Buscar IA local (Ollama) al cargar y cada 60 s, sin avisos si no cambia nada
+    detectLocalAi({ silent: true });
+    setInterval(() => {
+        if (!document.hidden) detectLocalAi({ silent: true });
+    }, 60000);
 
     // Event Delegation para el tablero Kanban
     document.addEventListener('click', (e) => {

@@ -18,6 +18,7 @@ require_once __DIR__ . '/controllers/ChatController.php';
 require_once __DIR__ . '/controllers/DecisionController.php';
 require_once __DIR__ . '/controllers/SprintController.php';
 require_once __DIR__ . '/controllers/ProjectController.php';
+require_once __DIR__ . '/controllers/LocalAiController.php';
 
 use AgileForge\Bootstrap;
 use AgileForge\Database;
@@ -31,6 +32,7 @@ use AgileForge\Controllers\ChatController;
 use AgileForge\Controllers\DecisionController;
 use AgileForge\Controllers\SprintController;
 use AgileForge\Controllers\ProjectController;
+use AgileForge\Controllers\LocalAiController;
 
 // 1. Inicializar seguridad, headers y variables de entorno
 Bootstrap::init();
@@ -68,6 +70,7 @@ if ($method === 'POST') {
     $decisionCtrl = new DecisionController();
     $sprintCtrl = new SprintController();
     $projCtrl = new ProjectController();
+    $localAiCtrl = new LocalAiController();
 
     switch ($action) {
         // Multi-Proyecto & Selector de Workspaces
@@ -183,6 +186,27 @@ if ($method === 'POST') {
 
         case 'add_custom_skill':
             $skillCtrl->create($input);
+            break;
+
+        // IA local (Ollama): detectar, activar/desactivar, elegir modelo y probar
+        case 'detect_local_ai':
+            $localAiCtrl->detect();
+            break;
+
+        case 'toggle_local_ai':
+            $localAiCtrl->toggle($input);
+            break;
+
+        case 'update_local_ai':
+            $localAiCtrl->update($input);
+            break;
+
+        case 'update_local_ai_settings':
+            $localAiCtrl->settings($input);
+            break;
+
+        case 'test_local_ai':
+            $localAiCtrl->test();
             break;
 
         // Chat

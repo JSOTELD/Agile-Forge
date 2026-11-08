@@ -9,22 +9,26 @@ declare(strict_types=1);
 namespace AgileForge\Controllers;
 
 require_once dirname(__DIR__) . '/services/LlmService.php';
+require_once dirname(__DIR__) . '/services/LocalAiService.php';
 
 use AgileForge\Bootstrap;
 use AgileForge\Database;
 use AgileForge\Repository;
 use AgileForge\Services\LlmService;
+use AgileForge\Services\LocalAiService;
 use PDO;
 
 class MeetingController
 {
     private Repository $repo;
     private LlmService $llm;
+    private LocalAiService $local;
 
     public function __construct()
     {
         $this->repo = new Repository();
         $this->llm = new LlmService();
+        $this->local = new LocalAiService($this->repo);
     }
 
     public function list(): void
@@ -168,14 +172,22 @@ class MeetingController
         $roleRouting = !empty($aiEngine['role_routing_enabled']);
         $isApiMode = ($aiEngine['execution_mode'] ?? 'cli') === 'api';
 
+        // IA local activada: todos los turnos los responde el modelo de Ollama en esta PC
+        $localState = $this->local->getState();
+        $useLocal = !empty($localState['enabled']) && !empty($localState['model']);
+        if ($useLocal) {
+            $isApiMode = true;
+            @set_time_limit(900);
+        }
+
         $turns = [];
         $actionItems = [];
         $summary = '';
         $resolution = '';
 
         // Verificar si hay modelos configurados en modo API para llamadas reales server-side
-        $canRunRealApi = false;
-        if ($isApiMode) {
+        $canRunRealApi = $useLocal;
+        if ($isApiMode && !$useLocal) {
             foreach ($activeParticipants as $agent) {
                 $p = ($roleRouting && !empty($agent['ai_provider'])) ? $agent['ai_provider'] : ($aiEngine['active_provider'] ?? 'anthropic');
                 if ($this->llm->isProviderConfigured($p)) {
@@ -193,9 +205,13 @@ class MeetingController
                 $aId = $agent['id'];
                 $prov = ($roleRouting && !empty($agent['ai_provider'])) ? $agent['ai_provider'] : ($aiEngine['active_provider'] ?? 'anthropic');
                 $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'claude-sonnet-5-5');
+                if ($useLocal) {
+                    $prov = (string)($localState['runtime'] ?? 'ollama');
+                    $model = (string)$localState['model'];
+                }
 
                 $statementText = '';
-                if ($this->llm->isProviderConfigured($prov)) {
+                if ($useLocal || $this->llm->isProviderConfigured($prov)) {
                     $systemPrompt = "Eres {$agent['name']} ({$agent['alias']}) en AgileForge. Especialidad: {$agent['specialty']}. " .
                         "Participas en una mesa formal de debate técnico ({$meetingType}). " .
                         "Aporta tu perspectiva profesional, argumentos y propuestas concretas en 2-3 párrafos técnicos sin rodeos ni saludos innecesarios.";
@@ -203,10 +219,20 @@ class MeetingController
                     $turnPrompt = "{$accumulatedDiscussion}\nEs tu turno de intervenir como {$agent['name']}. ¿Cuál es tu postura, propuesta o recomendación técnica respecto a '{$topic}'?";
 
                     try {
-                        $call = $this->llm->complete($prov, $model, $turnPrompt, $systemPrompt, [
-                            'agent_role'     => $aId,
-                            'context_source' => 'meeting_' . $meetingType
-                        ]);
+                        if ($useLocal) {
+                            $call = $this->local->chat(
+                                $systemPrompt . ' Responde en español.',
+                                [['role' => 'user', 'content' => $turnPrompt]],
+                                $model
+                            );
+                            $this->llm->recordUsage($aId, null, 'default', $prov, $model,
+                                $call['input_tokens'], $call['output_tokens'], $call['total_tokens'], 0.0, 'meeting_local_' . $meetingType);
+                        } else {
+                            $call = $this->llm->complete($prov, $model, $turnPrompt, $systemPrompt, [
+                                'agent_role'     => $aId,
+                                'context_source' => 'meeting_' . $meetingType
+                            ]);
+                        }
                         $statementText = $call['text'];
                     } catch (\Throwable $e) {
                         $statementText = "⚠️ Error al conectar con {$prov} ({$model}): " . $e->getMessage();

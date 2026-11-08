@@ -6,6 +6,7 @@ Options -Indexes
     RewriteEngine On
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
     RewriteRule ^data/ - [F,L]
+    RewriteRule ^bin/ - [F,L]
 </IfModule>
 
 <IfModule mod_setenvif.c>

@@ -64,3 +64,4 @@ php bin/migrate.php
 ```
 
 ¡Bienvenido al equipo!
+

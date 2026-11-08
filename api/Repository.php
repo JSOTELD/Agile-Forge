@@ -225,7 +225,10 @@ class Repository
         }
 
         // Chat messages (últimos 50)
-        $chatStmt = $this->db->query("SELECT * FROM chat_messages ORDER BY created_at ASC LIMIT 50");
+        $chatStmt = $this->db->query(
+            "SELECT * FROM (SELECT rowid AS _rid, * FROM chat_messages ORDER BY created_at DESC, rowid DESC LIMIT 50)
+             ORDER BY created_at ASC, _rid ASC"
+        );
         $chatMessages = [];
         while ($cRow = $chatStmt->fetch()) {
             $chatMessages[] = [
@@ -234,7 +237,9 @@ class Repository
                 'sender_name' => $cRow['sender_name'],
                 'avatar'      => $cRow['avatar'],
                 'timestamp'   => $cRow['timestamp'],
-                'text'        => $cRow['text']
+                'text'        => $cRow['text'],
+                'ai_model'    => $cRow['ai_model'] ?? null,
+                'ai_provider' => $cRow['ai_provider'] ?? null
             ];
         }
 
@@ -261,6 +266,7 @@ class Repository
             'current_project'       => $currentProject,
             'jurisdiction'          => $jurisdiction,
             'ai_engine'             => $aiEngine,
+            'local_ai'              => $this->getLocalAiState($settings),
             'sprint'                => $sprint,
             'available_skills_pool' => $skillsPool,
             'skills_catalog'        => $skillsCatalog,
@@ -273,6 +279,22 @@ class Repository
             'recent_events'         => $recentEvents,
             'costs_summary'         => $costSummary,
         ];
+    }
+
+    /** Estado guardado de la IA local (sin consultar Ollama: la web lo refresca con detect_local_ai). */
+    private function getLocalAiState(array $settings): array
+    {
+        $state = is_array($settings['local_ai'] ?? null) ? $settings['local_ai'] : [];
+        return array_merge([
+            'enabled'      => false,
+            'runtime'      => 'ollama',
+            'model'        => null,
+            'num_ctx'      => 8192,
+            'detected'     => false,
+            'available'    => false,
+            'runtimes'     => [],
+            'last_checked' => null,
+        ], $state);
     }
 
     public function getSetting(string $key, $default = null)

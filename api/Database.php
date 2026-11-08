@@ -267,5 +267,20 @@ class Database
 SQL;
 
         $pdo->exec($sql);
+
+        // Migraciones aditivas: columnas nuevas en tablas existentes
+        self::addColumnIfMissing($pdo, 'chat_messages', 'ai_model', 'TEXT');
+        self::addColumnIfMissing($pdo, 'chat_messages', 'ai_provider', 'TEXT');
+    }
+
+    private static function addColumnIfMissing(PDO $pdo, string $table, string $column, string $type): void
+    {
+        $cols = $pdo->query("PRAGMA table_info({$table})")->fetchAll();
+        foreach ($cols as $c) {
+            if (($c['name'] ?? '') === $column) {
+                return;
+            }
+        }
+        $pdo->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$type}");
     }
 }

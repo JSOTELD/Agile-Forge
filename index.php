@@ -62,6 +62,113 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             --accent-glow: rgba(168, 85, 247, 0.35);
         }
 
+        .theme-light {
+            --bg-base: #f1f5f9;
+            --bg-surface: #ffffff;
+            --bg-card: rgba(255, 255, 255, 0.95);
+            --border-subtle: rgba(15, 23, 42, 0.12);
+            --accent-primary: #4f46e5;
+            --accent-glow: rgba(79, 70, 229, 0.18);
+            color-scheme: light;
+        }
+
+        .theme-paper {
+            --bg-base: #fbfbf9;
+            --bg-surface: #f4f4f0;
+            --bg-card: rgba(248, 248, 244, 0.95);
+            --border-subtle: rgba(45, 55, 72, 0.12);
+            --accent-primary: #d97706;
+            --accent-glow: rgba(217, 119, 6, 0.18);
+            color-scheme: light;
+        }
+
+        /* Reglas de Alto Contraste para Modo Día (Light Mode) */
+        html.theme-light body,
+        html.theme-paper body {
+            background-color: var(--bg-base);
+            color: #0f172a;
+        }
+
+        html.theme-light .bg-slate-950,
+        html.theme-paper .bg-slate-950,
+        html.theme-light .bg-slate-900,
+        html.theme-paper .bg-slate-900,
+        html.theme-light .bg-slate-900\/90,
+        html.theme-paper .bg-slate-900\/90,
+        html.theme-light .bg-slate-900\/80,
+        html.theme-paper .bg-slate-900\/80,
+        html.theme-light .bg-\[\#090d16\],
+        html.theme-paper .bg-\[\#090d16\],
+        html.theme-light header,
+        html.theme-paper header,
+        html.theme-light nav,
+        html.theme-paper nav {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+
+        html.theme-light .bg-slate-900\/60,
+        html.theme-paper .bg-slate-900\/60,
+        html.theme-light .bg-slate-800,
+        html.theme-paper .bg-slate-800,
+        html.theme-light .bg-slate-800\/60,
+        html.theme-paper .bg-slate-800\/60 {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #1e293b !important;
+        }
+
+        html.theme-light .border-slate-800,
+        html.theme-paper .border-slate-800,
+        html.theme-light .border-slate-800\/80,
+        html.theme-paper .border-slate-800\/80,
+        html.theme-light .border-slate-700,
+        html.theme-paper .border-slate-700 {
+            border-color: #e2e8f0 !important;
+        }
+
+        html.theme-light .text-white,
+        html.theme-paper .text-white {
+            color: #0f172a !important;
+        }
+
+        html.theme-light .text-slate-200,
+        html.theme-paper .text-slate-200,
+        html.theme-light .text-slate-300,
+        html.theme-paper .text-slate-300 {
+            color: #334155 !important;
+        }
+
+        html.theme-light .text-slate-400,
+        html.theme-paper .text-slate-400 {
+            color: #64748b !important;
+        }
+
+        html.theme-light input,
+        html.theme-paper input,
+        html.theme-light select,
+        html.theme-paper select,
+        html.theme-light textarea,
+        html.theme-paper textarea {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        html.theme-light .kanban-column,
+        html.theme-paper .kanban-column {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+
+        html.theme-light .task-card,
+        html.theme-paper .task-card {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        }
+
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background-color: var(--bg-base);
@@ -135,10 +242,28 @@ $apiToken = \AgileForge\Bootstrap::getToken();
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
+            <!-- Alternar Modo Día / Noche Rápido -->
+            <button onclick="toggleDayNightMode()" id="day-night-toggle" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-xs transition group shadow-sm" title="Alternar Modo Día / Modo Noche">
+                <span id="day-night-icon" class="text-sm">🌙</span>
+                <span id="day-night-text" class="font-bold text-slate-200 group-hover:text-amber-300 font-mono text-[11px]" data-i18n="night_mode">Noche</span>
+            </button>
+
+            <!-- Selector de Idioma (Español / English) -->
+            <button onclick="toggleLanguage()" id="lang-toggle-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 text-xs transition group shadow-sm" title="Cambiar Idioma / Switch Language">
+                <span class="text-sm">🌐</span>
+                <span id="lang-btn-text" class="font-bold text-sky-400 group-hover:text-sky-300 font-mono text-[11px]">ES</span>
+            </button>
+
+            <!-- Manual para Novatos -->
+            <button onclick="openBeginnerManualModal()" id="manual-novatos-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-indigo-500/30 hover:border-indigo-400 text-xs text-indigo-300 transition group shadow-sm" title="Abrir Manual de Inicio Rápido para Novatos (Alt+M)">
+                <span>📖</span>
+                <span class="hidden md:inline font-bold text-[11px]" data-i18n="manual_btn">Manual Novatos</span>
+            </button>
+
             <!-- Command Palette Rápido (Ctrl+K) -->
             <button onclick="openCommandPalette()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition group shadow-sm" title="Abrir Command Palette (Ctrl + K)">
                 <span>🔍</span>
-                <span class="hidden sm:inline text-[11px] text-slate-400">Buscar</span>
+                <span class="hidden sm:inline text-[11px] text-slate-400" data-i18n="search_btn">Buscar</span>
                 <kbd class="hidden md:inline text-[9px] bg-slate-950 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-slate-400">Ctrl K</kbd>
             </button>
 
@@ -152,17 +277,31 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <button onclick="openAiEngineModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 text-xs transition group shadow-sm" title="Configurar Motor IA y Proveedores API">
                 <span id="header-ai-icon" class="text-sm">🟣</span>
                 <div class="text-left">
-                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">Motor IA:</span>
+                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="ai_engine_lbl">Motor IA:</span>
                     <span id="header-ai-model" class="font-bold text-white group-hover:text-purple-300 font-mono text-[11px] leading-tight">Claude 3.7 Sonnet</span>
                 </div>
                 <span class="text-[10px] text-slate-500 ml-0.5">⚙️</span>
+            </button>
+
+            <!-- Interruptor de IA Local (Ollama): se activa solo si se detecta una IA local con modelos -->
+            <button id="local-ai-toggle" type="button" role="switch" aria-checked="false" onclick="toggleLocalAi()"
+                    class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-xs transition group shadow-sm"
+                    title="Buscando IA local…">
+                <span class="text-sm">🦙</span>
+                <div class="text-left">
+                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="local_ai_lbl">IA local:</span>
+                    <span id="local-ai-label" class="font-bold font-mono text-[11px] leading-tight text-slate-400">Buscando…</span>
+                </div>
+                <span id="local-ai-track" class="relative inline-block w-8 h-[18px] rounded-full bg-slate-700 transition-colors" aria-hidden="true">
+                    <span id="local-ai-knob" class="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform"></span>
+                </span>
             </button>
 
             <!-- Selector de Jurisdicción Legal -->
             <button onclick="openJurisdictionModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-xs transition group shadow-sm" title="Configurar País y Marco Legal">
                 <span id="jurisdiction-flag" class="text-sm">🇵🇪</span>
                 <div class="text-left">
-                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none">Jurisdicción:</span>
+                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="jurisdiction_lbl">Jurisdicción:</span>
                     <span id="jurisdiction-name" class="font-bold text-slate-200 group-hover:text-amber-300 font-mono text-[11px] leading-tight">Perú</span>
                 </div>
                 <span id="jurisdiction-regs-count" class="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-mono border border-amber-500/20">5 leyes</span>
@@ -171,13 +310,13 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <!-- Botón de Chat Lateral -->
             <button onclick="toggleChatDrawer()" class="bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 font-semibold text-xs px-3 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
                 <span>💬</span>
-                <span>Consultar</span>
+                <span data-i18n="consult_btn">Consultar</span>
                 <span id="chat-badge" class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
             </button>
 
             <!-- Botón Crear Misión / User Story -->
             <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5">
-                <span>+</span> Nueva Historia
+                <span>+</span> <span data-i18n="new_task_btn">Nueva Historia</span>
             </button>
         </div>
     </header>
@@ -186,22 +325,22 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <nav class="bg-[#090d16] border-b border-slate-800/80 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs overflow-x-auto">
         <div class="flex items-center gap-1.5 sm:gap-2">
             <button onclick="switchMainTab('kanban')" id="tab-btn-kanban" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-active">
-                <span>📌</span> <span>Tablero Scrum</span>
+                <span>📌</span> <span data-i18n="tab_kanban">Tablero Scrum</span>
             </button>
             <button onclick="switchMainTab('ux')" id="tab-btn-ux" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>🎨</span> <span>Laboratorio UX/UI & Diseño</span>
+                <span>🎨</span> <span data-i18n="tab_ux">Laboratorio UX/UI & Diseño</span>
                 <span id="nav-ux-score" class="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-mono">94%</span>
             </button>
             <button onclick="switchMainTab('legal')" id="tab-btn-legal" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>⚖️</span> <span>Auditoría Legal</span>
+                <span>⚖️</span> <span data-i18n="tab_legal">Auditoría Legal</span>
                 <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">Compliance</span>
             </button>
             <button onclick="switchMainTab('meetings')" id="tab-btn-meetings" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>🎙️</span> <span>Sala de Reuniones & Consejos</span>
+                <span>🎙️</span> <span data-i18n="tab_meetings">Sala de Reuniones & Consejos</span>
                 <span id="nav-meetings-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">0</span>
             </button>
             <button onclick="switchMainTab('team')" id="tab-btn-team" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>👥</span> <span>Escuadrón & Multi-Skills</span>
+                <span>👥</span> <span data-i18n="tab_team">Escuadrón & Multi-Skills</span>
                 <span id="nav-team-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-mono">7</span>
             </button>
         </div>
@@ -866,19 +1005,27 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                     <div class="grid grid-cols-2 gap-2">
                         <button type="button" onclick="selectTheme('obsidian')" class="p-2.5 rounded-xl border border-slate-700 hover:border-indigo-500 bg-[#070a12] text-left flex items-center gap-2 transition theme-option" id="theme-opt-obsidian">
                             <span class="w-3 h-3 rounded-full bg-slate-400"></span>
-                            <span class="font-bold text-slate-200">Cyber Obsidian</span>
+                            <span class="font-bold text-slate-200">Cyber Obsidian (Noche)</span>
                         </button>
                         <button type="button" onclick="selectTheme('indigo')" class="p-2.5 rounded-xl border border-slate-700 hover:border-indigo-500 bg-[#050a18] text-left flex items-center gap-2 transition theme-option" id="theme-opt-indigo">
                             <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
-                            <span class="font-bold text-slate-200">Electric Indigo</span>
+                            <span class="font-bold text-slate-200">Electric Indigo (Noche)</span>
                         </button>
                         <button type="button" onclick="selectTheme('emerald')" class="p-2.5 rounded-xl border border-slate-700 hover:border-emerald-500 bg-[#03100a] text-left flex items-center gap-2 transition theme-option" id="theme-opt-emerald">
                             <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                            <span class="font-bold text-slate-200">Neon Emerald</span>
+                            <span class="font-bold text-slate-200">Neon Emerald (Noche)</span>
                         </button>
                         <button type="button" onclick="selectTheme('violet')" class="p-2.5 rounded-xl border border-slate-700 hover:border-purple-500 bg-[#0c0718] text-left flex items-center gap-2 transition theme-option" id="theme-opt-violet">
                             <span class="w-3 h-3 rounded-full bg-purple-500"></span>
-                            <span class="font-bold text-slate-200">Midnight Violet</span>
+                            <span class="font-bold text-slate-200">Midnight Violet (Noche)</span>
+                        </button>
+                        <button type="button" onclick="selectTheme('light')" class="p-2.5 rounded-xl border border-slate-700 hover:border-amber-500 bg-white text-left flex items-center gap-2 transition theme-option" id="theme-opt-light">
+                            <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                            <span class="font-bold text-slate-800">☀️ Solar Day (Modo Día)</span>
+                        </button>
+                        <button type="button" onclick="selectTheme('paper')" class="p-2.5 rounded-xl border border-slate-700 hover:border-orange-500 bg-[#fbfbf9] text-left flex items-center gap-2 transition theme-option" id="theme-opt-paper">
+                            <span class="w-3 h-3 rounded-full bg-orange-300"></span>
+                            <span class="font-bold text-slate-800">📄 Clean Paper (Día Suave)</span>
                         </button>
                     </div>
                 </div>
@@ -898,6 +1045,156 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
                 <button type="button" onclick="closeThemeModal()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow">Listo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Manual de Inicio Rápido para Novatos -->
+    <div id="beginner-manual-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-5">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Cabecera del Manual -->
+            <div class="p-5 sm:p-6 border-b border-slate-800 flex items-center justify-between gap-4 bg-slate-950/60">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl p-2 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">📖</span>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-extrabold text-base sm:text-lg text-white tracking-tight" data-i18n="manual_title">Manual de Inicio Rápido para Novatos</h3>
+                            <span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Paso a Paso</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-0.5" data-i18n="manual_subtitle">Aprende a usar AgileForge y a colaborar con agentes de IA sin complicaciones.</p>
+                    </div>
+                </div>
+                <button onclick="closeBeginnerManualModal()" class="text-slate-400 hover:text-white text-xl p-1.5 rounded-xl hover:bg-slate-800 transition">✕</button>
+            </div>
+
+            <!-- Contenido Scrollable del Manual -->
+            <div class="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs text-slate-300 leading-relaxed">
+                <!-- Sección 1: ¿Qué es? -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
+                    <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                        <span>🔰</span> <h4>1. ¿Qué es AgileForge y para qué sirve?</h4>
+                    </div>
+                    <p class="text-slate-300">
+                        AgileForge es tu <strong>centro de comando de desarrollo ágil (Scrum)</strong> impulsado por agentes de Inteligencia Artificial. En lugar de copiar y pegar prompts gigantescos, aquí tienes un escuadrón de <strong>7 especialistas</strong> (Project Manager, Diseñador UX/UI, Arquitecto, Frontend, Backend, QA/Seguridad y Abogado Legal) que leen el tablero, toman tareas y debaten soluciones contigo.
+                    </p>
+                </div>
+
+                <!-- Sección 2: Colores y Modo Día / Noche -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-amber-500/20 space-y-3">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                            <span>🌓</span> <h4>2. Colores: Modo Noche y Modo Día</h4>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="selectTheme('light')" class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-[11px] transition">☀️ Probar Día</button>
+                            <button type="button" onclick="selectTheme('obsidian')" class="px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold text-[11px] transition">🌙 Probar Noche</button>
+                        </div>
+                    </div>
+                    <p class="text-slate-300">
+                        AgileForge cuenta con <strong>6 temas visuales calibrados</strong>. Puedes alternar al instante entre Modo Día y Modo Noche haciendo clic en el botón <strong>🌙 Noche / ☀️ Día</strong> en la barra superior.
+                    </p>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400 pl-1">
+                        <li><strong>Modos Oscuros / Noche:</strong> <em>Cyber Obsidian</em> (predeterminado), <em>Electric Indigo</em>, <em>Neon Emerald</em> y <em>Midnight Violet</em>. Ideales para programar de noche con mínimo cansancio visual.</li>
+                        <li><strong>Modos Claros / Día:</strong> <em>Solar Day</em> (fondo blanco de alto contraste) y <em>Clean Paper</em> (fondo cálido suave). Ideales para trabajar en ambientes iluminados o proyectores.</li>
+                    </ul>
+                </div>
+
+                <!-- Sección 3: Idioma -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-sky-500/20 space-y-3">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <div class="flex items-center gap-2 text-sky-400 font-bold text-sm">
+                            <span>🌐</span> <h4>3. Idioma: Español e Inglés</h4>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="setLanguage('es')" class="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 font-bold text-[11px] transition">🇪🇸 Español</button>
+                            <button type="button" onclick="setLanguage('en')" class="px-2.5 py-1 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 font-bold text-[11px] transition">🇺🇸 English</button>
+                        </div>
+                    </div>
+                    <p class="text-slate-300">
+                        Puedes cambiar el idioma de la aplicación en cualquier momento con el botón <strong>🌐 ES | EN</strong> ubicado en la cabecera. La preferencia se guarda automáticamente en tu navegador.
+                    </p>
+                </div>
+
+                <!-- Sección 4: Tablero Scrum -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
+                    <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                        <span>📌</span> <h4>4. El Tablero Scrum (Cómo mover tus tareas)</h4>
+                    </div>
+                    <p class="text-slate-300">El trabajo se organiza en 4 columnas transparentes:</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                            <strong class="text-indigo-300 block mb-1">1. Historias (Backlog):</strong>
+                            Tareas pendientes. Pulsa el botón <strong>"+ Nueva Historia"</strong> para crear un requerimiento con sus criterios de aceptación (DoD).
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                            <strong class="text-amber-300 block mb-1">2. En Desarrollo:</strong>
+                            Tareas activas. Un agente o tú la toman (bloqueo atómico para que dos personas no hagan lo mismo).
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                            <strong class="text-purple-300 block mb-1">3. Revisión DoD / QA:</strong>
+                            El código o diseño está listo y aporta evidencia (tests pasados, archivos cambiados).
+                        </div>
+                        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                            <strong class="text-emerald-300 block mb-1">4. Aprobadas / Done:</strong>
+                            Regla de oro: <em>Ningún agente puede aprobarse a sí mismo</em>. Solo tú como humano o el rol QA pueden marcarla como completada.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sección 5: IA Local en tu PC -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-emerald-500/20 space-y-2">
+                    <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                        <span>🦙</span> <h4>5. IA Local en tu PC (100% Gratis y Privada)</h4>
+                    </div>
+                    <p class="text-slate-300">
+                        Si tienes instalado <strong>Ollama</strong> o <strong>Colibri</strong> en tu máquina, AgileForge lo detecta en segundo plano. Al activar el interruptor <strong>🦙 IA local</strong> en la cabecera:
+                    </p>
+                    <ul class="list-disc list-inside space-y-1 text-slate-400 pl-1">
+                        <li>Todas las respuestas del chat y los debates de las reuniones correrán en tu propia tarjeta gráfica o RAM.</li>
+                        <li><strong>Cero costo en dólares</strong> y privacidad total: ningún código ni dato confidencial sale a internet.</li>
+                    </ul>
+                </div>
+
+                <!-- Sección 6: Salas de Reunión -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-purple-500/20 space-y-2">
+                    <div class="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                        <span>🎙️</span> <h4>6. Salas de Reuniones Multi-Agente</h4>
+                    </div>
+                    <p class="text-slate-300">
+                        Ve a la pestaña <strong>"Sala de Reuniones"</strong> para reunir a 2 o más agentes. Puedes convocar un <em>Brainstorming de Innovación</em> o un <em>Consejo de Arquitectura (ADR)</em>. Los agentes deliberarán por turnos y redactarán un acta formal con acuerdos y tareas que podrás enviar directo al Backlog con un solo clic.
+                    </p>
+                </div>
+
+                <!-- Sección 7: Atajos -->
+                <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
+                    <div class="flex items-center gap-2 text-slate-200 font-bold text-sm">
+                        <span>⌨️</span> <h4>7. Atajos Rápidos de Teclado</h4>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-center">
+                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                            <span class="text-indigo-400 font-bold block text-xs">Ctrl + K</span>
+                            <span class="text-slate-400 text-[10px]">Buscar historias</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                            <span class="text-amber-400 font-bold block text-xs">Alt + M</span>
+                            <span class="text-slate-400 text-[10px]">Abrir este manual</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                            <span class="text-emerald-400 font-bold block text-xs">Alt + 1..5</span>
+                            <span class="text-slate-400 text-[10px]">Cambiar pestañas</span>
+                        </div>
+                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
+                            <span class="text-rose-400 font-bold block text-xs">ESC</span>
+                            <span class="text-slate-400 text-[10px]">Cerrar modales</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer del Modal -->
+            <div class="p-4 sm:p-5 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60">
+                <span class="text-[11px] text-slate-400">¿Dudas? Consulta el archivo <code class="text-indigo-300">MANUAL_NOVATOS.md</code> en el repositorio.</span>
+                <button type="button" onclick="closeBeginnerManualModal()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition">¡Entendido, a trabajar!</button>
             </div>
         </div>
     </div>
@@ -1117,6 +1414,39 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
                     </label>
                 </div>
+            </div>
+
+            <!-- IA local en esta PC (Ollama) -->
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/20 space-y-2.5 text-xs">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <span class="font-bold text-white block">🦙 IA local en esta PC</span>
+                        <p class="text-[11px] text-slate-400">Si está activada, el chat y las reuniones las responde un modelo local (🦙 Ollama o 🐦 Colibri) en tu computadora. Nada sale a internet.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0" title="Activar o desactivar la IA local">
+                        <input type="checkbox" id="local-ai-modal-switch" class="sr-only peer" onchange="setLocalAiEnabled(this.checked)">
+                        <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-40"></div>
+                    </label>
+                </div>
+                <p id="local-ai-status-text" class="text-[11px] text-slate-300 font-mono">Buscando IA local…</p>
+                <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 items-end">
+                    <div>
+                        <label for="local-ai-model-select" class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Modelo local</label>
+                        <select id="local-ai-model-select" onchange="changeLocalAiModel(this.value)"
+                                class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 font-mono text-[11px] focus:border-emerald-500 outline-none"></select>
+                    </div>
+                    <button type="button" onclick="detectLocalAi()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px]">🔍 Detectar</button>
+                    <button type="button" onclick="testLocalAi()" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px]">⚡ Probar</button>
+                </div>
+                <p id="local-ai-test-output" class="text-[11px] text-slate-400 min-h-[1rem]" aria-live="polite"></p>
+                <label class="flex items-start gap-2 pt-2 border-t border-slate-800 cursor-pointer">
+                    <input type="checkbox" id="local-ai-colibri-control" onchange="setColibriControl(this.checked)"
+                           class="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-900 accent-sky-500">
+                    <span>
+                        <span class="font-bold text-slate-200 block">🐦 Permitir que AgileForge encienda y apague Colibri</span>
+                        <span id="local-ai-colibri-control-note" class="text-[11px] text-slate-400 block">Solo cuando tú actives la IA local con Colibri.</span>
+                    </span>
+                </label>
             </div>
 
             <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">

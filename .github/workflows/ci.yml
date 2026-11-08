@@ -48,9 +48,12 @@ jobs:
           node -c assets/js/ux-lab.js
           node -c assets/js/projects.js
           node -c assets/js/legal.js
+          node -c assets/js/local-ai.js
+          node -c assets/js/i18n.js
 
       - name: Build MCP Server
         run: |
           cd mcp-server
           npm ci
           npm run build
+

@@ -3,6 +3,8 @@
 > **De un tablero de prompts estático a un ecosistema de ingeniería multi-agente autónomo.**  
 > AgileForge v2 permite que agentes de Inteligencia Artificial (**Claude Code, Cursor, Codex CLI, Gemini CLI**) y desarrolladores humanos colaboren sobre un mismo tablero Scrum en tiempo real, con persistencia transaccional SQLite, herramientas MCP, gobernanza humana y auditorías honestas.
 
+> 📖 **¿Recién empezando?** Revisa el **[Manual para Novatos / Beginner's Guide](MANUAL_NOVATOS.md)** con instrucciones paso a paso, modo día/noche, soporte bilingüe (ES/EN) y consejos prácticos.
+
 ---
 
 ## 🏛️ Arquitectura General
@@ -229,6 +231,52 @@ DEEPSEEK_API_KEY=
 > **Nota:** En **Modo Plugin** (por defecto), las llamadas a los modelos corren a través del cliente host (Claude Code, Cursor, etc.), por lo que no es obligatorio configurar claves de API en `.env`.
 
 ---
+
+## 🦙 IA Local (Ollama)
+
+AgileForge detecta si hay una IA local en tu PC y te deja activarla o desactivarla con un clic.
+
+- **Botón 🦙 "IA local"** en la barra superior: muestra *No detectada*, *Apagada* o el modelo activo. Clic para activar/desactivar (o para buscar de nuevo si no la encuentra).
+- **Motor IA → "IA local en esta PC"**: elegir modelo, volver a detectar y hacer una prueba rápida (muestra tokens/s).
+- **Cuando está activada**, el chat y las reuniones las responde el modelo local vía `http://127.0.0.1:11434` (o `OLLAMA_HOST` en `.env` si apunta a esta máquina). No se envía nada a la nube y el costo registrado es 0.
+- Se detecta también LM Studio (`127.0.0.1:1234`), solo como información.
+- Acciones de la API (`api/tasks.php`): `detect_local_ai`, `toggle_local_ai` (`enabled`, `model`), `update_local_ai` (`model`, `num_ctx`), `test_local_ai`.
+
+Motores locales soportados:
+
+- **Ollama** (`127.0.0.1:11434`, o `OLLAMA_HOST`).
+- **Colibri** (`127.0.0.1:8000`, o `COLIBRI_HOST`): motor para modelos MoE grandes que guarda los expertos más usados en GPU/RAM y lee el resto del NVMe. API compatible con OpenAI.
+
+Modelos instalados en esta PC (RTX 3050 8 GB + 64 GB RAM):
+
+| Motor | Modelo | Velocidad medida | Memoria | Uso |
+|---|---|---|---|---|
+| Ollama | `gemma4:e4b` | ~80 tokens/s | ~6 GB de VRAM | Rápido, para el día a día |
+| Ollama | `gemma4:26b` | ~21 tokens/s | ~19 GB de RAM | Más calidad, ocupa mucha RAM |
+| Colibri | `qwen3.6-colibri` (Qwen3.6-35B-A3B) | ~10 tokens/s | ≤12 GB RAM, 2,5 GB VRAM | La mejor calidad sin quitarle memoria a tu trabajo |
+
+Modelos de Ollama en `D:\ollama`; Colibri en `D:\colibri` y su modelo en `D:\colibri-models`.
+
+### Colibri: instalar, iniciar y detener
+
+- `bin\colibri-instalar.cmd`: descarga Colibri (versión fija revisada), instala el motor CUDA y el modelo Qwen3.6-35B-A3B (23 GB) y lo deja corriendo en segundo plano.
+- `bin\colibri-iniciar.cmd` / `bin\colibri-detener.cmd`: iniciarlo otro día o liberar la memoria.
+- Límites de memoria en `%LOCALAPPDATA%\colibri\setup.json` (`--ram 12 --vram 2.5 --ctx 16384`). Para más velocidad cuando no estés usando otras apps pesadas, sube `--ram` (p. ej. 20) y `--vram` (p. ej. 5) y reinícialo.
+
+---
+
+
+### 🐦 Acceso directo "Colibri IA" y encendido automático
+
+- **Escritorio → "Colibri IA"**: enciende Colibri, lo abre en su propia ventana y, al cerrarla, lo apaga.
+  Si AgileForge lo está usando (IA local activada con Colibri), no lo apaga.
+  Se crea con `bin\colibri-crear-acceso-directo.cmd`.
+- **Motor IA → "Permitir que AgileForge encienda y apague Colibri"**: con ese permiso y la IA local activada
+  con Colibri, AgileForge lo enciende cuando lo necesita y lo apaga al desactivar la IA local
+  (salvo que la ventana "Colibri IA" esté abierta). Sin el permiso, solo usa Colibri si tú lo abriste.
+- Los scripts de control están en `%LOCALAPPDATA%\colibri\agileforge\` (`colibri-control.ps1 start|stop|status`)
+  y la coordinación usa `%LOCALAPPDATA%\colibri\run\agileforge.lease` y `desktop.lease`.
+- Ruta configurable en `config/local-ai.json` (`colibri_home`).
 
 ## 🧪 Verificación y Pruebas del Sistema
 

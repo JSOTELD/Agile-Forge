@@ -73,7 +73,14 @@ class LlmService
 
     private function checkOllamaStatus(string $endpoint): bool
     {
-        $ch = curl_init(rtrim($endpoint, '/') . '/api/tags');
+        // El endpoint de config apunta a /api/generate: el estado se consulta en la raíz del servidor.
+        $parts = parse_url($endpoint) ?: [];
+        $host = $parts['host'] ?? '127.0.0.1';
+        if ($host === 'localhost') {
+            $host = '127.0.0.1'; // Ollama escucha en IPv4; evita la espera por ::1 en Windows
+        }
+        $base = ($parts['scheme'] ?? 'http') . '://' . $host . ':' . ($parts['port'] ?? 11434);
+        $ch = curl_init($base . '/api/tags');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 1);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);

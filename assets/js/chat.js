@@ -58,6 +58,26 @@ export async function handleSendChat(e) {
 
     if (input) input.value = '';
 
+    // Indicador de "escribiendo…" (las respuestas de la IA local pueden tardar varios segundos)
+    const container = document.getElementById('chat-messages');
+    const submitBtn = document.querySelector('#chat-form button[type="submit"]');
+    const local = appData.local_ai || {};
+    const usingLocal = !!(local.enabled && local.model);
+    const pending = document.createElement('div');
+    pending.className = 'flex flex-col items-start space-y-1';
+    pending.innerHTML = `
+        <div class="flex flex-col items-end space-y-1 self-end w-full">
+            <div class="max-w-[88%] p-3 rounded-2xl text-xs leading-relaxed bg-indigo-600 text-white rounded-tr-none">${escapeHtml(text)}</div>
+        </div>
+        <div class="max-w-[88%] p-3 rounded-2xl text-xs bg-slate-950 border border-slate-800 text-slate-400 rounded-tl-none animate-pulse">
+            ${usingLocal ? '🦙 ' + escapeHtml(local.model) + ' está pensando en tu PC…' : 'Enviando…'}
+        </div>`;
+    if (container) {
+        container.appendChild(pending);
+        container.scrollTop = container.scrollHeight;
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
     try {
         const res = await apiFetch('api/tasks.php', {
             method: 'POST',
@@ -68,7 +88,15 @@ export async function handleSendChat(e) {
                 message: text
             })
         });
-        const data = await res.json();
+        let data;
+        try {
+            data = await res.json();
+        } catch (parseErr) {
+            data = { success: false, error: usingLocal
+                ? `La IA local tardó demasiado en responder (HTTP ${res.status}). La primera respuesta tarda más mientras el modelo se carga; vuelve a intentarlo.`
+                : `El servidor respondió HTTP ${res.status}.` };
+            if (input && !input.value) input.value = text;
+        }
         if (data.success) {
             if (window.fetchTeamData) await window.fetchTeamData();
         } else {
@@ -76,6 +104,9 @@ export async function handleSendChat(e) {
         }
     } catch (err) {
         showToast('Error', 'Fallo al comunicar con el chat', 'error');
+    } finally {
+        pending.remove();
+        if (submitBtn) submitBtn.disabled = false;
     }
 }
 
