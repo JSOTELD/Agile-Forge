@@ -360,6 +360,91 @@ async function saveJurisdictionSettings() {
     }
 }
 
+// 1.2 Multi-LLM Hub & Selector de Motor IA Activo
+function renderAiEngineBadge() {
+    const ai = appData.ai_engine || { active_model: 'Claude 3.7 Sonnet', icon: '🟣' };
+    const iconEl = document.getElementById('header-ai-icon');
+    const modelEl = document.getElementById('header-ai-model');
+
+    if (iconEl) iconEl.textContent = ai.icon || '🟣';
+    if (modelEl) modelEl.textContent = ai.active_model || 'Claude 3.7 Sonnet';
+}
+
+function openAiEngineModal() {
+    const ai = appData.ai_engine || {};
+    const provSelect = document.getElementById('ai-provider-select');
+    const execSelect = document.getElementById('ai-execution-mode');
+    const endpInput = document.getElementById('ai-endpoint-input');
+    const routingToggle = document.getElementById('ai-role-routing-toggle');
+
+    if (provSelect) {
+        provSelect.value = ai.active_provider || 'anthropic';
+        handleProviderChange(provSelect.value, ai.active_model);
+    }
+
+    if (execSelect) execSelect.value = ai.execution_mode || 'cli';
+    if (endpInput) endpInput.value = ai.endpoint || '';
+    if (routingToggle) routingToggle.checked = ai.role_routing_enabled !== false;
+
+    document.getElementById('ai-engine-modal').classList.remove('hidden');
+}
+
+function closeAiEngineModal() {
+    document.getElementById('ai-engine-modal').classList.add('hidden');
+}
+
+function handleProviderChange(providerId, selectedModel = null) {
+    const ai = appData.ai_engine || {};
+    const providers = ai.available_providers || [];
+    const prov = providers.find(p => p.id === providerId);
+    const modelSelect = document.getElementById('ai-model-select');
+    const endpInput = document.getElementById('ai-endpoint-input');
+
+    if (!prov || !modelSelect) return;
+
+    modelSelect.innerHTML = (prov.models || []).map(m => `
+        <option value="${m}" ${m === (selectedModel || prov.default_model) ? 'selected' : ''}>${prov.icon} ${m}</option>
+    `).join('');
+
+    if (endpInput && prov.endpoint) {
+        endpInput.value = prov.endpoint;
+    }
+}
+
+async function saveAiEngineSettings() {
+    const provSelect = document.getElementById('ai-provider-select').value;
+    const modelSelect = document.getElementById('ai-model-select').value;
+    const execMode = document.getElementById('ai-execution-mode').value;
+    const endpoint = document.getElementById('ai-endpoint-input').value.trim();
+    const roleRouting = document.getElementById('ai-role-routing-toggle').checked;
+
+    try {
+        const res = await fetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'update_ai_engine',
+                active_provider: provSelect,
+                active_model: modelSelect,
+                execution_mode: execMode,
+                endpoint: endpoint,
+                role_routing_enabled: roleRouting
+            })
+        });
+        const result = await res.json();
+        if (result.success) {
+            appData.ai_engine = result.ai_engine;
+            renderAiEngineBadge();
+            closeAiEngineModal();
+            await fetchTeamData();
+        } else {
+            alert('Error al guardar el motor IA');
+        }
+    } catch (err) {
+        alert('Error de conexión');
+    }
+}
+
 // 2. Sprint Banner (Scrum Metrics)
 function renderSprintBanner() {
     const sp = appData.sprint || {};
@@ -429,6 +514,15 @@ function renderRoles() {
                 
                 <p class="text-[11px] text-slate-300 leading-relaxed">${r.description}</p>
                 
+                <!-- Motor IA asignado al Agente -->
+                <div class="flex items-center justify-between text-[10px] bg-slate-900/60 px-2.5 py-1 rounded-xl border border-slate-800">
+                    <span class="text-slate-400 font-medium flex items-center gap-1.5">
+                        <span>🤖 Motor:</span>
+                        <span class="font-bold text-purple-300 font-mono">${r.ai_model || 'Claude 3.7 Sonnet'}</span>
+                    </span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-500 font-mono font-bold">${r.ai_provider || 'anthropic'}</span>
+                </div>
+
                 <div class="space-y-1 pt-1">
                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Toolkit de Skills Asignadas:</span>
                     <div class="flex flex-wrap gap-1">
@@ -476,15 +570,38 @@ function renderKanban() {
 
         const role = (appData.roles || []).find(r => r.id === task.assigned_to) || { name: task.assigned_to, avatar: '🤖', assigned_skills: [] };
 
+        const aiProviderIcons = {
+            anthropic: '🟣',
+            openai: '🟢',
+            google: '✨',
+            deepseek: '🐳',
+            ollama: '🦙'
+        };
+        const aiBadgeStyles = {
+            anthropic: 'bg-purple-950/70 text-purple-300 border-purple-500/30',
+            openai: 'bg-emerald-950/70 text-emerald-300 border-emerald-500/30',
+            google: 'bg-blue-950/70 text-blue-300 border-blue-500/30',
+            deepseek: 'bg-cyan-950/70 text-cyan-300 border-cyan-500/30',
+            ollama: 'bg-amber-950/70 text-amber-300 border-amber-500/30'
+        };
+
+        const taskModel = task.ai_model || role.ai_model || (appData.ai_engine?.active_model) || 'Claude 3.7';
+        const taskProvider = task.ai_provider || role.ai_provider || (appData.ai_engine?.active_provider) || 'anthropic';
+        const aiIcon = aiProviderIcons[taskProvider] || '🤖';
+        const aiStyle = aiBadgeStyles[taskProvider] || 'bg-slate-900 text-slate-300 border-slate-700';
+
         const card = document.createElement('div');
         card.className = 'bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2.5 hover:border-slate-700 transition shadow-sm';
         card.innerHTML = `
             <div class="flex items-center justify-between gap-2 border-b border-slate-900 pb-2">
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="font-mono text-[10px] font-bold text-slate-400">${task.id}</span>
                     <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${priorityBadge[task.priority] || ''}">${task.priority}</span>
+                    <span class="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${aiStyle}" title="Motor IA asignado para desarrollar esta tarea">
+                        ${aiIcon} ${taskModel}
+                    </span>
                 </div>
-                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-950/70 text-indigo-300 border border-indigo-500/30">
+                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-950/70 text-indigo-300 border border-indigo-500/30 whitespace-nowrap">
                     ${pts} SP
                 </span>
             </div>
@@ -560,11 +677,16 @@ function renderChat() {
 
     container.innerHTML = appData.chat_messages.map(m => {
         const isUser = m.sender_role === 'user';
+        const aiModelTag = (!isUser && m.ai_model)
+            ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-900 border border-purple-500/30 text-purple-300" title="Respuesta generada por este modelo">🤖 ${m.ai_model}</span>`
+            : '';
+
         return `
             <div class="flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1">
                 <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
                     <span>${m.avatar}</span>
                     <span class="font-bold ${isUser ? 'text-indigo-400' : 'text-slate-300'}">${m.sender_name}</span>
+                    ${aiModelTag}
                     <span class="text-slate-500 font-mono">${m.timestamp}</span>
                 </div>
                 <div class="max-w-[88%] p-3 rounded-2xl text-xs leading-relaxed ${isUser ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-950 border border-slate-800 text-slate-200 rounded-tl-none'}">
@@ -683,7 +805,8 @@ function showTaskPrompt(taskId) {
     const task = (appData.tasks || []).find(t => t.id === taskId);
     if (!task) return;
 
-    document.getElementById('prompt-modal-badge').textContent = `Misión: ${task.id}`;
+    const modelTag = task.ai_model ? ` · 🤖 ${task.ai_model}` : '';
+    document.getElementById('prompt-modal-badge').textContent = `Misión: ${task.id}${modelTag}`;
     document.getElementById('prompt-modal-title').textContent = task.title;
     document.getElementById('prompt-modal-text').value = task.prompt_template || 'Sin prompt generado.';
     document.getElementById('prompt-modal').classList.remove('hidden');
