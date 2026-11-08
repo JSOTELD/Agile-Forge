@@ -185,6 +185,10 @@
                 <span>⚖️</span> <span>Auditoría Legal</span>
                 <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">Compliance</span>
             </button>
+            <button onclick="switchMainTab('meetings')" id="tab-btn-meetings" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
+                <span>🎙️</span> <span>Sala de Reuniones & Consejos</span>
+                <span id="nav-meetings-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">0</span>
+            </button>
             <button onclick="switchMainTab('team')" id="tab-btn-team" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
                 <span>👥</span> <span>Escuadrón & Multi-Skills</span>
                 <span id="nav-team-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-mono">7</span>
@@ -563,7 +567,136 @@
             </div>
         </section>
 
-        <!-- VISTA 4: ESCUADRÓN DE AGENTES & CONFIGURACIÓN MULTI-SKILLS -->
+        <!-- VISTA 4: SALA DE REUNIONES MULTI-AGENTE & CONSEJOS ÁGILES (Brainstorming & Toma de Decisiones) -->
+        <section id="view-meetings" class="hidden space-y-6">
+            <!-- Hero Banner -->
+            <div class="bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900 border border-purple-500/30 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div class="space-y-1.5">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl p-2.5 bg-purple-500/10 border border-purple-500/30 rounded-2xl">🎙️</span>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-black text-xl text-white">Sala de Reuniones Multi-Agente & Consejos Ágiles</h3>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30 font-mono font-bold">Colaboración Sinérgica</span>
+                            </div>
+                            <p class="text-xs text-purple-300/90">
+                                Reúne a 2 o más agentes especializados para <strong>sesiones de brainstorming e innovación</strong> o <strong>toma de decisiones de arquitectura (ADR)</strong>.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleMeetingComposer()" id="toggle-meet-composer-btn" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-2 whitespace-nowrap glow-fx">
+                        <span>+</span> <span>Convocar Reunión</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Presets Rápidos de Convocatoria (1 Clic) -->
+            <div class="space-y-2">
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Convocatorias Rápidas Preconfiguradas:</span>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <button type="button" onclick="launchPresetMeeting('brainstorming_ux')" class="text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-pink-500/20 hover:border-pink-500/40 transition group space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-lg">💡</span>
+                            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-pink-950/60 text-pink-300 border border-pink-500/20">Brainstorming</span>
+                        </div>
+                        <h5 class="font-bold text-white group-hover:text-pink-300 transition">Innovación & Deleite UX</h5>
+                        <p class="text-[11px] text-slate-400 leading-tight">The Visionary + Pixel Master + The Orchestrator</p>
+                    </button>
+
+                    <button type="button" onclick="launchPresetMeeting('adr_architecture')" class="text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-indigo-500/20 hover:border-indigo-500/40 transition group space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-lg">🏛️</span>
+                            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/20">Decisión ADR</span>
+                        </div>
+                        <h5 class="font-bold text-white group-hover:text-indigo-300 transition">Consejo de Arquitectura</h5>
+                        <p class="text-[11px] text-slate-400 leading-tight">Lead Architect + Backend Master + QA Sentinel</p>
+                    </button>
+
+                    <button type="button" onclick="launchPresetMeeting('legal_compliance')" class="text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-amber-500/20 hover:border-amber-500/40 transition group space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-lg">⚖️</span>
+                            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950/60 text-amber-300 border border-amber-500/20">Compliance</span>
+                        </div>
+                        <h5 class="font-bold text-white group-hover:text-amber-300 transition">Comité de Blindaje Legal</h5>
+                        <p class="text-[11px] text-slate-400 leading-tight">The Legal Shield + QA Guard + The Orchestrator</p>
+                    </button>
+
+                    <button type="button" onclick="launchPresetMeeting('full_squad')" class="text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-purple-500/20 hover:border-purple-500/40 transition group space-y-1.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-lg">🚀</span>
+                            <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-950/60 text-purple-300 border border-purple-500/20">Plenaria</span>
+                        </div>
+                        <h5 class="font-bold text-white group-hover:text-purple-300 transition">Reunión Plenaria de Escuadrón</h5>
+                        <p class="text-[11px] text-slate-400 leading-tight">Los 7 Agentes Especialistas</p>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Formulario Desplegable de Convocatoria Personalizada -->
+            <div id="meeting-composer" class="hidden bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <span>⚙️</span> Configurar Mesa de Reunión Personalizada
+                    </h4>
+                    <button type="button" onclick="toggleMeetingComposer()" class="text-slate-400 hover:text-white text-xs">Cerrar ✕</button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Propósito de la Sesión *</label>
+                        <select id="meet-type-select" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none">
+                            <option value="brainstorming">💡 Brainstorming e Innovación Radical</option>
+                            <option value="decision">🏛️ Toma de Decisiones Técnicas & Arquitectura (ADR)</option>
+                        </select>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Tema / Objetivo de Debate *</label>
+                        <input type="text" id="meet-topic-input" placeholder="Ej: Definir la estrategia de persistencia transaccional y caching..."
+                               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Selección de Participantes -->
+                <div class="space-y-1.5 text-xs">
+                    <label class="block text-slate-400 uppercase font-bold text-[10px]">Agentes Convocados (Mínimo 2) *</label>
+                    <div id="meet-participants-selector" class="flex flex-wrap gap-2 p-2 bg-slate-950 border border-slate-800 rounded-2xl">
+                        <!-- Chips dinámicos con checkboxes -->
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button type="button" onclick="toggleMeetingComposer()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">Cancelar</button>
+                    <button type="button" onclick="submitCustomMeeting()" class="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow">
+                        🎙️ Iniciar Debate Multi-Agente
+                    </button>
+                </div>
+            </div>
+
+            <!-- Escenario Activo de la Reunión (Live Roundtable Stage) -->
+            <div id="meeting-stage-container" class="space-y-4">
+                <!-- Se pobla dinámicamente con renderActiveMeeting() -->
+            </div>
+
+            <!-- Historial de Reuniones Pasadas -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <span>📜</span> Archivo de Actas & Reuniones Pasadas
+                    </h4>
+                    <span id="meetings-history-count" class="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">0 actas</span>
+                </div>
+
+                <div id="meetings-history-list" class="space-y-2 max-h-60 overflow-y-auto">
+                    <!-- Lista dinámica -->
+                </div>
+            </div>
+        </section>
+
+        <!-- VISTA 5: ESCUADRÓN DE AGENTES & CONFIGURACIÓN MULTI-SKILLS -->
         <section id="view-team" class="hidden space-y-5">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
                 <div>

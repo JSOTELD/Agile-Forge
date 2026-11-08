@@ -878,4 +878,320 @@ HTML;
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         exit;
     }
+
+    // 13. Sala de Reuniones Multi-Agente: Brainstorming & Toma de Decisiones
+    if ($action === 'run_agent_meeting') {
+        $meetingType = in_array($input['meeting_type'] ?? '', ['brainstorming', 'decision'], true) ? $input['meeting_type'] : 'brainstorming';
+        $topic = trim((string)($input['topic'] ?? ''));
+        $participants = is_array($input['participants'] ?? null) ? $input['participants'] : [];
+
+        if ($topic === '') {
+            $topic = ($meetingType === 'brainstorming')
+                ? 'Innovación y diferenciación en la experiencia de usuario y captura de valor'
+                : 'Definición de arquitectura de persistencia y mitigación de riesgos técnicos';
+        }
+
+        if (empty($participants)) {
+            $participants = ($meetingType === 'brainstorming')
+                ? ['creative_director', 'frontend_master', 'project_manager']
+                : ['lead_architect', 'backend_architect', 'qa_security_guard', 'legal_counsel'];
+        }
+
+        // Obtener datos de cada participante
+        $rolesMap = [];
+        foreach ($data['roles'] as $r) {
+            $rolesMap[$r['id']] = $r;
+        }
+
+        $activeParticipants = [];
+        foreach ($participants as $pId) {
+            if (isset($rolesMap[$pId])) {
+                $activeParticipants[] = $rolesMap[$pId];
+            }
+        }
+
+        if (count($activeParticipants) < 2) {
+            http_response_code(422);
+            echo json_encode(['error' => 'Se requieren al menos 2 agentes participantes para convocar una reunión.']);
+            exit;
+        }
+
+        $juris = $data['jurisdiction'] ?? ['country_name' => 'Perú', 'flag' => '🇵🇪'];
+        $aiEngine = $data['ai_engine'] ?? [];
+        $roleRouting = !empty($aiEngine['role_routing_enabled']);
+
+        $turns = [];
+        $actionItems = [];
+        $summary = '';
+        $resolution = '';
+
+        if ($meetingType === 'brainstorming') {
+            // MESA DE BRAINSTORMING & INNOVACIÓN
+            foreach ($activeParticipants as $agent) {
+                $aId = $agent['id'];
+                $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'Claude 3.7');
+                $text = '';
+
+                switch ($aId) {
+                    case 'creative_director':
+                        $text = "Propongo un enfoque disruptivo para '{$topic}': en lugar de un flujo plano convencional, activemos un micro-momento memorable (Regla del Pico-Fin). Por ejemplo, una tarjeta interactiva animada con fotos en vivo de los caniles y una estimación de felicidad canina calculada en tiempo real. Esto eleva la conversión (CRO) y crea un vínculo emocional antes de la reserva.";
+                        break;
+                    case 'frontend_master':
+                        $text = "Apoyo la propuesta de The Visionary. Desde la perspectiva UX/UI, podemos resolverlo con un componente mobile-first en Tailwind con microinteracciones fluidas (<200ms), soporte táctil completo y contraste accesible WCAG AAA. El cotizador interactivo puede actualizar el importe dinámicamente con transiciones suaves sin recargar la página.";
+                        break;
+                    case 'project_manager':
+                        $text = "Excelente sinergia. Para mantener el alcance del Sprint 1 controlado y respetar nuestra velocidad, podemos dimensionar esta innovación en 2 Historias de Usuario claras: una para la lógica de cotización y otra para el refinamiento de la tarjeta de micro-momento, ambas con DoD estricto de cero deuda.";
+                        break;
+                    case 'backend_architect':
+                        $text = "Desde el backend, puedo exponer un endpoint REST ultrarrápido y seguro que entregue las tarifas por km y rangos de peso en menos de 50ms, validando inputs con PDO para garantizar cero inyecciones SQL.";
+                        break;
+                    case 'lead_architect':
+                        $text = "Arquitectónicamente, mantendremos este módulo desacoplado mediante un adapter de cálculo de tarifas, lo que nos permitirá incorporar Google Maps u OpenStreetMap en el futuro sin modificar la lógica central del negocio.";
+                        break;
+                    case 'qa_security_guard':
+                        $text = "Aseguraré casos de prueba unitarios para los cálculos de borde (distancias negativas, perros de razas gigantes, horarios pico) y pruebas de regresión automáticas para no romper la suite de 290 tests.";
+                        break;
+                    case 'legal_counsel':
+                        $text = "Excelente innovación. Para cumplir plenamente con la normativa de {$juris['country_name']} {$juris['flag']}, sugiero que debajo del cotizador se incluya un disclaimer claro indicando que la tarifa estimada incluye IGV y seguro básico de custodia conforme a la Ley de Protección al Consumidor.";
+                        break;
+                    default:
+                        $text = "De acuerdo con el enfoque. Aportaré mis capacidades técnicas para garantizar que la solución sea ágil, escalable y mantenga un alto estándar de ingeniería.";
+                        break;
+                }
+
+                $turns[] = [
+                    'role_id'   => $agent['id'],
+                    'name'      => $agent['name'],
+                    'alias'     => $agent['alias'],
+                    'avatar'    => $agent['avatar'],
+                    'ai_model'  => $model,
+                    'statement' => $text,
+                    'timestamp' => date('H:i')
+                ];
+            }
+
+            $summary = "La sesión de Brainstorming concluyó que la mejor ruta de innovación para '{$topic}' consiste en fusionar micro-momentos emocionales visuales (The Visionary) con componentes reactivos mobile-first ultra-rápidos (Pixel Master), encapsulados en historias de usuario bien acotadas (The Orchestrator) con disclaimers legales transparentes (The Legal Shield).";
+
+            $resolution = "APROBADO POR CONSENSO: Implementar el cotizador interactivo con micro-momentos visuales y cálculo en tiempo real sub-50ms en el Sprint actual.";
+
+            $actionItems = [
+                [
+                    'title'        => "Diseñar componente interactivo de cotizador con micro-momentos de deleite",
+                    'assigned_to'  => "frontend_master",
+                    'story_points' => 3,
+                    'priority'     => "alta",
+                    'user_story'   => "Como dueño de mascota quiero ver el cálculo por km y fotos del entorno para sentir total tranquilidad al reservar.",
+                    'dod'          => "Contraste WCAG AAA, 60fps de fluidez en móvil y tap targets de 44x44px."
+                ],
+                [
+                    'title'        => "Construir endpoint REST optimizado de cálculo de movilidad y tarifas",
+                    'assigned_to'  => "backend_architect",
+                    'story_points' => 3,
+                    'priority'     => "alta",
+                    'user_story'   => "Como sistema necesito cotizar distancias y tarifas con validación estricta y tiempo de respuesta sub-50ms.",
+                    'dod'          => "100% transaccional con PDO, validación de inputs y tests unitarios en verde."
+                ],
+                [
+                    'title'        => "Incorporar cláusula de transparencia de precios y seguro de custodia",
+                    'assigned_to'  => "legal_counsel",
+                    'story_points' => 2,
+                    'priority'     => "media",
+                    'user_story'   => "Como consumidor quiero ver las condiciones de cobertura veterinaria y desglose de tarifas conforme a ley.",
+                    'dod'          => "Conformidad con la Ley del Consumidor de {$juris['country_name']} {$juris['flag']}."
+                ]
+            ];
+        } else {
+            // MESA DE TOMA DE DECISIONES & ARQUITECTURA (ADR)
+            foreach ($activeParticipants as $agent) {
+                $aId = $agent['id'];
+                $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'Claude 3.7');
+                $text = '';
+
+                switch ($aId) {
+                    case 'lead_architect':
+                        $text = "Abro la sesión de decisión técnica sobre: '{$topic}'. Evaluando el trade-off arquitectónico: Debemos decidir entre persistencia relacional estricta (SQLite/MySQL con PDO) frente a almacenamiento plano. Mi recomendación técnica es usar un patrón Repositorio desacoplado con transacciones ACID, preservando Clean Architecture.";
+                        break;
+                    case 'backend_architect':
+                        $text = "Concuerdo plenamente con el Arquitecto. El patrón Repositorio nos permite trabajar con SQLite en desarrollo local y migrar a MySQL en producción sin tocar una sola línea de lógica de negocio. Además, las transacciones garantizan que ninguna reserva o cotización quede en estado inconsistente.";
+                        break;
+                    case 'qa_security_guard':
+                        $text = "Mi voto a favor está condicionado a: 1) Pruebas de mutación que verifiquen el rollback en fallos de transacción; 2) Cero concatenaciones de SQL crudo (100% sentencias preparadas); y 3) Que la cobertura de tests en el repositorio supere el 90%.";
+                        break;
+                    case 'legal_counsel':
+                        $text = "Desde el marco normativo de {$juris['country_name']} {$juris['flag']}: La persistencia de datos de clientes y mascotas debe contemplar el principio de minimización de datos (LPDP / RGPD). No debemos registrar datos sensibles no pertinentes y los logs deben disociar PII (información de identificación personal).";
+                        break;
+                    case 'project_manager':
+                        $text = "Analizando el impacto en la velocidad del equipo: Esta decisión representa una inversión de 5 Story Points de base, pero evita más de 20 Story Points de deuda técnica en los próximos dos sprints. Autorizo la asignación de este Architectural Decision Record (ADR).";
+                        break;
+                    case 'frontend_master':
+                        $text = "Desde el frontend, tener un backend transaccional con respuestas JSON estructuradas y códigos HTTP estándar (200, 400, 422, 500) nos facilita implementar estados de carga, reintentos y notificaciones de error claras al usuario.";
+                        break;
+                    case 'creative_director':
+                        $text = "La robustez técnica genera confianza en la marca. Respaldar la experiencia del usuario con un sistema libre de errores refuerza el posicionamiento de calidad premium de la empresa.";
+                        break;
+                    default:
+                        $text = "Revisados los antecedentes y consideraciones técnicas. Voto a favor de la decisión adoptada.";
+                        break;
+                }
+
+                $turns[] = [
+                    'role_id'   => $agent['id'],
+                    'name'      => $agent['name'],
+                    'alias'     => $agent['alias'],
+                    'avatar'    => $agent['avatar'],
+                    'ai_model'  => $model,
+                    'statement' => $text,
+                    'timestamp' => date('H:i')
+                ];
+            }
+
+            $summary = "El Consejo Técnico debatió y resolvió de forma unánime el tratamiento de '{$topic}'. Se adoptó formalmente la arquitectura de persistencia mediante Patrón Repositorio con transacciones ACID PDO, minimización de datos personales conforme a la ley de {$juris['country_name']} y validación defensiva estricta.";
+
+            $resolution = "ADR APROBADO: Adoptar Patrón Repositorio desacoplado con transacciones atómicas PDO y disociación de PII.";
+
+            $actionItems = [
+                [
+                    'title'        => "Implementar Repositorio transaccional desacoplado con PDO",
+                    'assigned_to'  => "backend_architect",
+                    'story_points' => 5,
+                    'priority'     => "alta",
+                    'user_story'   => "Como desarrollador quiero un repositorio con transacciones atómicas para blindar la consistencia de reservas y cotizaciones.",
+                    'dod'          => "100% consultas preparadas, soporte SQLite/MySQL y cero fuga de conexiones."
+                ],
+                [
+                    'title'        => "Suite de pruebas de mutación y concurrencia para el Repositorio",
+                    'assigned_to'  => "qa_security_guard",
+                    'story_points' => 3,
+                    'priority'     => "alta",
+                    'user_story'   => "Como QA quiero verificar que las transacciones fallen de forma segura ante cortes y datos malformados.",
+                    'dod'          => "Tests de rollback automatizados y cobertura superior al 90%."
+                ]
+            ];
+        }
+
+        if (!isset($data['meetings']) || !is_array($data['meetings'])) {
+            $data['meetings'] = [];
+        }
+
+        $meetId = 'MEET-' . str_pad((string)(count($data['meetings']) + 1), 3, '0', STR_PAD_LEFT);
+        $newMeeting = [
+            'id'           => $meetId,
+            'title'        => ($meetingType === 'brainstorming' ? '💡 Brainstorming: ' : '🏛️ Consejo ADR: ') . $topic,
+            'type'         => $meetingType,
+            'topic'        => $topic,
+            'created_at'   => date('Y-m-d H:i'),
+            'participants' => $participants,
+            'turns'        => $turns,
+            'summary'      => $summary,
+            'resolution'   => $resolution,
+            'action_items' => $actionItems,
+            'converted'    => false
+        ];
+
+        array_unshift($data['meetings'], $newMeeting);
+        file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        echo json_encode(['success' => true, 'meeting' => $newMeeting], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
+
+    // 14. Convertir Acuerdos de una Reunión en Historias de Usuario para el Backlog
+    if ($action === 'convert_meeting_to_tasks') {
+        $meetingId = trim((string)($input['meeting_id'] ?? ''));
+        $targetMeet = null;
+        $targetIndex = null;
+
+        if (isset($data['meetings']) && is_array($data['meetings'])) {
+            foreach ($data['meetings'] as $idx => $m) {
+                if ($m['id'] === $meetingId) {
+                    $targetMeet = $m;
+                    $targetIndex = $idx;
+                    break;
+                }
+            }
+        }
+
+        if (!$targetMeet) {
+            http_response_code(404);
+            echo json_encode(['error' => 'No se encontró la reunión especificada.']);
+            exit;
+        }
+
+        $actionItems = $targetMeet['action_items'] ?? [];
+        $createdTasks = [];
+        $ws = $data['active_workspace'] ?? 'D:\\xampp\\htdocs\\canil perruno';
+        $juris = $data['jurisdiction'] ?? ['country_name' => 'Perú', 'flag' => '🇵🇪'];
+        $aiEngine = $data['ai_engine'] ?? [];
+        $roleRouting = !empty($aiEngine['role_routing_enabled']);
+
+        foreach ($actionItems as $item) {
+            $roleId = $item['assigned_to'] ?? 'backend_architect';
+            $roleObj = null;
+            foreach ($data['roles'] as $r) {
+                if ($r['id'] === $roleId) {
+                    $roleObj = $r;
+                    break;
+                }
+            }
+
+            $modelUsed = ($roleRouting && !empty($roleObj['ai_model'])) ? $roleObj['ai_model'] : ($aiEngine['active_model'] ?? 'Claude 3.7');
+            $providerUsed = ($roleRouting && !empty($roleObj['ai_provider'])) ? $roleObj['ai_provider'] : ($aiEngine['active_provider'] ?? 'anthropic');
+
+            $newTaskId = 'US-' . str_pad((string)(count($data['tasks']) + 101), 3, '0', STR_PAD_LEFT);
+            $prompt = sprintf(
+                "Actúa como %s (%s).\n" .
+                "Acuerdo formal originado en la Reunión [%s]: %s\n" .
+                "📂 WORKSPACE: %s\n" .
+                "🤖 MOTOR IA: %s\n\n" .
+                "🎯 HISTORIA DE USUARIO (%d Story Points):\n%s\n%s\n\n" .
+                "🏁 DEFINITION OF DONE (DoD):\n- %s\n- Cero errores de lint y conformidad con %s %s.",
+                $roleObj ? $roleObj['name'] : 'Especialista',
+                $roleObj ? $roleObj['alias'] : 'Expert',
+                $targetMeet['id'],
+                $targetMeet['title'],
+                $ws,
+                $modelUsed,
+                $item['story_points'] ?? 3,
+                $item['title'],
+                $item['user_story'] ?? '',
+                $item['dod'] ?? 'Tests en verde y sin deuda técnica.',
+                $juris['country_name'],
+                $juris['flag']
+            );
+
+            $newTask = [
+                'id'              => $newTaskId,
+                'title'           => $item['title'],
+                'story_points'    => $item['story_points'] ?? 3,
+                'assigned_to'     => $roleId,
+                'ai_provider'     => $providerUsed,
+                'ai_model'        => $modelUsed,
+                'priority'        => $item['priority'] ?? 'alta',
+                'status'          => 'backlog',
+                'created_at'      => date('Y-m-d H:i:s'),
+                'user_story'      => $item['user_story'] ?? '',
+                'dod'             => $item['dod'] ?? 'Cero errores de lint y tests en verde.',
+                'description'     => "Tarea derivada de los acuerdos de la reunión: {$targetMeet['title']}.",
+                'skills'          => $roleObj['assigned_skills'] ?? [],
+                'prompt_template' => $prompt
+            ];
+
+            array_unshift($data['tasks'], $newTask);
+            $createdTasks[] = $newTask;
+        }
+
+        if ($targetIndex !== null) {
+            $data['meetings'][$targetIndex]['converted'] = true;
+        }
+
+        file_put_contents($dataFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        echo json_encode([
+            'success'       => true,
+            'created_tasks' => $createdTasks,
+            'count'         => count($createdTasks),
+            'message'       => "Se generaron " . count($createdTasks) . " historias de usuario en el Backlog."
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
 }
