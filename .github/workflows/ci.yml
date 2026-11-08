@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    name: Lint & Build Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mcp-server/package-lock.json
+
+      - name: Validate PHP syntax
+        run: |
+          find . -name "*.php" ! -path "./mcp-server/*" ! -path "./vendor/*" -exec php -l {} +
+
+      - name: Validate SQLite Migration
+        run: |
+          php bin/migrate.php
+
+      - name: Validate ES Modules Syntax
+        run: |
+          node -c assets/js/app.js
+          node -c assets/js/state.js
+          node -c assets/js/ui.js
+          node -c assets/js/kanban.js
+          node -c assets/js/chat.js
+          node -c assets/js/meetings.js
+          node -c assets/js/skills.js
+          node -c assets/js/ux-lab.js
+          node -c assets/js/projects.js
+          node -c assets/js/legal.js
+
+      - name: Build MCP Server
+        run: |
+          cd mcp-server
+          npm ci
+          npm run build
