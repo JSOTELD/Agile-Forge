@@ -55,6 +55,7 @@ Opcional: `AGILEFORGE_ENGINE_TOOLS=on` registra además `director_instruction` y
 | `/agileforge:reunion <tipo> <tema>` | Reunión entre agentes con acta en el tablero (sin motor web) |
 | `/agileforge:director <instrucción>` | El hilo principal actúa como Director: decide, registra, crea y delega |
 | `/agileforge:equipo [agente]` | Agentes con modelo, esfuerzo y especialidad |
+| `/agileforge:probar [alcance]` | Tester (v0, experimental): intenta romper las reglas de negocio en un entorno desechable y registra cada bug confirmado (`[BUG]…`) |
 
 Para una sesión entera como Director (opus/high, delega con la herramienta Agent): `claude --agent agileforge:director`.
 
@@ -70,8 +71,9 @@ Para una sesión entera como Director (opus/high, delega con la herramienta Agen
 | creative-director | creative_director | sonnet | low |
 | legal-compliance | legal_counsel | sonnet | low |
 | project-manager | project_manager | haiku | low |
+| Tester (v0, experimental) | — | opus | high |
 
-Solo backend, frontend y chief-architect editan archivos. QA ejecuta comandos de verificación pero no edita. **Gobernanza:** `claim_task` antes de editar; la entrega va con evidencia (`submit_for_review`); nadie aprueba su propio trabajo; solo QA (`review_task`) o el humano desde la web pasan una historia a `completada`.
+Solo backend, frontend y chief-architect editan archivos. QA ejecuta comandos de verificación pero no edita. El Tester no es un rol del tablero: solo escribe pruebas en la carpeta que permite su receta (`.agileforge/testing.md`), nunca toca código fuente ni datos reales, y no toma, entrega ni aprueba historias. **Gobernanza:** `claim_task` antes de editar; la entrega va con evidencia (`submit_for_review`); nadie aprueba su propio trabajo; solo QA (`review_task`) o el humano desde la web pasan una historia a `completada`.
 
 **Cambiar modelo o esfuerzo:**
 

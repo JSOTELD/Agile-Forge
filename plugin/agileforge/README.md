@@ -55,6 +55,7 @@ Optional: `AGILEFORGE_ENGINE_TOOLS=on` also registers `director_instruction` and
 | `/agileforge:reunion <type> <topic>` | Agent meeting with minutes on the board (no web engine) |
 | `/agileforge:director <instruction>` | The main thread acts as Director: decides, records, creates and delegates |
 | `/agileforge:equipo [agent]` | Agents with model, effort and specialty |
+| `/agileforge:probar [scope]` | Tester (v0, experimental): tries to break the business rules in a disposable environment and logs each confirmed bug (`[BUG]…`) |
 
 For a whole session as Director (opus/high, delegates with the Agent tool): `claude --agent agileforge:director`.
 
@@ -70,8 +71,9 @@ For a whole session as Director (opus/high, delegates with the Agent tool): `cla
 | creative-director | creative_director | sonnet | low |
 | legal-compliance | legal_counsel | sonnet | low |
 | project-manager | project_manager | haiku | low |
+| Tester (v0, experimental) | — | opus | high |
 
-Only backend, frontend and chief-architect edit files. QA runs verification commands but does not edit. **Governance:** `claim_task` before editing; delivery comes with evidence (`submit_for_review`); nobody approves their own work; only QA (`review_task`) or a human in the web app can move a story to `completada`.
+Only backend, frontend and chief-architect edit files. QA runs verification commands but does not edit. The Tester is not a board role: it only writes tests in the folder its recipe allows (`.agileforge/testing.md`), never touches source code or real data, and does not claim, submit or approve stories. **Governance:** `claim_task` before editing; delivery comes with evidence (`submit_for_review`); nobody approves their own work; only QA (`review_task`) or a human in the web app can move a story to `completada`.
 
 **Changing model or effort:**
 

@@ -138,11 +138,12 @@ Cada agente tiene su propio modelo y esfuerzo, para usar el modelo caro solo don
 | creative-director | sonnet | low |
 | legal-compliance | sonnet | low |
 | project-manager | haiku | low |
+| Tester (v0, experimental) | opus | high |
 | observador (Vista) | haiku | low |
 
 ### Comandos
 
-- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <tipo> <tema>`, `/agileforge:director <instrucción>`, `/agileforge:equipo`.
+- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <tipo> <tema>`, `/agileforge:director <instrucción>`, `/agileforge:equipo`, `/agileforge:probar [alcance]` (Tester, v0, experimental).
 - **Vista:** `/agileforge-vista:estado`, `/agileforge-vista:tablero`, `/agileforge-vista:reuniones`, `/agileforge-vista:decisiones`, `/agileforge-vista:actividad`.
 
 ### Gobernanza: quién puede completar una historia
