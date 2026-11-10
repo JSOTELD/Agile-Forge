@@ -91,6 +91,16 @@ class MeetingController
         $title = trim((string)($input['title'] ?? "Reunión: {$topic}"));
         $participants = is_array($input['participants'] ?? null) ? $input['participants'] : ['project_manager', 'lead_architect'];
 
+        $partIds = self::participantIds($participants);
+        if (empty($partIds)) {
+            Bootstrap::fail('Debe incluir al menos un participante en la reunión', 422);
+        }
+        foreach ($partIds as $pId) {
+            if (!$this->repo->roleExists($pId)) {
+                Bootstrap::fail("El rol '{$pId}' no existe", 422);
+            }
+        }
+
         $projectId = trim((string)($input['project_id'] ?? $this->repo->getActiveProject()['id'] ?? 'default'));
 
         // ID calculado dentro de la transacción BEGIN IMMEDIATE (H4)
@@ -136,6 +146,9 @@ class MeetingController
     {
         $this->requireMeeting($meetingId);
         $roleId = trim((string)($input['role_id'] ?? 'unknown'));
+        if (!$this->repo->roleExists($roleId)) {
+            Bootstrap::fail("El rol '{$roleId}' no existe", 422);
+        }
         $statement = trim((string)($input['statement'] ?? $input['message'] ?? ''));
 
         if ($statement === '') {
@@ -188,6 +201,15 @@ class MeetingController
         $summary = trim((string)($input['summary'] ?? ''));
         $resolution = trim((string)($input['resolution'] ?? ''));
         $actionItems = is_array($input['action_items'] ?? null) ? $input['action_items'] : [];
+
+        foreach ($actionItems as $item) {
+            if (!empty($item['assigned_to'])) {
+                $assigned = trim((string)$item['assigned_to']);
+                if (!$this->repo->roleExists($assigned)) {
+                    Bootstrap::fail("El rol asignado '{$assigned}' en los acuerdos no existe", 422);
+                }
+            }
+        }
 
         $pdo = Database::getPdo();
         $stmt = $pdo->prepare("UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -548,30 +570,63 @@ class MeetingController
         }
 
         $createdTasks = [];
+        $reassignedRoles = [];
         $projectId = !empty($meeting['project_id']) ? $meeting['project_id'] : $this->board->activeProjectId();
 
-        Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks) {
+        Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks, &$reassignedRoles) {
             foreach ($actionItems as $idx => $item) {
+                $rawRole = trim((string)($item['assigned_to'] ?? ''));
+                $matched = $this->board->matchRoleId($rawRole);
+                $assignedTo = $matched ?? 'project_manager';
+                $wasReassigned = ($matched === null && $rawRole !== '');
+                if ($wasReassigned) {
+                    $reassignedRoles[] = [
+                        'index'         => $idx,
+                        'original_role' => $rawRole,
+                        'assigned_to'   => 'project_manager',
+                        'note'          => "Rol '{$rawRole}' no válido en acuerdos históricos, reasignado a project_manager",
+                    ];
+                }
+
+                $title = trim((string)($item['title'] ?? ''));
+                if ($title === '') {
+                    $title = "Acción #" . ($idx + 1) . " derivada de {$meeting['id']}";
+                }
+                if (mb_strlen($title) > 200) {
+                    $title = mb_substr($title, 0, 197) . '...';
+                }
+
                 $task = $this->board->createTask([
                     'project_id'   => $projectId,
-                    'title'        => $item['title'] ?? "Acción #{$idx} derivada de {$meeting['id']}",
-                    'assigned_to'  => $item['assigned_to'] ?? 'project_manager',
+                    'title'        => $title,
+                    'assigned_to'  => $assignedTo,
                     'story_points' => $item['story_points'] ?? 3,
                     'priority'     => $item['priority'] ?? 'media',
                     'user_story'   => $item['user_story'] ?? '',
                     'dod'          => $item['dod'] ?? '',
                     'description'  => "Derivado del acta {$meeting['id']}: {$meeting['title']}",
                 ], 'web', 'meeting');
-                $createdTasks[] = ['id' => $task['id'], 'title' => $task['title'], 'assigned_to' => $task['assigned_to']];
+                $createdTasks[] = [
+                    'id'          => $task['id'],
+                    'title'       => $task['title'],
+                    'assigned_to' => $task['assigned_to'],
+                    'reassigned'  => $wasReassigned,
+                ];
             }
             $pdo->prepare("UPDATE meetings SET converted = 1 WHERE id = ?")->execute([$meeting['id']]);
         });
 
+        $message = count($createdTasks) . " historias creadas en el Backlog a partir de los acuerdos";
+        if (!empty($reassignedRoles)) {
+            $message .= " (" . count($reassignedRoles) . " roles inválidos reasignados a project_manager)";
+        }
+
         Bootstrap::jsonResponse([
-            'success'       => true,
-            'message'       => count($createdTasks) . " historias creadas en el Backlog a partir de los acuerdos",
-            'created_tasks' => $createdTasks,
-            'tasks'         => $createdTasks
+            'success'          => true,
+            'message'          => $message,
+            'created_tasks'    => $createdTasks,
+            'tasks'            => $createdTasks,
+            'reassigned_roles' => $reassignedRoles,
         ]);
     }
 
@@ -591,8 +646,28 @@ class MeetingController
         $tStmt->execute([$meetingId]);
         $turns = $tStmt->fetchAll();
 
-        // Validar ruta del workspace
-        $targetDir = $targetDir ?? dirname(__DIR__, 2);
+        // Validar ruta del workspace del proyecto de la reunión (igual a verificación de DoD)
+        if ($targetDir === null || trim($targetDir) === '') {
+            try {
+                $proj = $this->repo->resolveProject($meeting['project_id'] ?? null);
+            } catch (\InvalidArgumentException $e) {
+                $proj = $this->repo->getActiveProject();
+            }
+            $appRoot = dirname(__DIR__, 2);
+            $ws = trim((string)($proj['path'] ?? ''));
+            $isAbsWs = $ws !== '' && (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $ws);
+            if (!$isAbsWs) {
+                $ws = ($ws === '' || $ws === '.') ? $appRoot : $appRoot . '/' . ltrim($ws, './\\');
+            }
+            $targetDir = $ws;
+        } else {
+            $ws = trim($targetDir);
+            $appRoot = dirname(__DIR__, 2);
+            $isAbsWs = (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $ws);
+            if (!$isAbsWs) {
+                $targetDir = ($ws === '' || $ws === '.') ? $appRoot : $appRoot . '/' . ltrim($ws, './\\');
+            }
+        }
         $cleanDir = Bootstrap::validateWorkspacePath($targetDir);
 
         $dateStr = date('Ymd_His');

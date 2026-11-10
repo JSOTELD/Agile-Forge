@@ -150,6 +150,9 @@ class BoardService
         if ($title === '') {
             throw new InvalidArgumentException('El título de la historia es obligatorio');
         }
+        if (mb_strlen($title) > 200) {
+            throw new InvalidArgumentException('El título de la historia no puede superar los 200 caracteres');
+        }
         $assigned = trim((string)($in['assigned_to'] ?? 'project_manager'));
         $matched = $this->matchRoleId($assigned);
         if ($matched === null) {
@@ -227,9 +230,13 @@ class BoardService
         $changes = [];
 
         if (isset($fields['title']) && trim((string)$fields['title']) !== '') {
+            $t = trim((string)$fields['title']);
+            if (mb_strlen($t) > 200) {
+                throw new InvalidArgumentException('El título de la historia no puede superar los 200 caracteres');
+            }
             $set[] = 'title = ?';
-            $params[] = trim((string)$fields['title']);
-            $changes['title'] = $params[count($params) - 1];
+            $params[] = $t;
+            $changes['title'] = $t;
         }
         if (isset($fields['assigned_to']) && trim((string)$fields['assigned_to']) !== '') {
             $rid = $this->matchRoleId((string)$fields['assigned_to']);

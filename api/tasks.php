@@ -167,7 +167,7 @@ if ($method === 'POST') {
             $taskId = (string)($input['task_id'] ?? '');
             $status = (string)($input['status'] ?? '');
             $note = isset($input['note']) ? (string)$input['note'] : null;
-            $roleKey = isset($input['role']) ? (string)$input['role'] : null;
+            $roleKey = isset($input['role']) ? (string)$input['role'] : (isset($input['role_key']) ? (string)$input['role_key'] : null);
             // Sin client explícito se asume 'api' (nunca 'web'): la aprobación humana exige client: "web" desde la interfaz
             $client = isset($input['client']) && $input['client'] !== '' ? (string)$input['client'] : 'api';
             $taskCtrl->updateStatus($taskId, $status, $note, $roleKey, $client);
@@ -184,7 +184,8 @@ if ($method === 'POST') {
             $taskId = (string)($input['task_id'] ?? $input['id'] ?? '');
             $evidence = is_array($input['evidence'] ?? null) ? $input['evidence'] : [];
             $roleKey = (string)($input['role_key'] ?? $input['role'] ?? 'developer');
-            $taskCtrl->submitForReview($taskId, $evidence, $roleKey);
+            $client = (string)($input['client'] ?? 'mcp');
+            $taskCtrl->submitForReview($taskId, $evidence, $roleKey, $client);
             break;
 
         case 'review_task':
@@ -217,6 +218,7 @@ if ($method === 'POST') {
             $roleCtrl->getBrief($roleId);
             break;
 
+        case 'create_skill':
         case 'add_custom_skill':
             $skillCtrl->create($input);
             break;

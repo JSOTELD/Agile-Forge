@@ -72,9 +72,39 @@ class TaskController
         $client = (string)($input['client'] ?? '') !== '' ? (string)$input['client'] : 'api';
 
         $task = $this->repo->getTask($id);
-        if ($task && ($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
+        if (!$task) {
+            Bootstrap::fail('Historia de usuario no encontrada', 404);
+        }
+
+        // Bug 5: OTRO PROYECTO (clientes no web no pueden operar historias de otro proyecto)
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
+        // Bug 6: REVISION SIN ENTREGA
+        if (isset($fields['status']) && (string)$fields['status'] === 'revision' && $client !== 'web') {
+            Bootstrap::fail('No se puede mover directamente a revisión sin evidencia: usa submit_for_review con las pruebas ejecutadas.', 409);
+        }
+
+        // Mientras una historia esté en "revision" con qa_approved, los clientes que no sean web NO pueden editarla
+        if (($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
             if ($client !== 'web') {
                 Bootstrap::fail('Aprobada por QA: espera la firma humana en el panel', 409);
+            }
+        }
+
+        // Bug 1: LOCKS (solo el rol dueño del lock vigente o la web pueden editarla)
+        $actorRole = trim((string)($input['role'] ?? $input['role_key'] ?? ''));
+        if ($client !== 'web' && !empty($task['locked_by'])) {
+            $lockedAt = Repository::utcTimestamp($task['locked_at'] ?? null) ?? time();
+            if ((time() - $lockedAt) < 1800) {
+                if ($actorRole === '' || $actorRole !== $task['locked_by']) {
+                    Bootstrap::fail("La historia está bloqueada por el rol: {$task['locked_by']}", 409);
+                }
             }
         }
 
@@ -115,6 +145,20 @@ class TaskController
             Bootstrap::fail('Historia de usuario no encontrada', 404);
         }
 
+        // Bug 5: OTRO PROYECTO
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
+        // Bug 6: REVISION SIN ENTREGA
+        if ($status === 'revision' && $client !== 'web') {
+            Bootstrap::fail('No se puede mover directamente a revisión sin evidencia: usa submit_for_review con las pruebas ejecutadas.', 409);
+        }
+
         // ADR-004: "completada" solo la fija un humano desde la web (client: "web") o review_task approve de QA.
         // human_approved ya no se lee de la petición: no es una credencial.
         if ($status === 'completada' && $client !== 'web') {
@@ -143,6 +187,16 @@ class TaskController
             }
         }
 
+        // Bug 1: LOCKS (solo el rol dueño del lock vigente o la web pueden moverla)
+        if ($client !== 'web' && !empty($task['locked_by'])) {
+            $lockedAt = Repository::utcTimestamp($task['locked_at'] ?? null) ?? time();
+            if ((time() - $lockedAt) < 1800) {
+                if ($roleKey === null || $roleKey === '' || $roleKey !== $task['locked_by']) {
+                    Bootstrap::fail("La historia está bloqueada por el rol: {$task['locked_by']}", 409);
+                }
+            }
+        }
+
         $ok = $this->repo->updateTaskStatus($id, $status, $note, $roleKey, $client);
         if (!$ok) {
             Bootstrap::fail('No se pudo actualizar el estado de la tarea', 500);
@@ -163,12 +217,31 @@ class TaskController
 
     public function claim(string $id, string $roleKey, string $client = 'mcp'): void
     {
-        if (trim($roleKey) === '') {
+        $roleKey = trim($roleKey);
+        if ($roleKey === '') {
             Bootstrap::jsonResponse(['error' => 'roleKey es obligatorio para tomar una tarea'], 422);
         }
 
+        // Bug 2: ROL INEXISTENTE EN CLAIM (validar ANTES de cualquier otra comprobación)
+        if (!$this->repo->roleExists($roleKey)) {
+            Bootstrap::fail("El rol '{$roleKey}' no existe", 422);
+        }
+
         $task = $this->repo->getTask($id);
-        if ($task && ($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
+        if (!$task) {
+            Bootstrap::fail('Historia de usuario no encontrada', 404);
+        }
+
+        // Bug 5: OTRO PROYECTO
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
+        if (($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
             if ($client !== 'web') {
                 Bootstrap::fail('Aprobada por QA: espera la firma humana en el panel', 409);
             }
@@ -186,11 +259,21 @@ class TaskController
      * Entrega a revisión (H6). Exige: historia en "en_progreso" (409 si no) y que quien entrega sea el rol que tiene
      * el lock (403 si no). Todo se comprueba dentro de la transacción para que no haya carreras con claim/review.
      */
-    public function submitForReview(string $id, array $evidence, string $roleKey): void
+    public function submitForReview(string $id, array $evidence, string $roleKey, string $client = 'mcp'): void
     {
         $roleKey = trim($roleKey);
-        if (!$this->repo->getTask($id)) {
+        $task = $this->repo->getTask($id);
+        if (!$task) {
             Bootstrap::jsonResponse(['error' => 'Tarea no encontrada'], 404);
+        }
+
+        // Bug 5: OTRO PROYECTO
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
         }
 
         $filesChanged = $evidence['files_changed'] ?? [];
@@ -649,17 +732,38 @@ class TaskController
             Bootstrap::jsonResponse(['error' => 'Tarea no encontrada'], 404);
         }
 
+        $client = (string)($input['client'] ?? 'api');
+
+        // Bug 5: OTRO PROYECTO
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$taskId}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
         $content = trim((string)($input['content'] ?? $input['message'] ?? ''));
         if ($content === '') {
             Bootstrap::jsonResponse(['error' => 'Contenido del comentario vacío'], 422);
         }
 
+        // Bug 7: comentario <= 5000
+        if (mb_strlen($content) > 5000) {
+            Bootstrap::fail('El contenido del comentario no puede superar los 5000 caracteres', 422);
+        }
+
         $role = trim((string)($input['role'] ?? 'project_manager'));
+        // Bug 7: rol existente
+        if (!$this->repo->roleExists($role)) {
+            Bootstrap::fail("El rol '{$role}' no existe", 422);
+        }
+
         $name = trim((string)($input['name'] ?? $role));
         $avatar = trim((string)($input['avatar'] ?? '💬'));
 
         $commentId = $this->repo->addComment($taskId, $role, $name, $avatar, $content);
-        $this->repo->recordEvent($taskId, $role, 'comment_added', ['comment_id' => $commentId], 'api');
+        $this->repo->recordEvent($taskId, $role, 'comment_added', ['comment_id' => $commentId], $client);
 
         Bootstrap::jsonResponse(['success' => true, 'comment_id' => $commentId]);
     }

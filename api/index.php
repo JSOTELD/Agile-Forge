@@ -126,12 +126,17 @@ if ($res === 'tasks') {
                 $taskId,
                 (string)($input['status'] ?? ''),
                 isset($input['note']) ? (string)$input['note'] : null,
-                isset($input['role']) ? (string)$input['role'] : null,
+                isset($input['role']) ? (string)$input['role'] : (isset($input['role_key']) ? (string)$input['role_key'] : null),
                 (string)($input['client'] ?? 'api')
             );
         } elseif ($subAction === 'submit-review' && $method === 'POST') {
             $input = Bootstrap::requireJsonBody();
-            $taskCtrl->submitForReview($taskId, (array)($input['evidence'] ?? []), (string)($input['role_key'] ?? $input['role'] ?? 'developer'));
+            $taskCtrl->submitForReview(
+                $taskId,
+                (array)($input['evidence'] ?? []),
+                (string)($input['role_key'] ?? $input['role'] ?? 'developer'),
+                (string)($input['client'] ?? 'mcp')
+            );
         } elseif ($subAction === 'review' && $method === 'POST') {
             $input = Bootstrap::requireJsonBody();
             $taskCtrl->review(

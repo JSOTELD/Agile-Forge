@@ -460,3 +460,225 @@ test('barreras de revisión: verification.commands_run con elementos no-string r
   assert.equal(badCommands.status, 422);
   assert.ok(!badCommands.text.includes('Array to string conversion'));
 });
+
+test('bug 1 (LOCKS): update_task_status y update_task con lock vigente de otro rol responden 409', async () => {
+  const t = await newTask();
+  // backend_architect toma la tarea
+  const claim = await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  assert.equal(claim.status, 200);
+
+  // frontend_master intenta moverla a backlog -> 409
+  const moveByOther = await action('update_task_status', { task_id: t.id, status: 'backlog', role: 'frontend_master', client: 'mcp' });
+  assert.equal(moveByOther.status, 409);
+  assert.ok(moveByOther.text.includes('bloqueada por el rol: backend_architect'));
+
+  // frontend_master intenta editarla -> 409
+  const editByOther = await action('update_task', { task_id: t.id, title: 'Título cambiado por otro', role: 'frontend_master', client: 'api' });
+  assert.equal(editByOther.status, 409);
+  assert.ok(editByOther.text.includes('bloqueada por el rol: backend_architect'));
+
+  // El dueño del lock (backend_architect) sí puede editarla -> 200
+  const editByOwner = await action('update_task', { task_id: t.id, title: 'Título cambiado por dueño', role: 'backend_architect', client: 'mcp' });
+  assert.equal(editByOwner.status, 200);
+
+  // El panel web sí puede moverla y editarla -> 200
+  const editByWeb = await action('update_task', { task_id: t.id, title: 'Título por web', client: 'web' });
+  assert.equal(editByWeb.status, 200);
+  const moveByWeb = await action('update_task_status', { task_id: t.id, status: 'backlog', client: 'web' });
+  assert.equal(moveByWeb.status, 200);
+});
+
+test('bug 2 (ROL INEXISTENTE EN CLAIM): claim_task valida role_key antes de cualquier otra comprobación (422)', async () => {
+  const t = await newTask();
+  // Tarea existente con rol inventado -> 422
+  const badRole = await action('claim_task', { task_id: t.id, role_key: 'rol_inventado' });
+  assert.equal(badRole.status, 422);
+  assert.ok(badRole.text.includes("El rol 'rol_inventado' no existe"));
+
+  // Tarea inexistente con rol inventado -> 422 (antes de comprobar existencia de la tarea)
+  const badRoleNoTask = await action('claim_task', { task_id: 'TASK-NO-EXISTE', role_key: 'rol_inventado' });
+  assert.equal(badRoleNoTask.status, 422);
+  assert.ok(badRoleNoTask.text.includes("El rol 'rol_inventado' no existe"));
+});
+
+test('bug 3 (REUNIONES): rechaza roles inexistentes (422) y convertToTasks reasigna a project_manager sin 500', async () => {
+  // start_meeting con participante inválido -> 422
+  const badStart = await action('start_meeting', { topic: 'Tema de prueba', participants: ['project_manager', 'rol_fantasma'] });
+  assert.equal(badStart.status, 422);
+  assert.ok(badStart.text.includes("El rol 'rol_fantasma' no existe"));
+
+  // Crear reunión válida
+  const okStart = await action('start_meeting', { topic: 'Reunión de prueba', participants: ['project_manager', 'lead_architect'] });
+  assert.equal(okStart.status, 200);
+  const meetId = okStart.json.meeting?.id || okStart.json.id;
+
+  // add_meeting_turn con rol inválido -> 422
+  const badTurn = await action('add_meeting_turn', { meeting_id: meetId, role_id: 'rol_fantasma', statement: 'Intervención de prueba' });
+  assert.equal(badTurn.status, 422);
+  assert.ok(badTurn.text.includes("El rol 'rol_fantasma' no existe"));
+
+  // close_meeting con assigned_to inválido -> 422
+  const badClose = await action('close_meeting', {
+    meeting_id: meetId,
+    summary: 'Resumen de prueba con más de quince caracteres',
+    resolution: 'Resolución de prueba con más de diez caracteres',
+    action_items: [{ title: 'Acuerdo 1', assigned_to: 'rol_fantasma', story_points: 2 }]
+  });
+  assert.equal(badClose.status, 422);
+  assert.ok(badClose.text.includes("El rol asignado 'rol_fantasma' en los acuerdos no existe"));
+
+  // convert_meeting_to_tasks con datos antiguos (rol no reconocido): no da 500 y reasigna a project_manager
+  const oldMeetingStart = await action('start_meeting', { topic: 'Reunión antigua', participants: ['project_manager', 'lead_architect'] });
+  assert.equal(oldMeetingStart.status, 200);
+  const oldMeetId = oldMeetingStart.json.meeting?.id || oldMeetingStart.json.id;
+  await action('close_meeting', {
+    meeting_id: oldMeetId,
+    summary: 'Resumen de prueba con más de quince caracteres',
+    resolution: 'Resolución de prueba con más de diez caracteres',
+    action_items: [{ title: 'Acuerdo legado', assigned_to: 'project_manager', story_points: 3 }]
+  });
+
+  // Modificar en SQLite el assigned_to a un rol antiguo inválido para simular histórico
+  if (process.env.AGILEFORGE_DB_PATH) {
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(process.env.AGILEFORGE_DB_PATH);
+    db.prepare('UPDATE meetings SET action_items_json = ? WHERE id = ?').run(
+      JSON.stringify([{ title: 'Acuerdo legado', assigned_to: 'rol_invalido_antiguo', story_points: 3 }]),
+      oldMeetId
+    );
+    db.close();
+  }
+
+  const convRes = await action('convert_meeting_to_tasks', { meeting_id: oldMeetId });
+  assert.equal(convRes.status, 200);
+  assert.ok(convRes.json.success);
+  assert.ok(convRes.json.created_tasks.some((t) => t.assigned_to === 'project_manager'));
+});
+
+test('bug 4 (ACTA): save_meeting_to_workspace guarda en el workspace del proyecto de la reunión', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const projName = 'Proyecto Workspace ' + Date.now();
+  const projWs = path.join(os.tmpdir(), 'af-ws-test-' + Date.now());
+  fs.mkdirSync(projWs, { recursive: true });
+  try {
+    const newProj = await action('create_project', { name: projName, path: projWs, client: 'web' });
+    assert.equal(newProj.status, 200);
+    const projId = newProj.json.project?.id || newProj.json.id;
+
+    const meet = await action('start_meeting', { topic: 'Reunión de proyecto con workspace', participants: ['project_manager', 'lead_architect'], project_id: projId });
+    assert.equal(meet.status, 200);
+    const meetId = meet.json.meeting?.id || meet.json.id;
+
+    const save = await action('save_meeting_to_workspace', { meeting_id: meetId });
+    assert.equal(save.status, 200);
+    assert.ok(save.json.file_path, 'debe devolver file_path');
+    const normalizedSaved = path.normalize(save.json.file_path).toLowerCase();
+    const normalizedWs = path.normalize(projWs).toLowerCase();
+    assert.ok(normalizedSaved.startsWith(normalizedWs), `El acta ${save.json.file_path} no se guardó en el workspace ${projWs}`);
+  } finally {
+    fs.rmSync(projWs, { recursive: true, force: true });
+  }
+});
+
+test('bug 5 (OTRO PROYECTO): mutaciones desde clientes no web sobre historias de otro proyecto responden 409', async () => {
+  const p2Name = 'Segundo Proyecto ' + Date.now();
+  const p2 = await action('create_project', { name: p2Name, path: ROOT, client: 'web' });
+  assert.equal(p2.status, 200);
+  const p2Id = p2.json.project?.id || p2.json.id;
+
+  const t2 = await action('create_task', { title: 'Historia en segundo proyecto', project_id: p2Id, client: 'web' });
+  assert.equal(t2.status, 201);
+  const taskId = t2.json.task.id;
+
+  // Cambiar el proyecto activo a 'default'
+  await action('switch_project', { project_id: 'default' });
+
+  // claim_task por cliente mcp -> 409
+  const claimOther = await action('claim_task', { task_id: taskId, role_key: 'backend_architect', client: 'mcp' });
+  assert.equal(claimOther.status, 409);
+  assert.ok(claimOther.text.includes('pertenece al proyecto'));
+
+  // submit_for_review por cliente mcp -> 409
+  const subOther = await action('submit_for_review', { task_id: taskId, role_key: 'backend_architect', evidence: EVIDENCE, client: 'mcp' });
+  assert.equal(subOther.status, 409);
+  assert.ok(subOther.text.includes('pertenece al proyecto'));
+
+  // update_task_status por cliente mcp -> 409
+  const moveOther = await action('update_task_status', { task_id: taskId, status: 'en_progreso', client: 'mcp' });
+  assert.equal(moveOther.status, 409);
+  assert.ok(moveOther.text.includes('pertenece al proyecto'));
+
+  // update_task por cliente api -> 409
+  const updateOther = await action('update_task', { task_id: taskId, title: 'Nuevo título', client: 'api' });
+  assert.equal(updateOther.status, 409);
+  assert.ok(updateOther.text.includes('pertenece al proyecto'));
+
+  // add_comment por cliente api -> 409
+  const commentOther = await action('add_comment', { task_id: taskId, content: 'Comentario en otra tarea', client: 'api' });
+  assert.equal(commentOther.status, 409);
+  assert.ok(commentOther.text.includes('pertenece al proyecto'));
+
+  // La web puede operar la historia de cualquier proyecto -> 200
+  const webUpdate = await action('update_task', { task_id: taskId, title: 'Título cambiado por web', client: 'web' });
+  assert.equal(webUpdate.status, 200);
+});
+
+test('bug 6 (REVISION SIN ENTREGA): update_task_status a revision desde clientes no web responde 409', async () => {
+  const t = await newTask();
+  const res = await action('update_task_status', { task_id: t.id, status: 'revision', client: 'mcp' });
+  assert.equal(res.status, 409);
+  assert.ok(res.text.includes('submit_for_review'));
+
+  const resUpdate = await action('update_task', { task_id: t.id, fields: { status: 'revision' }, client: 'api' });
+  assert.equal(resUpdate.status, 409);
+  assert.ok(resUpdate.text.includes('submit_for_review'));
+});
+
+test('bug 7 (LÍMITES): valida límites de longitud y unicidad de nombre de proyecto', async () => {
+  // Título de historia <= 200 (422)
+  const longTitle = 'A'.repeat(201);
+  const badTitle = await action('create_task', { title: longTitle, client: 'web' });
+  assert.equal(badTitle.status, 422);
+  assert.ok(badTitle.text.includes('no puede superar los 200 caracteres'));
+
+  // Comentario <= 5000 (422)
+  const t = await newTask();
+  const longComment = 'C'.repeat(5001);
+  const badComment = await action('add_comment', { task_id: t.id, content: longComment, client: 'web' });
+  assert.equal(badComment.status, 422);
+  assert.ok(badComment.text.includes('no puede superar los 5000 caracteres'));
+
+  // Comentario con rol inexistente (422)
+  const badRoleComment = await action('add_comment', { task_id: t.id, content: 'Comentario normal', role: 'rol_fantasma', client: 'web' });
+  assert.equal(badRoleComment.status, 422);
+  assert.ok(badRoleComment.text.includes("El rol 'rol_fantasma' no existe"));
+
+  // Nombre de proyecto <= 120 (422)
+  const longProjName = 'P'.repeat(121);
+  const badProjName = await action('create_project', { name: longProjName, client: 'web' });
+  assert.equal(badProjName.status, 422);
+  assert.ok(badProjName.text.includes('no puede superar los 120 caracteres'));
+
+  // Nombre de proyecto duplicado exacto (409)
+  const uniqueName = 'Proyecto Unico ' + Date.now();
+  const p1 = await action('create_project', { name: uniqueName, client: 'web' });
+  assert.equal(p1.status, 200);
+  const dupProj = await action('create_project', { name: uniqueName, client: 'web' });
+  assert.equal(dupProj.status, 409);
+  assert.ok(dupProj.text.includes('Ya existe un proyecto con el nombre'));
+
+  // Descripción de skill <= 1000 (422)
+  const longSkillDesc = 'S'.repeat(1001);
+  const badSkill = await action('create_skill', { name: 'Skill Larga', description: longSkillDesc });
+  assert.equal(badSkill.status, 422);
+  assert.ok(badSkill.text.includes('no puede superar los 1000 caracteres'));
+});
+
+test('bug 8 (TIPOGRAFÍA): index.php no contiene peticiones externas y usa pila de fuentes del sistema', async () => {
+  const fs = await import('node:fs');
+  const indexContent = fs.readFileSync(path.join(ROOT, 'index.php'), 'utf8');
+  assert.ok(!indexContent.includes('fonts.googleapis.com'), 'index.php no debe hacer peticiones a Google Fonts');
+  assert.ok(!indexContent.includes('fonts.gstatic.com'), 'index.php no debe hacer peticiones a gstatic');
+  assert.ok(indexContent.includes('-apple-system'), 'index.php debe usar pila de fuentes del sistema');
+});

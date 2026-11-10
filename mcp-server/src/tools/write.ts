@@ -20,7 +20,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   server.registerTool('create_task', {
     description: 'Crea una historia en el backlog (queda pendiente de aprobación humana).',
     inputSchema: {
-      title: z.string().min(5),
+      title: z.string().min(5).max(200).describe('Título de la historia (máximo 200 caracteres)'),
       assigned_to: z.string().describe('Rol ejecutor, ej. backend_architect'),
       user_story: z.string().describe('"Como [rol], quiero [acción], para [beneficio]"'),
       dod: z.string().describe('Definition of Done verificable'),
@@ -33,17 +33,17 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => post('tasks', { ...a, client: dflt }));
 
   server.registerTool('claim_task', {
-    description: 'Toma una historia: la asigna al rol, la pasa a en_progreso y la bloquea (lock). Historias aprobadas por QA no se pueden tomar mientras esperan firma humana.',
+    description: 'Toma una historia del proyecto activo: la asigna a un rol existente, la pasa a en_progreso y la bloquea (lock). Historias aprobadas por QA no se pueden tomar mientras esperan firma humana.',
     inputSchema: {
       task_id: z.string(),
-      role_key: z.string().describe('Rol que la toma'),
+      role_key: z.string().describe('Rol que la toma (debe existir)'),
       client: z.string().optional().describe('Cliente, ej. claude-code'),
     },
     annotations: WRITE,
   }, (a) => post(`tasks/${enc(a.task_id)}/claim`, { role_key: a.role_key, client: a.client || dflt }));
 
   server.registerTool('update_task_status', {
-    description: 'Mueve una historia a backlog, en_progreso o revision con una nota. Historias aprobadas por QA no se pueden mover por clientes externos; completar exige client=web.',
+    description: 'Mueve una historia del proyecto activo a backlog o en_progreso con una nota. Para mover a revisión usa submit_for_review. Historias aprobadas por QA o con lock vigente de otro rol no se pueden mover por clientes externos; completar exige client=web.',
     inputSchema: {
       task_id: z.string(),
       status: z.enum(['backlog', 'en_progreso', 'revision']),
@@ -55,11 +55,11 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => post(`tasks/${enc(a.task_id)}/status`, { status: a.status, note: a.note, role: a.role_key, client: a.client || dflt }));
 
   server.registerTool('add_comment', {
-    description: 'Añade un comentario o reporte de avance a una historia.',
+    description: 'Añade un comentario o reporte de avance a una historia del proyecto activo (máximo 5000 caracteres, rol existente).',
     inputSchema: {
       task_id: z.string(),
-      role: z.string().describe('Rol autor'),
-      content: z.string().min(1),
+      role: z.string().describe('Rol autor (debe existir)'),
+      content: z.string().min(1).max(5000).describe('Contenido del comentario (máximo 5000 caracteres)'),
       name: z.string().optional(),
       avatar: z.string().optional(),
     },
@@ -67,7 +67,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => post(`tasks/${enc(a.task_id)}/comments`, { role: a.role, content: a.content, name: a.name || a.role, avatar: a.avatar || '💬' }));
 
   server.registerTool('submit_for_review', {
-    description: 'Entrega la historia a revisión con evidencia verificable (archivos, pruebas ejecutadas y resumen de al menos 20 caracteres).',
+    description: 'Entrega una historia del proyecto activo a revisión con evidencia verificable (archivos, pruebas ejecutadas y resumen de al menos 20 caracteres).',
     inputSchema: {
       task_id: z.string(),
       role_key: z.string().describe('Rol que entrega'),
@@ -102,21 +102,21 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }));
 
   server.registerTool('start_meeting', {
-    description: 'Abre una sala de reunión entre roles (brainstorming, decision, compliance o daily).',
+    description: 'Abre una sala de reunión entre roles existentes (brainstorming, decision, compliance o daily).',
     inputSchema: {
       meeting_type: z.enum(['brainstorming', 'decision', 'compliance', 'daily']),
       topic: z.string().min(5),
-      participants: z.array(z.string()).min(2).describe('Roles participantes'),
+      participants: z.array(z.string()).min(2).describe('Roles participantes (deben existir)'),
       title: z.string().optional(),
     },
     annotations: WRITE,
   }, (a) => post('meetings', a));
 
   server.registerTool('add_meeting_turn', {
-    description: 'Registra la intervención de un rol en una reunión abierta.',
+    description: 'Registra la intervención de un rol existente en una reunión abierta.',
     inputSchema: {
       meeting_id: z.string(),
-      role_id: z.string(),
+      role_id: z.string().describe('Rol que interviene (debe existir)'),
       statement: z.string().min(10),
       name: z.string().optional(),
       alias: z.string().optional(),
@@ -127,14 +127,14 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => { const { meeting_id, ...turn } = a; return post(`meetings/${enc(meeting_id)}/turns`, turn); });
 
   server.registerTool('close_meeting', {
-    description: 'Cierra la reunión con resumen, resolución y, opcionalmente, historias derivadas.',
+    description: 'Cierra la reunión con resumen, resolución y, opcionalmente, historias derivadas asignadas a roles existentes.',
     inputSchema: {
       meeting_id: z.string(),
       summary: z.string().min(15),
       resolution: z.string().min(10),
       action_items: z.array(z.object({
         title: z.string(),
-        assigned_to: z.string(),
+        assigned_to: z.string().describe('Rol asignado (debe existir)'),
         story_points: storyPoints.default(2),
         priority: z.enum(PRIORITIES).default('media'),
         user_story: z.string().optional(),

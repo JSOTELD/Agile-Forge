@@ -36,7 +36,6 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <link rel="apple-touch-icon" href="assets/brand/favicon.png">
     <!-- Estilos compilados de Tailwind CSS (local, cero dependencia CDN) -->
     <link rel="stylesheet" href="assets/css/app.css?v=<?= filemtime(__DIR__ . '/assets/css/app.css') ?>">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-base: #070a12;
@@ -681,12 +680,12 @@ $apiToken = \AgileForge\Bootstrap::getToken();
         }
 
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
             background-color: var(--bg-base);
             color: #f8fafc;
         }
 
-        code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+        code, pre, .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
         /* Scrollbars finos para paneles */
         ::-webkit-scrollbar { width: 6px; height: 6px; }

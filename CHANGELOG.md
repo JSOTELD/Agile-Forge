@@ -33,6 +33,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   - Actualización de instrucciones y prompts para `qa-security` y `director`.
 
 #### Corregido
+- **Correcciones integrales de estabilidad y gobernanza (testeo 2.2.0):**
+  - **Locks vigentes:** `update_task_status` y `update_task` desde clientes externos rechazan con HTTP 409 si la historia tiene un lock activo de otro rol; solo el rol dueño del lock o el panel web pueden moverla o editarla.
+  - **Validación de rol en claim:** `claim_task` valida de forma temprana que `role_key` exista antes de cualquier otra comprobación (HTTP 422 si no existe).
+  - **Roles en salas de reunión:** `start_meeting`, `add_meeting_turn` y `close_meeting` rechazan roles inexistentes con HTTP 422 (participantes, turnos y `assigned_to` en acuerdos). `convert_meeting_to_tasks` reasigna acuerdos con roles inválidos a `project_manager` sin arrojar error 500 y reporta el ajuste en la respuesta.
+  - **Guardado de actas en workspace:** `save_meeting_to_workspace` guarda el acta en el workspace del proyecto de la reunión (resolviendo rutas relativas contra la raíz de la app igual que la DoD), impidiendo que se guarde en la raíz de AgileForge cuando el proyecto tiene su propio workspace.
+  - **Aislamiento multi-proyecto:** `claim_task`, `submit_for_review`, `update_task_status`, `update_task` y `add_comment` desde clientes no web rechazan con HTTP 409 si la historia no pertenece al proyecto activo.
+  - **Bloqueo de salto a revisión:** `update_task_status` hacia `revision` desde clientes no web responde HTTP 409 exigiendo el uso de `submit_for_review` con evidencia.
+  - **Límites de entrada y unicidad:** longitud máxima de título de historia (≤ 200 caracteres, HTTP 422), contenido de comentario (≤ 5000 caracteres y rol existente, HTTP 422), nombre de proyecto (≤ 120 caracteres HTTP 422 y prevención de nombres duplicados exactos HTTP 409), y descripción de skill (≤ 1000 caracteres, HTTP 422).
+  - **Tipografía y recursos 100% locales:** eliminación de fuentes remotas de Google Fonts en `index.php`, sirviendo una pila de fuentes del sistema moderna y monospace local con cero peticiones externas al cargar.
 - **Invalidación y protección de la marca `qa_approved`:**
   - Bloqueo de operaciones de modificación (`claim_task`, `update_task_status`, `update_task`) por clientes externos (no web) sobre historias con `qa_approved` activo esperando firma humana (HTTP 409).
   - Revocación automática de `qa_approved` y registro del evento `qa_approval_revoked` ante solicitudes de cambio (`request_changes`) o cuando el panel web mueve la historia a un estado distinto de `completada`.
@@ -65,6 +74,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   - Prompt updates for `qa-security` and `director` agents.
 
 #### Fixed
+- **Testing and governance bug fixes:**
+  - **Active task locks:** `update_task_status` and `update_task` from non-web clients return HTTP 409 if another role holds an active lock; only the lock owner or the web UI can move or edit the story.
+  - **Early role validation on claim:** `claim_task` validates `role_key` existence prior to any other checks (HTTP 422 if invalid).
+  - **Meeting role validation & graceful conversion:** `start_meeting`, `add_meeting_turn`, and `close_meeting` reject nonexistent roles with HTTP 422 (participants, turns, and action item assignees). `convert_meeting_to_tasks` safely reassigns tasks with invalid legacy roles to `project_manager` without throwing 500 errors and notes the fallback in the response.
+  - **Meeting minutes in project workspace:** `save_meeting_to_workspace` resolves and saves markdown minutes to the meeting project's configured workspace path instead of AgileForge app root.
+  - **Cross-project isolation:** `claim_task`, `submit_for_review`, `update_task_status`, `update_task`, and `add_comment` reject operations on stories belonging to other projects with HTTP 409 for non-web clients.
+  - **Gatekeeping direct revision transition:** `update_task_status` transitioning to `revision` from non-web clients returns HTTP 409, directing users to `submit_for_review`.
+  - **Field limits & project uniqueness:** title limit (≤ 200 chars, HTTP 422), comment content limit (≤ 5000 chars with valid role, HTTP 422), project name limit (≤ 120 chars HTTP 422 and exact duplicate rejection HTTP 409), and skill description limit (≤ 1000 chars, HTTP 422).
+  - **Zero external typography requests:** removed Google Fonts dependency from `index.php`, adopting a fast local system font stack.
 - **Invalidation and protection of `qa_approved` mark:**
   - Blocked non-web operations (`claim_task`, `update_task_status`, `update_task`) on tasks in `revision` with active `qa_approved` awaiting human signoff (HTTP 409).
   - Automatic revocation of `qa_approved` and dispatch of `qa_approval_revoked` event when QA requests changes (`request_changes`) or web moves story to any non-completed state.
