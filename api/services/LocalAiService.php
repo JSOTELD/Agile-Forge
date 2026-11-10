@@ -487,7 +487,7 @@ class LocalAiService
      * Chat con el modelo local activo. Devuelve el mismo formato que LlmService::complete().
      * @param array $messages Lista de ['role' => 'user'|'assistant', 'content' => string]
      */
-    public function chat(string $systemPrompt, array $messages, ?string $model = null): array
+    public function chat(string $systemPrompt, array $messages, ?string $model = null, int $maxTokens = 1024): array
     {
         $state = $this->getState();
         $model = $model ?: (string)($state['model'] ?? '');
@@ -504,7 +504,7 @@ class LocalAiService
                     ? 'Colibri no terminó de encender a tiempo. Vuelve a intentarlo en unos segundos.'
                     : 'Colibri está apagado. Ábrelo con el acceso directo "Colibri IA" o permite que AgileForge lo encienda (Motor IA → IA local).');
             }
-            return $this->chatColibri($model, $systemPrompt, $messages);
+            return $this->chatColibri($model, $systemPrompt, $messages, $maxTokens);
         }
 
         $payload = [
@@ -516,7 +516,7 @@ class LocalAiService
             'stream'     => false,
             'think'      => false,
             'keep_alive' => '15m',
-            'options'    => ['num_ctx' => (int)($state['num_ctx'] ?? self::DEFAULT_NUM_CTX)],
+            'options'    => ['num_ctx' => (int)($state['num_ctx'] ?? self::DEFAULT_NUM_CTX), 'num_predict' => max(256, $maxTokens)],
         ];
 
         $started = microtime(true);
@@ -548,7 +548,7 @@ class LocalAiService
     }
 
     /** Chat contra Colibri (API compatible con OpenAI). Qwen3.6 responde sin razonamiento salvo que se pida. */
-    private function chatColibri(string $model, string $systemPrompt, array $messages): array
+    private function chatColibri(string $model, string $systemPrompt, array $messages, int $maxTokens = 1024): array
     {
         $payload = [
             'model'       => $model,
@@ -557,7 +557,7 @@ class LocalAiService
                 $messages
             ),
             'stream'      => false,
-            'max_tokens'  => 1024,
+            'max_tokens'  => max(256, $maxTokens),
             'temperature' => 0.7,
         ];
 

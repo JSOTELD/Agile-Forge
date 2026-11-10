@@ -9,6 +9,16 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="agileforge-token" content="<?= htmlspecialchars($apiToken, ENT_QUOTES, 'UTF-8') ?>">
+    <?php
+    // Cache-busting de los módulos ES: cada import "./x.js" se resuelve a "./x.js?v=<fecha de modificación>",
+    // así el navegador nunca mezcla módulos viejos con nuevos tras una actualización.
+    $afImports = [];
+    foreach (glob(__DIR__ . '/assets/js/*.js') ?: [] as $afJs) {
+        $afName = basename($afJs);
+        $afImports['./assets/js/' . $afName] = './assets/js/' . $afName . '?v=' . filemtime($afJs);
+    }
+    ?>
+    <script type="importmap"><?= json_encode(['imports' => $afImports], JSON_UNESCAPED_SLASHES) ?></script>
     <script>
         (function() {
             try {
@@ -92,6 +102,10 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             --accent-glow: rgba(217, 119, 6, 0.18);
             color-scheme: light;
         }
+
+        /* Aviso del modo plugin en modo día */
+        html.theme-light #plugin-notice, html.theme-paper #plugin-notice { background: #e0f2fe; color: #075985; border-color: #0369a1; }
+        html.theme-light #director-plugin-note, html.theme-paper #director-plugin-note { color: #075985; }
 
         /* Reglas de Alto Contraste para Modo Día (Light Mode) */
         html.theme-light body,
@@ -751,6 +765,12 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <span id="lang-btn-text" class="font-bold text-sky-400 group-hover:text-sky-300 font-mono text-[11px]">ES</span>
             </button>
 
+            <!-- AgileForge Vista: panel de solo lectura en otra pestaña -->
+            <a href="vista.php" target="_blank" rel="noopener" id="vista-link" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-emerald-500/30 hover:border-emerald-400 text-xs text-emerald-300 transition group shadow-sm" data-i18n-title="view_btn_title" title="Abrir AgileForge Vista (solo lectura) en otra pestaña">
+                <span>👁️</span>
+                <span class="font-bold text-[11px]" data-i18n="view_btn">Vista</span>
+            </a>
+
             <!-- Manual para Novatos -->
             <button onclick="openBeginnerManualModal()" id="manual-novatos-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-indigo-500/30 hover:border-indigo-400 text-xs text-indigo-300 transition group shadow-sm" title="Abrir Manual de Inicio Rápido para Novatos (Alt+M)">
                 <span>📖</span>
@@ -775,7 +795,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <span id="header-ai-icon" class="text-sm">🟣</span>
                 <div class="text-left">
                     <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="ai_engine_lbl">Motor IA:</span>
-                    <span id="header-ai-model" class="font-bold text-white group-hover:text-purple-300 font-mono text-[11px] leading-tight">Claude 3.7 Sonnet</span>
+                    <span id="header-ai-model" class="font-bold text-white group-hover:text-purple-300 font-mono text-[11px] leading-tight">Cargando…</span>
                 </div>
                 <span class="text-[10px] text-slate-500 ml-0.5">⚙️</span>
             </button>
@@ -927,8 +947,38 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <!-- Contenedor de Vistas Principales -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
 
+        <!-- Aviso informativo del modo plugin (lo rellena app.js cuando no hay motor de IA en la web) -->
+        <div id="plugin-notice" role="status" class="hidden mb-4 rounded-2xl border border-sky-500/30 bg-sky-950/30 px-4 py-2.5 text-xs text-sky-100"></div>
+
         <!-- VISTA 1: TABLERO KANBAN SCRUM (4 Columnas) -->
         <section id="view-kanban" class="space-y-4">
+            <!-- 👑 Director General: recibe instrucciones, decide, delega y actualiza el tablero -->
+            <div id="director-panel" class="hidden rounded-3xl border border-amber-500/30 bg-gradient-to-r from-amber-950/25 via-slate-950/90 to-slate-950/90 p-4 space-y-3 shadow-lg">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-2xl p-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">👑</span>
+                        <div>
+                            <h3 class="font-extrabold text-white text-sm" data-i18n="director_title">Director General · Jefe Máximo</h3>
+                            <p class="text-[11px] text-slate-400" data-i18n="director_subtitle">Dale una instrucción: revisa el tablero, decide, delega en los agentes y te rinde cuentas.</p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="switchMainTab('team')" id="director-engine-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-slate-950 border-amber-500/40 text-amber-200">…</button>
+                </div>
+                <form id="director-form" onsubmit="sendDirectorInstruction(event)" class="flex flex-col sm:flex-row gap-2">
+                    <textarea id="director-input" rows="2" maxlength="8000" data-i18n-placeholder="director_placeholder"
+                              placeholder="Ej.: Prioriza lo necesario para lanzar reservas online esta semana y reparte el trabajo entre el equipo (Ctrl+Enter para enviar)"
+                              class="flex-1 px-3.5 py-2.5 rounded-2xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-amber-500 resize-y min-h-[44px]"></textarea>
+                    <button type="submit" id="director-send-btn" class="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 whitespace-nowrap" data-i18n="director_send">Dar instrucción</button>
+                </form>
+                <div class="flex flex-wrap gap-1.5 text-[10px]">
+                    <span class="text-slate-500" data-i18n="director_quick">Rápidas:</span>
+                    <button type="button" onclick="quickDirector('status')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_status">📊 Estado del sprint</button>
+                    <button type="button" onclick="quickDirector('backlog')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_backlog">🧭 Ordenar backlog</button>
+                    <button type="button" onclick="quickDirector('unblock')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_unblock">🚧 Desbloquear</button>
+                </div>
+                <div id="director-output" class="hidden p-3 rounded-2xl bg-slate-950/80 border border-slate-800"></div>
+            </div>
+
             <!-- Barra de Filtros Rápidos del Tablero -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3 rounded-2xl">
                 <div class="flex items-center gap-2 flex-1">
@@ -1397,7 +1447,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                     <h3 class="font-extrabold text-base text-white flex items-center gap-2">
                         <span>🤖</span> Escuadrón Especialista de IA & Configuración Multi-Skills
                     </h3>
-                    <p class="text-xs text-slate-400">Cada agente combina un rol de ingeniería con un motor IA asignado y un paquete de skills activadas.</p>
+                    <p class="text-xs text-slate-400" data-i18n="team_subtitle">Asigna a cada rol su motor de IA (API y modelo, o IA local) y sus skills. El Director General es el jefe máximo del equipo.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <button onclick="openAddSkillModal()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/30 font-bold text-xs flex items-center gap-1.5 transition">
@@ -1443,7 +1493,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <span class="text-2xl">💬</span>
                 <div>
                     <h3 class="font-extrabold text-sm text-white">Sala de Consulta Ágil</h3>
-                    <p class="text-[11px] text-slate-400">Pregunta a tu Diseñador, Especialista UX, PM o Abogado</p>
+                    <p class="text-[11px] text-slate-400" data-i18n="chat_subtitle">Da instrucciones al Director o consulta a cualquier agente</p>
                 </div>
             </div>
             <button onclick="toggleChatDrawer()" class="text-slate-400 hover:text-white text-xl p-1">✕</button>
@@ -1692,7 +1742,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
             <!-- Footer del Modal -->
             <div class="p-4 sm:p-5 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60">
-                <span class="text-[11px] text-slate-400">¿Dudas? Consulta el archivo <code class="text-indigo-300">MANUAL_NOVATOS.md</code> en el repositorio.</span>
+                <span class="text-[11px] text-slate-400">¿Dudas? Consulta <code class="text-indigo-300">MANUAL_NOVATOS.md</code> (ES) o <code class="text-indigo-300">BEGINNERS_GUIDE.md</code> (EN) en el repositorio.</span>
                 <button type="button" onclick="closeBeginnerManualModal()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg transition">¡Entendido, a trabajar!</button>
             </div>
         </div>
@@ -1873,7 +1923,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                             <option value="openai">🟢 OpenAI (GPT-4o, o3-mini, API)</option>
                             <option value="google">✨ Google Gemini (Gemini 2.5 Pro, Antigravity)</option>
                             <option value="deepseek">🐳 DeepSeek (DeepSeek-R1 Reasoner / V3)</option>
-                            <option value="ollama">🦙 Ollama Local (Llama 3.3, 100% On-Premise)</option>
+                            <option value="ollama">🦙 Ollama Local (100% en tu PC)</option>
                         </select>
                     </div>
 
@@ -1906,13 +1956,23 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
                     <div>
                         <span class="font-bold text-white block">🎯 Enrutamiento Especializado por Rol (Role Routing)</span>
-                        <p class="text-[11px] text-slate-400">Permite que cada agente use su IA ideal (ej: Abogado y Arquitecto con Claude 3.7, Creativo con Gemini 2.5, QA con DeepSeek-R1).</p>
+                        <p class="text-[11px] text-slate-400">Cada agente usa el motor que le asignes en "Equipo de Agentes" (ej.: Director con Claude Opus 5.5, Creativo con Gemini, QA con IA local). Si a un rol le falta la clave, usa la IA local o el motor global.</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="ai-role-routing-toggle" class="sr-only peer" checked>
+                        <input type="checkbox" id="ai-role-routing-toggle" class="sr-only peer" checked onchange="toggleRoleRoutingImmediate(this.checked)">
                         <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
                     </label>
                 </div>
+            </div>
+
+            <!-- Claves de API: se guardan en el .env del servidor y nunca vuelven al navegador -->
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-purple-500/20 space-y-2.5 text-xs">
+                <div>
+                    <span class="font-bold text-white block" data-i18n="api_keys_title">🔑 Claves de API</span>
+                    <p class="text-[11px] text-slate-400" data-i18n="api_keys_desc">Pega tu clave para que los roles con ese proveedor respondan desde AgileForge. Se guarda en el archivo .env de esta PC; el navegador solo ve una pista (ej. sk-ant-…a1b2).</p>
+                    <p class="text-[11px] mt-1">📘 <a href="https://github.com/JSOTELD/agile-forge/blob/main/docs/API_KEYS.es.md" target="_blank" rel="noopener" class="text-purple-300 hover:underline">Guía: cómo conseguir y agregar claves</a> · <a href="https://github.com/JSOTELD/agile-forge/blob/main/docs/API_KEYS.md" target="_blank" rel="noopener" class="text-purple-300 hover:underline">Guide: how to get and add API keys</a></p>
+                </div>
+                <div id="api-keys-list" class="space-y-2"></div>
             </div>
 
             <!-- IA local en esta PC (Ollama) -->
@@ -2302,9 +2362,72 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
                 <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
                     <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cancelar</button>
-                    <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/30">Generar Prompt con Multi-Skills</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold shadow-lg shadow-indigo-600/30" data-i18n="task_create_btn">Crear historia y generar prompt</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal: Detalle y edición de una historia -->
+    <div id="task-detail-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-start gap-3 border-b border-slate-800 pb-3">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 text-[11px] font-mono">
+                        <span id="detail-task-id" class="font-bold text-indigo-400">US-000</span>
+                        <span id="detail-task-status" class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 uppercase">backlog</span>
+                    </div>
+                    <h3 id="detail-task-title" class="font-bold text-base text-white mt-1">Historia</h3>
+                </div>
+                <button onclick="closeTaskDetail()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div class="space-y-3 text-xs overflow-y-auto flex-1 pr-1">
+                <div class="grid grid-cols-3 gap-2.5">
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_agent">Agente</label>
+                        <select id="detail-task-role" class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_priority">Prioridad</label>
+                        <select id="detail-task-priority" class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500">
+                            <option value="critica">Crítica</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_points">Puntos</label>
+                        <select id="detail-task-points" class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500 font-mono">
+                            <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="13">13</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_story">Historia de usuario</label>
+                    <textarea id="detail-task-story" rows="2" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Definition of Done</label>
+                    <textarea id="detail-task-dod" rows="2" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_desc">Detalles técnicos</label>
+                    <textarea id="detail-task-desc" rows="3" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Skills</label>
+                    <div id="detail-task-skills" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+            <div class="flex flex-wrap justify-between gap-2 pt-2 border-t border-slate-800">
+                <div class="flex gap-2">
+                    <button type="button" onclick="askDirectorAboutTask()" class="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/30 font-bold text-xs" data-i18n="detail_ask_director">👑 Pedir decisión al Director</button>
+                    <button type="button" onclick="showTaskPrompt(document.getElementById('detail-task-id').textContent)" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs">📋 Prompt</button>
+                    <button type="button" onclick="deleteTaskFromDetail()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 font-bold text-xs" title="Eliminar historia">🗑️</button>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeTaskDetail()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs" data-i18n="btn_cancel">Cancelar</button>
+                    <button type="button" onclick="saveTaskDetail()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30" data-i18n="detail_save">Guardar cambios</button>
+                </div>
+            </div>
         </div>
     </div>
 

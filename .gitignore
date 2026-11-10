@@ -17,6 +17,9 @@ data/*.sqlite-shm
 *.sqlite3
 *.db
 
+# Registros del servidor / Server logs
+data/logs/
+
 # Backups locales (mantener la estructura con .gitkeep)
 data/backup/*
 !data/backup/.gitkeep

@@ -84,8 +84,9 @@ export async function handleGenerateLegalDoc(saveToDisk = false) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                action: 'generate_legal_document',
+                action: 'generate_legal_doc',
                 doc_type: docType,
+                site_name: bizName,
                 business_name: bizName,
                 save_to_workspace: saveToDisk
             })

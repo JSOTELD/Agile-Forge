@@ -1,7 +1,18 @@
-# AgileForge - API Security Configuration
+# AgileForge - API Security & Routing Configuration
 Options -Indexes
 
 <FilesMatch "\.(sqlite|db|json|env|md|log|sh|bat)$">
     Require all denied
 </FilesMatch>
 
+# Rutas limpias: <app>/api/<ruta> -> api/index.php (las rutas <app>/api/index.php/<ruta> funcionan sin esto).
+# La base de la URL se deriva de SCRIPT_NAME, así que sirve en cualquier subcarpeta. Los archivos reales
+# (p. ej. api/tasks.php) se sirven tal cual.
+# Un .htaccess con RewriteEngine propio no hereda el del padre: se repite el paso del header Authorization.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>

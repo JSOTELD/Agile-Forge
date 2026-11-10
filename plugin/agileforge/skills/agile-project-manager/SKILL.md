@@ -1,27 +1,35 @@
 ---
 name: agile-project-manager
-title: "Scrum Master & PMBOK 7"
+description: Úsala cuando debas planificar un sprint, dividir historias, mantener el tablero al día o dirigir una reunión Scrum.
+title: "Gestión ágil de proyecto"
 category: agile
 level: Principal
 status: active
 tags: ["AgileForge","agile"]
 ---
 
-# Scrum Master & PMBOK 7
+# Gestión ágil de proyecto
 
-> **Especialidad:** `agile-project-manager` | **Categoría:** agile | **Nivel:** Principal | **Estado:** ACTIVE
+## Cuándo usarla
+Planificación de sprint, refinamiento del backlog, seguimiento diario, revisión y retrospectiva.
 
-Habilidad técnica especializada dentro del catálogo del ecosistema AgileForge.
+## Pasos
+1. Empieza por el estado real: `get_overview` (MCP) o `ver_tablero` (web). No planifiques de memoria.
+2. Historia bien formada: "Como <rol> quiero <acción> para <valor>", 3-5 criterios de aceptación verificables, estimación y prioridad. Si no cabe en ~1 día de trabajo de un agente, divídela (INVEST).
+3. Planificación: capacidad realista, meta de sprint en una frase, historias ordenadas por valor y dependencias; deja margen del 20%.
+4. Seguimiento: una historia `en_progreso` por agente; bloqueos visibles con `add_comment`; sin historias en `revision` más de un turno.
+5. Revisión: los criterios se comprueban con evidencia, no con opinión; `completada` solo según gobernanza (revisión aprobada por QA o humano en la web).
+6. Retrospectiva: 3 puntos (qué mantener, qué cambiar, una acción concreta con responsable) y se registra como decisión.
+7. Reuniones cortas: agenda de 3 puntos, un turno por agente, cierre con acuerdos y tareas.
+8. Informes de estado ≤ 150 palabras: avance, riesgos, siguiente paso.
 
-## Directrices de Gestión Ágil (Scrum + PMBOK 7ma Ed.)
-1. **Descomposición**: Cada requerimiento complejo debe fragmentarse en Historias de Usuario independientes, negociables, valiosas, estimables, pequeñas y testeables (INVEST).
-2. **Estimación**: Aplicar estricta secuencia Fibonacci (1, 2, 3, 5, 8, 13). Tareas mayores a 8 puntos deben subdividirse obligatoriamente.
-3. **Definition of Done (DoD)**:
-   - Cero errores de sintaxis o advertencias de linter.
-   - Suite de pruebas unitarias 100% en verde.
-   - Sin deuda técnica oculta ni cambios fuera del alcance.
-4. **Gobierno**: Toda historia debe contar con notas de progreso en el historial antes de ser entregada a revisión.
+## Anti-patrones
+- Historias de "hacer todo el módulo".
+- Tablero desactualizado respecto del trabajo real.
+- Cambiar el alcance del sprint sin registrar la decisión.
+- Marcar completada sin evidencia.
 
-## Criterio de Verificación
-- Todo entregable generado con esta skill debe satisfacer la Definition of Done (DoD).
-- La evidencia debe registrarse mediante la herramienta MCP `submit_for_review`.
+## Cómo verificar
+- Cada historia nueva muestra criterios de aceptación y estimación.
+- Pega el resumen del tablero antes y después (conteos por estado).
+- Decisiones y acuerdos de reunión con su ID. Adjunta en `submit_for_review`.

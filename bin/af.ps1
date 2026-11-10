@@ -48,6 +48,7 @@ function Get-AfHeaders {
     $headers = @{}
     if ($ApiToken) {
         $headers["Authorization"] = "Bearer $ApiToken"
+        $headers["X-AgileForge-Token"] = $ApiToken
     }
     return $headers
 }

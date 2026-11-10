@@ -102,6 +102,7 @@ class ProjectController
         $stmt = $pdo->prepare("SELECT * FROM projects WHERE id = ?");
         $stmt->execute([$projectId]);
         $project = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$project) {
             Bootstrap::jsonResponse(['error' => 'Proyecto no encontrado'], 404);

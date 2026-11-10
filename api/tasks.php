@@ -111,6 +111,23 @@ if ($method === 'POST') {
             $settingCtrl->updateAiEngine($input);
             break;
 
+        // Claves de API (se guardan en .env; nunca vuelven al navegador)
+        case 'save_api_key':
+            $settingCtrl->saveApiKey($input);
+            break;
+
+        case 'save_anthropic_workspace':
+            $settingCtrl->saveAnthropicWorkspace($input);
+            break;
+
+        case 'remove_api_key':
+            $settingCtrl->removeApiKey($input);
+            break;
+
+        case 'test_provider':
+            $settingCtrl->testProvider($input);
+            break;
+
         case 'save_ui_preferences':
             $settingCtrl->saveUiPreferences($input);
             break;
@@ -128,6 +145,7 @@ if ($method === 'POST') {
             break;
 
         case 'generate_legal_doc':
+        case 'generate_legal_document':
             $settingCtrl->generateLegalDoc($input);
             break;
 
@@ -136,13 +154,22 @@ if ($method === 'POST') {
             $taskCtrl->create($input);
             break;
 
+        case 'update_task':
+            $taskCtrl->update($input);
+            break;
+
+        case 'delete_task':
+            $taskCtrl->delete($input);
+            break;
+
         case 'update_status':
         case 'update_task_status':
             $taskId = (string)($input['task_id'] ?? '');
             $status = (string)($input['status'] ?? '');
             $note = isset($input['note']) ? (string)$input['note'] : null;
             $roleKey = isset($input['role']) ? (string)$input['role'] : null;
-            $client = isset($input['client']) ? (string)$input['client'] : 'web';
+            // Sin client explícito se asume 'api' (nunca 'web'): la aprobación humana exige client: "web" desde la interfaz
+            $client = isset($input['client']) && $input['client'] !== '' ? (string)$input['client'] : 'api';
             $taskCtrl->updateStatus($taskId, $status, $note, $roleKey, $client);
             break;
 
@@ -164,7 +191,7 @@ if ($method === 'POST') {
             $taskId = (string)($input['task_id'] ?? $input['id'] ?? '');
             $decision = (string)($input['decision'] ?? '');
             $checklist = is_array($input['checklist'] ?? null) ? $input['checklist'] : [];
-            $reviewerRole = (string)($input['reviewer_role'] ?? $input['reviewer'] ?? 'qa_security_guard');
+            $reviewerRole = (string)($input['reviewer_role'] ?? $input['reviewer'] ?? '');
             $taskCtrl->review($taskId, $decision, $checklist, $reviewerRole);
             break;
 
@@ -178,6 +205,10 @@ if ($method === 'POST') {
             $roleId = (string)($input['role_id'] ?? '');
             $skills = is_array($input['skills'] ?? null) ? $input['skills'] : [];
             $roleCtrl->updateSkills($roleId, $skills);
+            break;
+
+        case 'update_role_engine':
+            $roleCtrl->updateEngine($input);
             break;
 
         case 'get_role_brief':
@@ -216,7 +247,24 @@ if ($method === 'POST') {
             $chatCtrl->sendMessage($input);
             break;
 
+        // Director General: instrucciones que decide y ejecuta sobre el tablero
+        case 'director_instruction':
+            $chatCtrl->sendMessage(['target_role' => 'director', 'message' => (string)($input['instruction'] ?? $input['message'] ?? '')]);
+            break;
+
         // Salas de Reunión
+        case 'meeting_begin':
+            $meetingCtrl->begin($input);
+            break;
+
+        case 'meeting_turn':
+            $meetingCtrl->turn((string)($input['meeting_id'] ?? ''), (string)($input['role_id'] ?? ''));
+            break;
+
+        case 'meeting_conclude':
+            $meetingCtrl->conclude((string)($input['meeting_id'] ?? ''));
+            break;
+
         case 'start_meeting':
             $meetingCtrl->start($input);
             break;
@@ -255,6 +303,10 @@ if ($method === 'POST') {
         // Sprint Status
         case 'get_sprint_status':
             $sprintCtrl->getStatus();
+            break;
+
+        case 'start_sprint':
+            $sprintCtrl->start($input);
             break;
 
         // Generar prompt de revisión

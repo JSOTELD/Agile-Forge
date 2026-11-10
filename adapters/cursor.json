@@ -2,9 +2,9 @@
   "mcpServers": {
     "agileforge": {
       "command": "node",
-      "args": ["D:/xampp/htdocs/Open-to-code/mcp-server/dist/index.js"],
+      "args": ["<path-to-agile-forge>/mcp-server/dist/index.js"],
       "env": {
-        "AGILEFORGE_API_URL": "http://localhost/Open-to-code/api",
+        "AGILEFORGE_API_URL": "http://localhost/<folder>/api",
         "AGILEFORGE_CLIENT": "cursor"
       }
     }

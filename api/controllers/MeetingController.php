@@ -8,33 +8,45 @@ declare(strict_types=1);
 
 namespace AgileForge\Controllers;
 
-require_once dirname(__DIR__) . '/services/LlmService.php';
-require_once dirname(__DIR__) . '/services/LocalAiService.php';
+require_once dirname(__DIR__) . '/services/EngineService.php';
+require_once dirname(__DIR__) . '/services/BoardService.php';
 
 use AgileForge\Bootstrap;
 use AgileForge\Database;
 use AgileForge\Repository;
-use AgileForge\Services\LlmService;
-use AgileForge\Services\LocalAiService;
+use AgileForge\Services\BoardService;
+use AgileForge\Services\EngineService;
 use PDO;
 
 class MeetingController
 {
     private Repository $repo;
-    private LlmService $llm;
-    private LocalAiService $local;
+    private EngineService $engines;
+    private BoardService $board;
 
     public function __construct()
     {
         $this->repo = new Repository();
-        $this->llm = new LlmService();
-        $this->local = new LocalAiService($this->repo);
+        $this->engines = new EngineService($this->repo);
+        $this->board = new BoardService($this->repo);
     }
 
-    public function list(): void
+    public function list(array $query = []): void
     {
+        $limit = isset($query['limit']) && is_numeric($query['limit']) ? max(1, min(100, (int)$query['limit'])) : null;
+        $compact = !empty($query['compact']) && !in_array($query['compact'], ['0', 'false'], true);
+
+        if ($compact) {
+            try {
+                $meetings = $this->repo->getCompactMeetings(isset($query['project']) ? (string)$query['project'] : null, $limit ?? 5, 3);
+            } catch (\InvalidArgumentException $e) {
+                Bootstrap::fail($e->getMessage(), 404);
+            }
+            Bootstrap::jsonResponse(['success' => true, 'count' => count($meetings), 'meetings' => $meetings], 200, false);
+        }
+
         $pdo = Database::getPdo();
-        $stmt = $pdo->query("SELECT * FROM meetings ORDER BY created_at DESC");
+        $stmt = $pdo->query("SELECT * FROM meetings ORDER BY created_at DESC, rowid DESC" . ($limit ? " LIMIT {$limit}" : ''));
         $meetings = [];
         while ($row = $stmt->fetch()) {
             $row['participants'] = json_decode($row['participants_json'] ?? '[]', true);
@@ -50,6 +62,7 @@ class MeetingController
         $stmt = $pdo->prepare("SELECT * FROM meetings WHERE id = ?");
         $stmt->execute([$id]);
         $meeting = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$meeting) {
             Bootstrap::jsonResponse(['error' => 'Reunión no encontrada'], 404);
@@ -74,13 +87,16 @@ class MeetingController
             Bootstrap::jsonResponse(['error' => 'El tema o tópico de la reunión es obligatorio'], 422);
         }
 
-        $id = !empty($input['id']) ? trim((string)$input['id']) : ('MEET-' . str_pad((string)rand(10, 999), 3, '0', STR_PAD_LEFT));
+        $givenId = !empty($input['id']) && preg_match('/^[A-Za-z0-9_-]{2,40}$/', (string)$input['id']) ? trim((string)$input['id']) : null;
         $title = trim((string)($input['title'] ?? "Reunión: {$topic}"));
         $participants = is_array($input['participants'] ?? null) ? $input['participants'] : ['project_manager', 'lead_architect'];
 
         $projectId = trim((string)($input['project_id'] ?? $this->repo->getActiveProject()['id'] ?? 'default'));
 
-        Database::transaction(function (PDO $pdo) use ($id, $projectId, $title, $type, $topic, $participants) {
+        // ID calculado dentro de la transacción BEGIN IMMEDIATE (H4)
+        $id = '';
+        Database::transaction(function (PDO $pdo) use (&$id, $givenId, $projectId, $title, $type, $topic, $participants) {
+            $id = $givenId ?? BoardService::nextId($pdo, 'meetings', 'MEET-');
             $stmt = $pdo->prepare(
                 "INSERT INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted)
                  VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', 0)"
@@ -91,8 +107,34 @@ class MeetingController
         $this->show($id);
     }
 
+    private function requireMeeting(string $meetingId): void
+    {
+        $stmt = Database::getPdo()->prepare("SELECT 1 FROM meetings WHERE id = ?");
+        $stmt->execute([$meetingId]);
+        $found = (bool)$stmt->fetchColumn();
+        $stmt->closeCursor();
+        if (!$found) {
+            Bootstrap::fail('Reunión no encontrada', 404);
+        }
+    }
+
+    /** IDs de rol de los participantes de una reunión (acepta strings u objetos con id/role_id). */
+    public static function participantIds($json): array
+    {
+        $list = is_array($json) ? $json : (json_decode((string)$json, true) ?: []);
+        $ids = [];
+        foreach ($list as $p) {
+            $id = is_array($p) ? (string)($p['id'] ?? $p['role_id'] ?? '') : (string)$p;
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
     public function addTurn(string $meetingId, array $input): void
     {
+        $this->requireMeeting($meetingId);
         $roleId = trim((string)($input['role_id'] ?? 'unknown'));
         $statement = trim((string)($input['statement'] ?? $input['message'] ?? ''));
 
@@ -106,326 +148,332 @@ class MeetingController
         $model = trim((string)($input['ai_model'] ?? ''));
         $timestamp = trim((string)($input['timestamp'] ?? date('H:i')));
 
-        $pdo = Database::getPdo();
-        $idxStmt = $pdo->prepare("SELECT COUNT(*) FROM meeting_turns WHERE meeting_id = ?");
-        $idxStmt->execute([$meetingId]);
-        $nextIndex = (int)$idxStmt->fetchColumn();
+        // Estado de la reunión, participantes e índice del turno se leen y escriben en la misma transacción (sin carreras con close)
+        $result = Database::transaction(function (PDO $pdo) use ($meetingId, $roleId, $name, $alias, $avatar, $model, $statement, $timestamp) {
+            $m = $pdo->prepare("SELECT closed_at, participants_json FROM meetings WHERE id = ?");
+            $m->execute([$meetingId]);
+            $meeting = $m->fetch();
+            $m->closeCursor();
+            if (!$meeting) {
+                return ['error' => 'Reunión no encontrada', 'code' => 404];
+            }
+            if (!empty($meeting['closed_at'])) {
+                return ['error' => "La reunión {$meetingId} ya está cerrada: no admite más turnos.", 'code' => 409];
+            }
+            $participants = self::participantIds($meeting['participants_json']);
+            if ($participants && !in_array($roleId, $participants, true)) {
+                return ['error' => "El rol '{$roleId}' no participa en la reunión {$meetingId} (participantes: " . implode(', ', $participants) . ').', 'code' => 422];
+            }
 
-        $stmt = $pdo->prepare(
-            "INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([$meetingId, $nextIndex, $roleId, $name, $alias, $avatar, $model, $statement, $timestamp]);
+            $idx = $pdo->prepare("SELECT COALESCE(MAX(turn_index), -1) + 1 FROM meeting_turns WHERE meeting_id = ?");
+            $idx->execute([$meetingId]);
+            $nextIndex = (int)$idx->fetchColumn();
+            $pdo->prepare(
+                "INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )->execute([$meetingId, $nextIndex, $roleId, $name, $alias, $avatar, $model, $statement, $timestamp]);
+            $pdo->prepare("UPDATE meetings SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$meetingId]);
+            return ['turn_index' => $nextIndex];
+        });
 
-        Bootstrap::jsonResponse(['success' => true, 'turn_index' => $nextIndex]);
+        if (isset($result['error'])) {
+            Bootstrap::fail($result['error'], (int)$result['code']);
+        }
+        Bootstrap::jsonResponse(['success' => true, 'turn_index' => $result['turn_index']]);
     }
 
     public function close(string $meetingId, array $input): void
     {
+        $this->requireMeeting($meetingId);
         $summary = trim((string)($input['summary'] ?? ''));
         $resolution = trim((string)($input['resolution'] ?? ''));
         $actionItems = is_array($input['action_items'] ?? null) ? $input['action_items'] : [];
 
         $pdo = Database::getPdo();
-        $stmt = $pdo->prepare("UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$summary, $resolution, json_encode($actionItems, JSON_UNESCAPED_UNICODE), $meetingId]);
 
         Bootstrap::jsonResponse(['success' => true, 'meeting_id' => $meetingId, 'closed' => true]);
     }
 
+    // ------------------------------------------------------------------
+    // Reuniones con IA real, turno por turno (cada petición es corta: no se corta por tiempo)
+    // ------------------------------------------------------------------
+
+    /** Crea la reunión y devuelve el orden de intervención. */
+    public function begin(array $input): void
+    {
+        [$type, $topic, $participants] = $this->meetingParams($input);
+        $meeting = $this->createMeeting($type, $topic, $participants);
+
+        $plan = [];
+        foreach ($participants as $role) {
+            $eng = $this->engines->resolveForRole($role);
+            $plan[] = ['role_id' => $role['id'], 'name' => $role['name'], 'avatar' => $role['avatar'], 'engine' => $eng['ready'] ? $eng['label'] : 'sin motor'];
+        }
+        Bootstrap::jsonResponse(['success' => true, 'meeting' => $meeting, 'plan' => $plan]);
+    }
+
+    /** Genera la intervención de un participante con su propio motor de IA. */
+    public function turn(string $meetingId, string $roleId): void
+    {
+        $meeting = $this->loadMeeting($meetingId);
+        $role = $this->board->role($roleId);
+        if (!$role) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => "El agente '{$roleId}' no existe"], 404);
+        }
+        if (!empty($meeting['closed_at'])) {
+            Bootstrap::fail("La reunión {$meetingId} ya está cerrada: no admite más turnos.", 409);
+        }
+        $participants = self::participantIds($meeting['participants_json'] ?? '[]');
+        if ($participants && !in_array($roleId, $participants, true)) {
+            Bootstrap::fail("El rol '{$roleId}' no participa en la reunión {$meetingId}.", 422);
+        }
+        @set_time_limit(400);
+        $turn = $this->generateTurn($meeting, $role);
+        Bootstrap::jsonResponse(['success' => true, 'turn' => $turn]);
+    }
+
+    /** El Director (o el Scrum Master si el Director no tiene motor) sintetiza la resolución y los acuerdos. */
+    public function conclude(string $meetingId): void
+    {
+        $meeting = $this->loadMeeting($meetingId);
+        @set_time_limit(400);
+        $result = $this->synthesize($meeting);
+        $this->showMeeting($meetingId, ['synthesis' => $result]);
+    }
+
+    /** Compatibilidad (MCP / clientes antiguos): ejecuta la reunión completa en una sola petición. */
     public function runAgentMeeting(array $input): void
     {
-        $meetingType = in_array($input['meeting_type'] ?? '', ['brainstorming', 'decision', 'compliance', 'daily'], true) ? $input['meeting_type'] : 'brainstorming';
+        [$type, $topic, $participants] = $this->meetingParams($input);
+        @set_time_limit(1200);
+        $meeting = $this->createMeeting($type, $topic, $participants);
+        foreach ($participants as $role) {
+            $this->generateTurn($meeting, $role);
+        }
+        $this->synthesize($this->loadMeeting($meeting['id']));
+        $this->showMeeting($meeting['id']);
+    }
+
+    private function meetingParams(array $input): array
+    {
+        $type = in_array($input['meeting_type'] ?? '', ['brainstorming', 'decision', 'compliance', 'daily'], true) ? $input['meeting_type'] : 'brainstorming';
         $topic = trim((string)($input['topic'] ?? ''));
-        $participants = is_array($input['participants'] ?? null) ? $input['participants'] : [];
-
         if ($topic === '') {
-            $topic = ($meetingType === 'brainstorming')
-                ? 'Innovación y diferenciación en la experiencia de usuario y captura de valor'
-                : 'Definición de arquitectura de persistencia y mitigación de riesgos técnicos';
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Escribe el tema u objetivo de la reunión.'], 422);
         }
-
-        if (empty($participants)) {
-            $participants = ($meetingType === 'brainstorming')
-                ? ['creative_director', 'frontend_master', 'project_manager']
-                : ['lead_architect', 'backend_architect', 'qa_security_guard', 'legal_counsel'];
+        $ids = is_array($input['participants'] ?? null) ? $input['participants'] : [];
+        $participants = [];
+        foreach (array_unique(array_map('strval', $ids)) as $id) {
+            $r = $this->board->role($id);
+            if ($r) {
+                $participants[] = $r;
+            }
         }
+        if (count($participants) < 2) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Se requieren al menos 2 agentes participantes para convocar una reunión.'], 422);
+        }
+        if (count($participants) > 8) {
+            $participants = array_slice($participants, 0, 8);
+        }
+        return [$type, mb_substr($topic, 0, 500), $participants];
+    }
 
+    private function createMeeting(string $type, string $topic, array $participants): array
+    {
         $pdo = Database::getPdo();
-        $rStmt = $pdo->query("SELECT * FROM roles");
-        $rolesMap = [];
-        while ($r = $rStmt->fetch()) {
-            $rolesMap[$r['id']] = $r;
-        }
-
-        $activeParticipants = [];
-        foreach ($participants as $pId) {
-            if (isset($rolesMap[$pId])) {
-                $activeParticipants[] = $rolesMap[$pId];
-            }
-        }
-
-        if (count($activeParticipants) < 2) {
-            Bootstrap::jsonResponse(['error' => 'Se requieren al menos 2 agentes participantes para convocar una reunión.'], 422);
-        }
-
-        $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú', 'flag' => '🇵🇪']);
-        $aiEngine = $this->repo->getSetting('ai_engine', []);
-        $roleRouting = !empty($aiEngine['role_routing_enabled']);
-        $isApiMode = ($aiEngine['execution_mode'] ?? 'cli') === 'api';
-
-        // IA local activada: todos los turnos los responde el modelo de Ollama en esta PC
-        $localState = $this->local->getState();
-        $useLocal = !empty($localState['enabled']) && !empty($localState['model']);
-        if ($useLocal) {
-            $isApiMode = true;
-            @set_time_limit(900);
-        }
-
-        $turns = [];
-        $actionItems = [];
-        $summary = '';
-        $resolution = '';
-
-        // Verificar si hay modelos configurados en modo API para llamadas reales server-side
-        $canRunRealApi = $useLocal;
-        if ($isApiMode && !$useLocal) {
-            foreach ($activeParticipants as $agent) {
-                $p = ($roleRouting && !empty($agent['ai_provider'])) ? $agent['ai_provider'] : ($aiEngine['active_provider'] ?? 'anthropic');
-                if ($this->llm->isProviderConfigured($p)) {
-                    $canRunRealApi = true;
-                    break;
-                }
-            }
-        }
-
-        if ($isApiMode && $canRunRealApi) {
-            // MODO API: DELIBERACIÓN REAL TURNO POR TURNO CON CONTEXTO ACUMULADO
-            $accumulatedDiscussion = "Mesa de deliberación oficial: " . strtoupper($meetingType) . "\nTema: {$topic}\nJurisdicción: {$juris['country_name']} {$juris['flag']}\n\n";
-
-            foreach ($activeParticipants as $agent) {
-                $aId = $agent['id'];
-                $prov = ($roleRouting && !empty($agent['ai_provider'])) ? $agent['ai_provider'] : ($aiEngine['active_provider'] ?? 'anthropic');
-                $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'claude-sonnet-5-5');
-                if ($useLocal) {
-                    $prov = (string)($localState['runtime'] ?? 'ollama');
-                    $model = (string)$localState['model'];
-                }
-
-                $statementText = '';
-                if ($useLocal || $this->llm->isProviderConfigured($prov)) {
-                    $systemPrompt = "Eres {$agent['name']} ({$agent['alias']}) en AgileForge. Especialidad: {$agent['specialty']}. " .
-                        "Participas en una mesa formal de debate técnico ({$meetingType}). " .
-                        "Aporta tu perspectiva profesional, argumentos y propuestas concretas en 2-3 párrafos técnicos sin rodeos ni saludos innecesarios.";
-
-                    $turnPrompt = "{$accumulatedDiscussion}\nEs tu turno de intervenir como {$agent['name']}. ¿Cuál es tu postura, propuesta o recomendación técnica respecto a '{$topic}'?";
-
-                    try {
-                        if ($useLocal) {
-                            $call = $this->local->chat(
-                                $systemPrompt . ' Responde en español.',
-                                [['role' => 'user', 'content' => $turnPrompt]],
-                                $model
-                            );
-                            $this->llm->recordUsage($aId, null, 'default', $prov, $model,
-                                $call['input_tokens'], $call['output_tokens'], $call['total_tokens'], 0.0, 'meeting_local_' . $meetingType);
-                        } else {
-                            $call = $this->llm->complete($prov, $model, $turnPrompt, $systemPrompt, [
-                                'agent_role'     => $aId,
-                                'context_source' => 'meeting_' . $meetingType
-                            ]);
-                        }
-                        $statementText = $call['text'];
-                    } catch (\Throwable $e) {
-                        $statementText = "⚠️ Error al conectar con {$prov} ({$model}): " . $e->getMessage();
-                    }
-                } else {
-                    $statementText = "⚠️ [Sin motor configurado para {$prov}]: Agrega tu clave en el archivo .env para respuestas automáticas, o ejecuta este turno mediante el plugin en Claude Code.";
-                }
-
-                $turns[] = [
-                    'role_id'   => $agent['id'],
-                    'name'      => $agent['name'],
-                    'alias'     => $agent['alias'] ?? '',
-                    'avatar'    => $agent['avatar'] ?? '🤖',
-                    'ai_model'  => $model,
-                    'statement' => $statementText,
-                    'timestamp' => date('H:i')
-                ];
-
-                $accumulatedDiscussion .= "- Intervención de {$agent['name']} ({$agent['alias']}):\n\"{$statementText}\"\n\n";
-            }
-
-            $summary = "Deliberación real en vivo efectuada por los agentes convocados sobre '{$topic}'. Cada participante evaluó los trade-offs desde su especialidad técnica conforme a la normativa de {$juris['country_name']}.";
-            $resolution = "ACUERDO ADOPTADO EN MESA: Integrar las recomendaciones de arquitectura, experiencia de usuario y cumplimiento normativo evaluadas en la sesión.";
-            $actionItems = [
-                [
-                    'title'        => "Implementar acuerdos técnicos de la reunión '{$topic}'",
-                    'assigned_to'  => $activeParticipants[0]['id'],
-                    'story_points' => 3,
-                    'priority'     => "alta",
-                    'user_story'   => "Como equipo Scrum necesitamos materializar los acuerdos de la reunión '{$topic}'.",
-                    'dod'          => "100% de criterios técnicos implementados y verificados con tests."
-                ]
-            ];
-        } elseif ($meetingType === 'brainstorming') {
-            // MODO PLUGIN / SIMULACIÓN ESTRUCTURADA
-            foreach ($activeParticipants as $agent) {
-                $aId = $agent['id'];
-                $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'Claude 3.7');
-                $text = '';
-
-                switch ($aId) {
-                    case 'creative_director':
-                        $text = "Propongo un enfoque disruptivo para '{$topic}': en lugar de un flujo convencional, activemos un micro-momento memorable (Regla del Pico-Fin) con feedback visual inmediato.";
-                        break;
-                    case 'frontend_master':
-                        $text = "Apoyo la propuesta de The Visionary. Desde la perspectiva UX/UI, podemos resolverlo con un componente mobile-first en Tailwind con microinteracciones fluidas (<200ms) y contraste WCAG AAA.";
-                        break;
-                    case 'project_manager':
-                        $text = "Excelente sinergia. Para mantener el alcance del Sprint controlado, dimensionemos esta innovación en historias de usuario bien acotadas con Definition of Done estricta.";
-                        break;
-                    case 'backend_architect':
-                        $text = "Desde el backend, expondré un endpoint REST ultrarrápido y seguro con transacciones atómicas PDO y validación estricta de inputs.";
-                        break;
-                    case 'lead_architect':
-                        $text = "Arquitectónicamente, mantendremos este módulo desacoplado mediante Clean Architecture y el patrón Repositorio para permitir evolucionar el motor de persistencia.";
-                        break;
-                    case 'qa_security_guard':
-                        $text = "Aseguraré casos de prueba unitarios para los escenarios de borde y pruebas de regresión automáticas para blindar la estabilidad.";
-                        break;
-                    case 'legal_counsel':
-                        $text = "Para cumplir plenamente con la normativa de {$juris['country_name']} {$juris['flag']}, es indispensable incluir cláusulas de consentimiento expreso y libro de reclamaciones.";
-                        break;
-                    default:
-                        $text = "De acuerdo con el enfoque propuesto. Aportaré mis capacidades técnicas para garantizar agilidad y alto estándar de ingeniería.";
-                        break;
-                }
-
-                $turns[] = [
-                    'role_id'   => $agent['id'],
-                    'name'      => $agent['name'],
-                    'alias'     => $agent['alias'] ?? '',
-                    'avatar'    => $agent['avatar'] ?? '🤖',
-                    'ai_model'  => $model,
-                    'statement' => $text,
-                    'timestamp' => date('H:i')
-                ];
-            }
-
-            $summary = "La sesión de Brainstorming sobre '{$topic}' resolvió fusionar micro-momentos emocionales visuales (The Visionary) con componentes reactivos mobile-first (Pixel Master), dimensionados en el backlog (The Orchestrator) con disclaimers legales transparentes (The Legal Shield).";
-            $resolution = "APROBADO POR CONSENSO: Implementar innovación interactiva con cálculo en tiempo real sub-50ms en el Sprint actual.";
-            $actionItems = [
-                [
-                    'title'        => "Diseñar componente interactivo para '{$topic}'",
-                    'assigned_to'  => "frontend_master",
-                    'story_points' => 3,
-                    'priority'     => "alta",
-                    'user_story'   => "Como usuario quiero una experiencia visual responsiva para '{$topic}'.",
-                    'dod'          => "Contraste WCAG AAA y microinteracciones fluidas <200ms."
-                ],
-                [
-                    'title'        => "Construir endpoint REST optimizado y seguro para '{$topic}'",
-                    'assigned_to'  => "backend_architect",
-                    'story_points' => 3,
-                    'priority'     => "alta",
-                    'user_story'   => "Como sistema necesito procesar los datos de '{$topic}' con transacciones atómicas.",
-                    'dod'          => "100% transaccional con PDO, consultas preparadas y tests en verde."
-                ]
-            ];
-        } else {
-            foreach ($activeParticipants as $agent) {
-                $aId = $agent['id'];
-                $model = ($roleRouting && !empty($agent['ai_model'])) ? $agent['ai_model'] : ($aiEngine['active_model'] ?? 'Claude 3.7');
-                $text = '';
-
-                switch ($aId) {
-                    case 'lead_architect':
-                        $text = "Abro la sesión de decisión técnica sobre: '{$topic}'. Evaluando el trade-off arquitectónico: Mi recomendación técnica es usar un patrón Repositorio desacoplado con transacciones ACID PDO, preservando Clean Architecture.";
-                        break;
-                    case 'backend_architect':
-                        $text = "Concuerdo plenamente con el Arquitecto. El patrón Repositorio nos permite trabajar con SQLite en desarrollo local y migrar a MySQL en producción sin tocar una sola línea de lógica de negocio.";
-                        break;
-                    case 'qa_security_guard':
-                        $text = "Mi voto a favor está condicionado a: 1) Pruebas de mutación que verifiquen el rollback en fallos de transacción; 2) Cero concatenaciones de SQL crudo (100% sentencias preparadas).";
-                        break;
-                    case 'legal_counsel':
-                        $text = "Desde el marco normativo de {$juris['country_name']} {$juris['flag']}: La persistencia de datos debe contemplar el principio de minimización de datos (LPDP / RGPD) y disociar PII en logs.";
-                        break;
-                    case 'project_manager':
-                        $text = "Analizando el impacto en la velocidad: Esta decisión representa una inversión que previene deuda técnica acumulada en los próximos sprints. Autorizo el ADR.";
-                        break;
-                    default:
-                        $text = "Revisados los antecedentes y consideraciones técnicas. Voto a favor de la decisión adoptada.";
-                        break;
-                }
-
-                $turns[] = [
-                    'role_id'   => $agent['id'],
-                    'name'      => $agent['name'],
-                    'alias'     => $agent['alias'] ?? '',
-                    'avatar'    => $agent['avatar'] ?? '🤖',
-                    'ai_model'  => $model,
-                    'statement' => $text,
-                    'timestamp' => date('H:i')
-                ];
-            }
-
-            $summary = "El Consejo Técnico debatió y resolvió de forma unánime el tratamiento de '{$topic}'. Se adoptó formalmente la arquitectura de persistencia mediante Patrón Repositorio con transacciones ACID PDO y minimización de datos conforme a ley.";
-            $resolution = "ADR APROBADO: Adoptar Patrón Repositorio desacoplado con transacciones atómicas PDO.";
-            $actionItems = [
-                [
-                    'title'        => "Implementar Repositorio transaccional desacoplado con PDO",
-                    'assigned_to'  => "backend_architect",
-                    'story_points' => 5,
-                    'priority'     => "alta",
-                    'user_story'   => "Como desarrollador quiero un repositorio con transacciones atómicas para blindar la consistencia de datos.",
-                    'dod'          => "100% consultas preparadas, soporte SQLite/MySQL y transacciones atómicas."
-                ]
-            ];
-        }
-
-        $cntStmt = $pdo->query("SELECT COUNT(*) FROM meetings");
-        $meetId = 'MEET-' . str_pad((string)((int)$cntStmt->fetchColumn() + 1), 3, '0', STR_PAD_LEFT);
-        $title = ($meetingType === 'brainstorming' ? '💡 Brainstorming: ' : '🏛️ Consejo ADR: ') . $topic;
-
-        Database::transaction(function (PDO $pdo) use ($meetId, $title, $meetingType, $topic, $participants, $summary, $resolution, $actionItems, $turns) {
-            $stmt = $pdo->prepare(
+        $titles = ['brainstorming' => '💡 Brainstorming: ', 'decision' => '🏛️ Consejo de decisión: ', 'compliance' => '⚖️ Compliance: ', 'daily' => '☀️ Daily: '];
+        $title = ($titles[$type] ?? '') . $topic;
+        $ids = array_column($participants, 'id');
+        $projectId = $this->board->activeProjectId();
+        // ID calculado dentro de la transacción BEGIN IMMEDIATE (H4)
+        $id = Database::transaction(function (PDO $pdo) use ($type, $topic, $title, $ids, $projectId) {
+            $id = BoardService::nextId($pdo, 'meetings', 'MEET-');
+            $pdo->prepare(
                 "INSERT INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted)
-                 VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, 0)"
-            );
-            $stmt->execute([
-                $meetId, $title, $meetingType, $topic, json_encode($participants, JSON_UNESCAPED_UNICODE),
-                $summary, $resolution, json_encode($actionItems, JSON_UNESCAPED_UNICODE)
-            ]);
-
-            $turnStmt = $pdo->prepare(
-                "INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-
-            foreach ($turns as $idx => $t) {
-                $turnStmt->execute([
-                    $meetId, $idx, $t['role_id'], $t['name'], $t['alias'], $t['avatar'], $t['ai_model'], $t['statement'], $t['timestamp']
-                ]);
-            }
+                 VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', 0)"
+            )->execute([$id, $projectId, $title, $type, $topic, json_encode($ids, JSON_UNESCAPED_UNICODE)]);
+            return $id;
         });
+        return ['id' => $id, 'title' => $title, 'type' => $type, 'topic' => $topic, 'participants' => $ids, 'turns' => [],
+            'summary' => '', 'resolution' => '', 'action_items' => [], 'converted' => false, 'created_at' => date('Y-m-d H:i')];
+    }
 
-        $createdMeeting = [
-            'id'           => $meetId,
-            'title'        => $title,
-            'type'         => $meetingType,
-            'topic'        => $topic,
-            'created_at'   => date('Y-m-d H:i'),
-            'participants' => $participants,
-            'turns'        => $turns,
-            'summary'      => $summary,
-            'resolution'   => $resolution,
-            'action_items' => $actionItems,
-            'converted'    => false
+    private function loadMeeting(string $id): array
+    {
+        $pdo = Database::getPdo();
+        $stmt = $pdo->prepare("SELECT * FROM meetings WHERE id = ?");
+        $stmt->execute([$id]);
+        $m = $stmt->fetch();
+        $stmt->closeCursor();
+        if (!$m) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Reunión no encontrada'], 404);
+        }
+        $t = $pdo->prepare("SELECT * FROM meeting_turns WHERE meeting_id = ? ORDER BY turn_index ASC");
+        $t->execute([$id]);
+        $m['turns'] = $t->fetchAll();
+        $m['participants'] = json_decode($m['participants_json'] ?? '[]', true) ?: [];
+        return $m;
+    }
+
+    private function generateTurn(array $meeting, array $role): array
+    {
+        $engine = $this->engines->resolveForRole($role);
+        $model = $engine['ready'] ? $engine['label'] : 'sin motor';
+
+        if (!$engine['ready']) {
+            $statement = "⚠️ {$role['name']} no tiene motor de IA disponible: {$engine['reason']}";
+        } else {
+            $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+            $types = ['brainstorming' => 'lluvia de ideas', 'decision' => 'consejo de decisión técnica', 'compliance' => 'revisión de cumplimiento legal', 'daily' => 'daily standup'];
+            $system = EngineService::agentSystemPrompt($role, is_array($juris) ? $juris : [],
+                'Participas en una reunión de tipo ' . ($types[$meeting['type']] ?? $meeting['type']) . '. ' .
+                'Aporta tu postura desde tu especialidad en 2 o 3 párrafos cortos: argumentos, riesgos y una propuesta concreta. ' .
+                'Responde a lo que dijeron los demás cuando sea relevante. Sin saludos.');
+
+            $discussion = "TEMA: {$meeting['topic']}\n\n";
+            foreach ($meeting['turns'] as $t) {
+                $discussion .= "— {$t['name']}: " . mb_substr((string)$t['statement'], 0, 1200) . "\n\n";
+            }
+            $discussion .= $meeting['turns'] ? "Es tu turno, {$role['name']}." : "Abres la reunión, {$role['name']}.";
+
+            try {
+                $res = $this->engines->ask($engine, $system, [['role' => 'user', 'content' => $discussion]],
+                    ['agent_role' => $role['id'], 'context_source' => 'meeting_' . $meeting['type']], 900);
+                $statement = trim((string)$res['text']) ?: '(sin respuesta)';
+                $model = (string)($res['model'] ?? $model);
+            } catch (\Throwable $e) {
+                Bootstrap::log("Reunión {$meeting['id']} turno {$role['id']}: " . $e->getMessage());
+                $statement = "⚠️ {$role['name']} no pudo intervenir ({$engine['label']}): " . $e->getMessage();
+            }
+        }
+
+        $turn = [
+            'role_id'   => $role['id'],
+            'name'      => $role['name'],
+            'alias'     => $role['alias'] ?? '',
+            'avatar'    => $role['avatar'] ?? '🤖',
+            'ai_model'  => $model,
+            'statement' => $statement,
+            'timestamp' => date('H:i'),
         ];
 
-        Bootstrap::jsonResponse(['success' => true, 'meeting' => $createdMeeting]);
+        Database::transaction(function (PDO $pdo) use ($meeting, $turn) {
+            $idx = $pdo->prepare("SELECT COALESCE(MAX(turn_index), -1) + 1 FROM meeting_turns WHERE meeting_id = ?");
+            $idx->execute([$meeting['id']]);
+            $pdo->prepare(
+                "INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )->execute([$meeting['id'], (int)$idx->fetchColumn(), $turn['role_id'], $turn['name'], $turn['alias'], $turn['avatar'], $turn['ai_model'], $turn['statement'], $turn['timestamp']]);
+        });
+
+        return $turn;
+    }
+
+    private function synthesize(array $meeting): array
+    {
+        $moderator = null;
+        $engine = null;
+        foreach (['director', 'project_manager'] as $rid) {
+            $r = $this->board->role($rid);
+            if (!$r) {
+                continue;
+            }
+            $e = $this->engines->resolveForRole($r);
+            if ($e['ready']) {
+                $moderator = $r;
+                $engine = $e;
+                break;
+            }
+        }
+
+        $valid = array_filter($meeting['turns'], fn($t) => !str_starts_with((string)$t['statement'], '⚠️'));
+        $summary = '';
+        $resolution = '';
+        $items = [];
+
+        if (!$moderator || !$valid) {
+            $summary = !$valid
+                ? 'Ningún agente pudo intervenir con IA, así que no hay acuerdos que sintetizar.'
+                : 'No hay un motor de IA disponible para que el Director sintetice la reunión.';
+            $resolution = 'Sin resolución: configura una clave de API en Motor IA o activa la IA local y vuelve a convocarla.';
+        } else {
+            $roles = array_values(array_filter($this->board->roleIds(), fn($r) => $r !== 'director'));
+            $discussion = "TEMA: {$meeting['topic']}\n\n";
+            foreach ($valid as $t) {
+                $discussion .= "— {$t['name']} ({$t['role_id']}): " . mb_substr((string)$t['statement'], 0, 1500) . "\n\n";
+            }
+            $system = "Eres {$moderator['name']}, moderador de la reunión. Sintetiza en español lo que el equipo dijo, sin inventar nada que no se haya dicho. " .
+                "Responde SOLO con un JSON válido, sin texto adicional, con esta forma:\n" .
+                '{"resumen": "3-4 frases", "resolucion": "la decisión adoptada en una frase", "acuerdos": [{"title": "...", "assigned_to": "id_de_rol", "story_points": 3, "priority": "alta", "user_story": "Como... quiero... para...", "dod": "criterios verificables"}]}' .
+                "\nRoles válidos para assigned_to: " . implode(', ', $roles) . '. Máximo 5 acuerdos; story_points en Fibonacci (1,2,3,5,8); priority: critica, alta, media o baja.';
+            try {
+                $res = $this->engines->ask($engine, $system, [['role' => 'user', 'content' => $discussion]],
+                    ['agent_role' => $moderator['id'], 'context_source' => 'meeting_synthesis'], 1600);
+                $data = $this->parseJson((string)$res['text']);
+                if ($data) {
+                    $summary = trim((string)($data['resumen'] ?? ''));
+                    $resolution = trim((string)($data['resolucion'] ?? ''));
+                    foreach (array_slice(is_array($data['acuerdos'] ?? null) ? $data['acuerdos'] : [], 0, 5) as $a) {
+                        $title = trim((string)($a['title'] ?? ''));
+                        if ($title === '') {
+                            continue;
+                        }
+                        $items[] = [
+                            'title'        => $title,
+                            'assigned_to'  => $this->board->matchRoleId((string)($a['assigned_to'] ?? '')) ?? 'project_manager',
+                            'story_points' => in_array((int)($a['story_points'] ?? 3), BoardService::FIBONACCI, true) ? (int)$a['story_points'] : 3,
+                            'priority'     => in_array($a['priority'] ?? '', BoardService::PRIORITIES, true) ? $a['priority'] : 'media',
+                            'user_story'   => trim((string)($a['user_story'] ?? '')),
+                            'dod'          => trim((string)($a['dod'] ?? '')),
+                        ];
+                    }
+                } else {
+                    $summary = trim((string)$res['text']);
+                }
+            } catch (\Throwable $e) {
+                Bootstrap::log("Síntesis {$meeting['id']}: " . $e->getMessage());
+                $summary = '⚠️ No se pudo sintetizar la reunión: ' . $e->getMessage();
+            }
+        }
+
+        Database::getPdo()->prepare("UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+            ->execute([$summary, $resolution, json_encode($items, JSON_UNESCAPED_UNICODE), $meeting['id']]);
+
+        return ['moderator' => $moderator['id'] ?? null, 'items' => count($items)];
+    }
+
+    private function parseJson(string $text): ?array
+    {
+        $start = strpos($text, '{');
+        $end = strrpos($text, '}');
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+        $data = json_decode(substr($text, $start, $end - $start + 1), true);
+        return is_array($data) ? $data : null;
+    }
+
+    /** Devuelve la reunión en el mismo formato que usa el frontend. */
+    private function showMeeting(string $id, array $extra = []): void
+    {
+        $m = $this->loadMeeting($id);
+        Bootstrap::jsonResponse(['success' => true, 'meeting' => [
+            'id'           => $m['id'],
+            'title'        => $m['title'],
+            'type'         => $m['type'],
+            'topic'        => $m['topic'],
+            'created_at'   => $m['created_at'],
+            'participants' => $m['participants'],
+            'turns'        => array_map(fn($t) => [
+                'role_id' => $t['role_id'], 'name' => $t['name'], 'alias' => $t['alias'], 'avatar' => $t['avatar'],
+                'ai_model' => $t['ai_model'], 'statement' => $t['statement'], 'timestamp' => $t['timestamp'],
+            ], $m['turns']),
+            'summary'      => $m['summary'],
+            'resolution'   => $m['resolution'],
+            'action_items' => json_decode($m['action_items_json'] ?? '[]', true) ?: [],
+            'converted'    => (bool)$m['converted'],
+        ]] + $extra);
     }
 
     public function convertToTasks(string $meetingId): void
@@ -434,48 +482,38 @@ class MeetingController
         $stmt = $pdo->prepare("SELECT * FROM meetings WHERE id = ?");
         $stmt->execute([$meetingId]);
         $meeting = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$meeting) {
             Bootstrap::jsonResponse(['error' => 'Reunión no encontrada'], 404);
         }
 
+        if (!empty($meeting['converted'])) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Los acuerdos de esta reunión ya se convirtieron en historias.'], 409);
+        }
         $actionItems = json_decode($meeting['action_items_json'] ?? '[]', true) ?: [];
         if (empty($actionItems)) {
             Bootstrap::jsonResponse(['error' => 'Esta reunión no contiene acuerdos o tareas pendientes por convertir'], 422);
         }
 
         $createdTasks = [];
-        $projectId = !empty($meeting['project_id']) && $meeting['project_id'] !== 'default'
-            ? $meeting['project_id']
-            : ($this->repo->getActiveProject()['id'] ?? 'default');
+        $projectId = !empty($meeting['project_id']) ? $meeting['project_id'] : $this->board->activeProjectId();
 
         Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks) {
-            $tStmt = $pdo->prepare(
-                "INSERT INTO tasks (id, project_id, title, story_points, assigned_to, priority, status, user_story, dod, description, skills_json, prompt_template)
-                 VALUES (?, ?, ?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?)"
-            );
-
             foreach ($actionItems as $idx => $item) {
-                $taskId = 'US-' . (100 + rand(10, 999));
-                $title = $item['title'] ?? "Acción #{$idx} derivada de {$meeting['id']}";
-                $points = max(1, (int)($item['story_points'] ?? 2));
-                $role = $item['assigned_to'] ?? 'project_manager';
-                $priority = $item['priority'] ?? 'media';
-                $userStory = $item['user_story'] ?? "Como equipo requiero implementar el acuerdo de la reunión {$meeting['id']}";
-                $dod = $item['dod'] ?? 'Implementación validada y probada.';
-                $desc = "Derivado del acta: {$meeting['title']}";
-                $prompt = "Actúa como {$role}. Ejecuta la tarea: {$title}. DoD: {$dod}";
-
-                $tStmt->execute([
-                    $taskId, $projectId, $title, $points, $role, $priority, $userStory, $dod, $desc,
-                    json_encode(['lean-compact'], JSON_UNESCAPED_UNICODE), $prompt
-                ]);
-
-                $createdTasks[] = ['id' => $taskId, 'title' => $title, 'assigned_to' => $role];
+                $task = $this->board->createTask([
+                    'project_id'   => $projectId,
+                    'title'        => $item['title'] ?? "Acción #{$idx} derivada de {$meeting['id']}",
+                    'assigned_to'  => $item['assigned_to'] ?? 'project_manager',
+                    'story_points' => $item['story_points'] ?? 3,
+                    'priority'     => $item['priority'] ?? 'media',
+                    'user_story'   => $item['user_story'] ?? '',
+                    'dod'          => $item['dod'] ?? '',
+                    'description'  => "Derivado del acta {$meeting['id']}: {$meeting['title']}",
+                ], 'web', 'meeting');
+                $createdTasks[] = ['id' => $task['id'], 'title' => $task['title'], 'assigned_to' => $task['assigned_to']];
             }
-
-            $uStmt = $pdo->prepare("UPDATE meetings SET converted = 1 WHERE id = ?");
-            $uStmt->execute([$meeting['id']]);
+            $pdo->prepare("UPDATE meetings SET converted = 1 WHERE id = ?")->execute([$meeting['id']]);
         });
 
         Bootstrap::jsonResponse([
@@ -492,6 +530,7 @@ class MeetingController
         $stmt = $pdo->prepare("SELECT * FROM meetings WHERE id = ?");
         $stmt->execute([$meetingId]);
         $meeting = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$meeting) {
             Bootstrap::jsonResponse(['error' => 'Reunión no encontrada'], 404);

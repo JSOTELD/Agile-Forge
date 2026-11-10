@@ -30,18 +30,28 @@ use AgileForge\Controllers\DecisionController;
 use AgileForge\Controllers\SprintController;
 
 Bootstrap::init();
-Bootstrap::requireAuth();
-Database::init();
+// Este endpoint acepta el token de vista (solo GET); api/tasks.php no (ADR-004)
+$authKind = Bootstrap::requireAuth(true);
 
-$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+$uri = rawurldecode((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
 
-// Normalizar ruta relativa eliminando el prefijo base del subdirectorio
-$base = '/Open-to-code/api';
-$path = str_replace($base, '', $uri);
-$path = trim($path, '/');
-$path = preg_replace('#^index\.php/?#', '', $path);
+// Normalizar la ruta: la base se deriva de SCRIPT_NAME (…/api/index.php), así funciona en /, en /Open-to-code/
+// o en cualquier subcarpeta, con y sin "index.php/" en la URL.
+$base = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/api/index.php'))), '/');
+if ($base !== '' && ($uri === $base || str_starts_with($uri, $base . '/'))) {
+    $uri = substr($uri, strlen($base));
+}
+$path = trim($uri, '/');
+$path = preg_replace('#^index\.php(/|$)#', '', $path);
 $segments = $path !== '' ? explode('/', $path) : [];
+
+// Token de vista: solo la lista blanca de rutas GET (H2); se comprueba antes de tocar la base de datos
+if ($authKind === 'view') {
+    Bootstrap::requireViewRoute($segments);
+}
+
+Database::init();
 
 $taskCtrl = new TaskController();
 $meetingCtrl = new MeetingController();
@@ -60,9 +70,31 @@ if ($res === 'state' && $method === 'GET') {
     Bootstrap::jsonResponse($repo->getFullState());
 }
 
+// Resumen ligero y saneado para vistas de solo lectura (sin claves, rutas ni settings)
+if ($res === 'overview' && $method === 'GET') {
+    try {
+        Bootstrap::jsonResponse($repo->getOverview(isset($_GET['project']) && $_GET['project'] !== '' ? (string)$_GET['project'] : null), 200, false);
+    } catch (\InvalidArgumentException $e) {
+        Bootstrap::fail($e->getMessage(), 404);
+    }
+}
+
+if ($res === 'events' && $method === 'GET') {
+    $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? max(1, min(100, (int)$_GET['limit'])) : 30;
+    try {
+        $events = $repo->getEvents($limit, isset($_GET['project']) && $_GET['project'] !== '' ? (string)$_GET['project'] : null);
+    } catch (\InvalidArgumentException $e) {
+        Bootstrap::fail($e->getMessage(), 404);
+    }
+    Bootstrap::jsonResponse(['success' => true, 'count' => count($events), 'events' => $events], 200, false);
+}
+
 if ($res === 'sprint') {
     if (($segments[1] ?? '') === 'status' && $method === 'GET') {
         $sprintCtrl->getStatus();
+    }
+    if (($segments[1] ?? '') === 'start' && $method === 'POST') {
+        $sprintCtrl->start(Bootstrap::requireJsonBody());
     }
 }
 
@@ -103,7 +135,7 @@ if ($res === 'tasks') {
                 $taskId,
                 (string)($input['decision'] ?? ''),
                 (array)($input['checklist'] ?? []),
-                (string)($input['reviewer_role'] ?? $input['reviewer'] ?? 'qa_security_guard')
+                (string)($input['reviewer_role'] ?? $input['reviewer'] ?? '')
             );
         } elseif ($subAction === 'comments' && $method === 'POST') {
             $input = Bootstrap::requireJsonBody();
@@ -118,7 +150,7 @@ if ($res === 'meetings') {
 
     if ($meetId === null) {
         if ($method === 'GET') {
-            $meetingCtrl->list();
+            $meetingCtrl->list($_GET);
         } elseif ($method === 'POST') {
             $input = Bootstrap::requireJsonBody();
             $meetingCtrl->start($input);
@@ -170,7 +202,7 @@ if ($res === 'skills') {
 
 if ($res === 'decisions') {
     if ($method === 'GET') {
-        $decisionCtrl->list();
+        $decisionCtrl->list($_GET);
     } elseif ($method === 'POST') {
         $input = Bootstrap::requireJsonBody();
         $decisionCtrl->record($input);
@@ -183,20 +215,24 @@ Bootstrap::jsonResponse([
     'path'      => $path,
     'endpoints' => [
         'GET  /api/state',
+        'GET  /api/overview[?project=<id>]',
+        'POST /api/sprint/start',
+        'GET  /api/events?limit=N',
         'GET  /api/sprint/status',
-        'GET  /api/tasks',
+        'GET  /api/tasks[?compact=1]',
         'GET  /api/tasks/{id}',
         'POST /api/tasks/{id}/claim',
         'POST /api/tasks/{id}/status',
         'POST /api/tasks/{id}/submit-review',
         'POST /api/tasks/{id}/review',
-        'GET  /api/meetings',
+        'GET  /api/meetings[?limit=N&compact=1]',
         'GET  /api/meetings/{id}',
         'POST /api/meetings/{id}/turns',
         'POST /api/meetings/{id}/close',
         'GET  /api/roles',
         'GET  /api/roles/{id}/brief',
         'GET  /api/skills',
-        'GET  /api/decisions'
+        'GET  /api/decisions[?limit=N]',
+        'POST /api/decisions'
     ]
 ], 404);

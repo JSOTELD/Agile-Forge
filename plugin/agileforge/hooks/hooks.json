@@ -2,10 +2,17 @@
   "hooks": {
     "SessionStart": [
       {
-        "type": "prompt",
-        "prompt": "Al iniciar sesión, consulta el estado del sprint actual y las historias en progreso utilizando la herramienta MCP get_sprint_status de AgileForge. Presenta un saludo ágil breve indicando el Sprint activo, los puntos completados vs velocidad total y las tareas con lock o bloqueos activos."
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/server/agileforge-mcp.mjs", "--session-brief"],
+            "timeout": 10,
+            "statusMessage": "AgileForge: leyendo el tablero"
+          }
+        ]
       }
     ]
   }
 }
-

@@ -6,34 +6,47 @@
       "env_key": "ANTHROPIC_API_KEY",
       "icon": "🟣",
       "badge_color": "bg-purple-950/70 text-purple-300 border-purple-500/30",
-      "default_model": "claude-sonnet-5-5",
+      "default_model": "claude-opus-5-5",
       "endpoint": "https://api.anthropic.com/v1/messages",
       "models": [
         {
+          "id": "claude-fable-5-1",
+          "name": "Claude Fable 5.1",
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 10.0,
+          "output_cost_per_m": 50.0,
+          "recommended_for": "Razonamiento muy exigente y trabajo agéntico de largo aliento"
+        },
+        {
           "id": "claude-opus-5-5",
           "name": "Claude Opus 5.5",
-          "context_window": 200000,
-          "input_cost_per_m": 15.0,
-          "output_cost_per_m": 75.0,
-          "recommended_for": "Arquitectura Crítica, Auditorías Legales y Razonamiento Complejo"
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 4.0,
+          "output_cost_per_m": 20.0,
+          "recommended_for": "Dirección, decisiones, arquitectura crítica y auditorías"
         },
         {
           "id": "claude-sonnet-5-5",
           "name": "Claude Sonnet 5.5",
-          "context_window": 200000,
-          "input_cost_per_m": 3.0,
-          "output_cost_per_m": 15.0,
-          "recommended_for": "Scrum Master, Desarrollo Backend y Refactorización"
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 2.0,
+          "output_cost_per_m": 10.0,
+          "recommended_for": "Scrum Master, desarrollo backend/frontend y refactorización"
         },
         {
           "id": "claude-haiku-5-5",
           "name": "Claude Haiku 5.5",
-          "context_window": 200000,
-          "input_cost_per_m": 0.8,
-          "output_cost_per_m": 4.0,
-          "recommended_for": "Daily Standup, Clasificación Rápida y Tareas Ligeras"
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 0.1,
+          "output_cost_per_m": 0.5,
+          "recommended_for": "Daily, clasificación rápida y tareas ligeras (precio desde)"
         }
-      ]
+      ],
+      "pricing_source": "https://platform.claude.com/docs/en/models/overview (consultado 2026-11-08)"
     },
     "openai": {
       "id": "openai",
@@ -41,34 +54,43 @@
       "env_key": "OPENAI_API_KEY",
       "icon": "🟢",
       "badge_color": "bg-emerald-950/70 text-emerald-300 border-emerald-500/30",
-      "default_model": "gpt-4o",
-      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "default_model": "gpt-6.1-sol",
+      "endpoint": "https://api.openai.com/v1/responses",
       "models": [
         {
-          "id": "gpt-4o",
-          "name": "GPT-4o",
-          "context_window": 128000,
-          "input_cost_per_m": 2.5,
+          "id": "gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "context_window": 400000,
+          "input_cost_per_m": 10.0,
+          "output_cost_per_m": 50.0,
+          "recommended_for": "Máxima capacidad de OpenAI para problemas difíciles"
+        },
+        {
+          "id": "gpt-6.1-sol",
+          "name": "GPT-6.1 Sol",
+          "context_window": 400000,
+          "input_cost_per_m": 2.0,
           "output_cost_per_m": 10.0,
-          "recommended_for": "Frontend UI/UX, APIs REST y Microinteracciones"
+          "recommended_for": "Frontend, APIs REST y trabajo general"
         },
         {
-          "id": "gpt-4o-mini",
-          "name": "GPT-4o Mini",
-          "context_window": 128000,
-          "input_cost_per_m": 0.15,
-          "output_cost_per_m": 0.6,
-          "recommended_for": "Tareas Rápidas y Validaciones Livianas"
+          "id": "gpt-6.1-terra",
+          "name": "GPT-6.1 Terra",
+          "context_window": 400000,
+          "input_cost_per_m": 1.0,
+          "output_cost_per_m": 5.0,
+          "recommended_for": "Equilibrio entre costo y calidad"
         },
         {
-          "id": "o3-mini",
-          "name": "o3-mini",
-          "context_window": 200000,
-          "input_cost_per_m": 1.1,
-          "output_cost_per_m": 4.4,
-          "recommended_for": "Razonamiento Lógico y Algoritmos Complejos"
+          "id": "gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "context_window": 400000,
+          "input_cost_per_m": 0.1,
+          "output_cost_per_m": 0.5,
+          "recommended_for": "Tareas rápidas y validaciones livianas"
         }
-      ]
+      ],
+      "pricing_source": "https://developers.openai.com/api/docs/pricing (consultado 2026-11-08, tarifa Standard)"
     },
     "google": {
       "id": "google",
@@ -76,26 +98,38 @@
       "env_key": "GEMINI_API_KEY",
       "icon": "✨",
       "badge_color": "bg-blue-950/70 text-blue-300 border-blue-500/30",
-      "default_model": "gemini-2.5-pro",
+      "default_model": "gemini-3-flash-preview",
       "endpoint": "https://generativelanguage.googleapis.com/v1beta",
       "models": [
         {
-          "id": "gemini-2.5-pro",
-          "name": "Gemini 2.5 Pro",
-          "context_window": 2000000,
-          "input_cost_per_m": 1.25,
-          "output_cost_per_m": 5.0,
-          "recommended_for": "Creatividad, Ventana Masiva de 2M tokens y Antigravity SDK"
+          "id": "gemini-3-flash-preview",
+          "name": "Gemini 3 Flash",
+          "context_window": 1000000,
+          "max_output": 64000,
+          "input_cost_per_m": 0.5,
+          "output_cost_per_m": 3.0,
+          "recommended_for": "Rápido y con nivel gratuito: creatividad, contenido y tareas generales"
         },
         {
-          "id": "gemini-2.5-flash",
-          "name": "Gemini 2.5 Flash",
+          "id": "gemini-3.1-pro-preview",
+          "name": "Gemini 3.1 Pro",
           "context_window": 1000000,
-          "input_cost_per_m": 0.075,
-          "output_cost_per_m": 0.3,
-          "recommended_for": "Respuestas Ultrarrápidas y Streaming"
+          "max_output": 64000,
+          "input_cost_per_m": 2.0,
+          "output_cost_per_m": 12.0,
+          "recommended_for": "Razonamiento complejo y ventana de contexto masiva"
+        },
+        {
+          "id": "gemini-3.1-flash-lite",
+          "name": "Gemini 3.1 Flash-Lite",
+          "context_window": 1000000,
+          "max_output": 64000,
+          "input_cost_per_m": 0.25,
+          "output_cost_per_m": 1.5,
+          "recommended_for": "Tareas ligeras de alto volumen al menor costo"
         }
-      ]
+      ],
+      "pricing_source": "https://ai.google.dev/gemini-api/docs/gemini-3 (consultado 2026-11-08; precio Pro para <200k tokens)"
     },
     "deepseek": {
       "id": "deepseek",
@@ -103,26 +137,27 @@
       "env_key": "DEEPSEEK_API_KEY",
       "icon": "🐳",
       "badge_color": "bg-cyan-950/70 text-cyan-300 border-cyan-500/30",
-      "default_model": "deepseek-reasoner",
+      "default_model": "deepseek-flash",
       "endpoint": "https://api.deepseek.com/chat/completions",
       "models": [
         {
-          "id": "deepseek-reasoner",
-          "name": "DeepSeek-R1 (Reasoner)",
-          "context_window": 64000,
-          "input_cost_per_m": 0.55,
-          "output_cost_per_m": 2.19,
-          "recommended_for": "QA, Pentesting, Hardening y Auditoría de Vulnerabilidades"
+          "id": "deepseek-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "context_window": 1048576,
+          "input_cost_per_m": 0.3,
+          "output_cost_per_m": 1.2,
+          "recommended_for": "Código general, QA y razonamiento a muy bajo costo"
         },
         {
-          "id": "deepseek-chat",
-          "name": "DeepSeek-V3",
-          "context_window": 64000,
-          "input_cost_per_m": 0.14,
-          "output_cost_per_m": 0.28,
-          "recommended_for": "Desarrollo de Código General y Refactorización"
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "context_window": 1048576,
+          "input_cost_per_m": 1.32,
+          "output_cost_per_m": 3.96,
+          "recommended_for": "Agentes y tareas complejas"
         }
-      ]
+      ],
+      "pricing_source": "https://api-docs.deepseek.com/quick_start/pricing (consultado 2026-11-08, tarifa en hora punta; fuera de hora punta cuesta la mitad)"
     },
     "ollama": {
       "id": "ollama",

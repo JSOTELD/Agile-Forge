@@ -67,7 +67,44 @@ export const translations = {
 
         // Manual modal
         manual_title: 'Manual de Inicio Rápido para Novatos',
-        manual_subtitle: 'Aprende a usar AgileForge paso a paso sin complicaciones'
+        manual_subtitle: 'Aprende a usar AgileForge paso a paso sin complicaciones',
+
+        // Director General
+        director_title: 'Director General · Jefe Máximo',
+        director_subtitle: 'Dale una instrucción: revisa el tablero, decide, delega en los agentes y te rinde cuentas.',
+        director_placeholder: 'Ej.: Prioriza lo necesario para lanzar reservas online esta semana y reparte el trabajo entre el equipo (Ctrl+Enter para enviar)',
+        director_send: 'Dar instrucción',
+        director_quick: 'Rápidas:',
+        director_q_status: '📊 Estado del sprint',
+        director_q_backlog: '🧭 Ordenar backlog',
+        director_q_unblock: '🚧 Desbloquear',
+
+        // Claves de API
+        api_keys_title: '🔑 Claves de API',
+        api_keys_desc: 'Pega tu clave para que los roles con ese proveedor respondan desde AgileForge. Se guarda en el archivo .env de esta PC; el navegador solo ve una pista (ej. sk-ant-…a1b2).',
+
+        // Vista y modo plugin
+        view_btn: 'Vista',
+        view_btn_title: 'Abrir AgileForge Vista (solo lectura) en otra pestaña',
+        plugin_notice: 'Modo plugin: el cerebro es Claude Code (instala el plugin AgileForge Control) · o añade una clave / activa la IA local',
+        plugin_engine_badge: '🧩 Claude Code',
+        plugin_engine_hint: 'Este rol trabaja desde Claude Code; no necesita motor en la web.',
+        director_plugin_note: 'Las instrucciones desde esta web necesitan un motor de IA. Desde Claude Code usa /director.',
+        director_plugin_toast: 'Desde Claude Code usa /director, o añade una clave / activa la IA local para dar instrucciones desde aquí.',
+        plugin_mode_title: 'Claude Code',
+        plugin_mode_msg: 'Modo plugin: este trabajo lo hace Claude Code desde tu terminal (/director, /reunion, /tomar). O añade una clave / activa la IA local para usar el motor desde aquí.',
+
+        // Detalle de historia
+        detail_agent: 'Agente',
+        detail_priority: 'Prioridad',
+        detail_points: 'Puntos',
+        detail_story: 'Historia de usuario',
+        detail_desc: 'Detalles técnicos',
+        detail_ask_director: '👑 Pedir decisión al Director',
+        detail_save: 'Guardar cambios',
+        task_create_btn: 'Crear historia y generar prompt',
+        chat_subtitle: 'Da instrucciones al Director o consulta a cualquier agente',
+        team_subtitle: 'Asigna a cada rol su motor de IA (API y modelo, o IA local) y sus skills. El Director General es el jefe máximo del equipo.',
     },
     en: {
         // Header
@@ -130,7 +167,44 @@ export const translations = {
 
         // Manual modal
         manual_title: 'Beginner Quick Start Manual',
-        manual_subtitle: 'Learn how to use AgileForge step by step with ease'
+        manual_subtitle: 'Learn how to use AgileForge step by step with ease',
+
+        // Director General
+        director_title: 'Managing Director · Team Lead',
+        director_subtitle: 'Give an instruction: it reviews the board, decides, delegates to the agents and reports back to you.',
+        director_placeholder: 'E.g.: Prioritize what we need to launch online bookings this week and split the work across the team (Ctrl+Enter to send)',
+        director_send: 'Send instruction',
+        director_quick: 'Quick:',
+        director_q_status: '📊 Sprint status',
+        director_q_backlog: '🧭 Sort backlog',
+        director_q_unblock: '🚧 Unblock',
+
+        // API keys
+        api_keys_title: '🔑 API keys',
+        api_keys_desc: 'Paste your key so roles using that provider can answer from AgileForge. It is stored in this PC\'s .env file; the browser only sees a hint (e.g. sk-ant-…a1b2).',
+
+        // View and plugin mode
+        view_btn: 'View',
+        view_btn_title: 'Open AgileForge View (read-only) in another tab',
+        plugin_notice: 'Plugin mode: the brain is Claude Code (install the AgileForge Control plugin) · or add a key / turn on local AI',
+        plugin_engine_badge: '🧩 Claude Code',
+        plugin_engine_hint: 'This role works from Claude Code; it needs no engine in the web app.',
+        director_plugin_note: 'Instructions from this page need an AI engine. From Claude Code use /director.',
+        director_plugin_toast: 'From Claude Code use /director, or add a key / turn on local AI to give instructions from here.',
+        plugin_mode_title: 'Claude Code',
+        plugin_mode_msg: 'Plugin mode: this work is done by Claude Code from your terminal (/director, /reunion, /tomar). Or add a key / turn on local AI to use the engine from here.',
+
+        // Story detail
+        detail_agent: 'Agent',
+        detail_priority: 'Priority',
+        detail_points: 'Points',
+        detail_story: 'User story',
+        detail_desc: 'Technical details',
+        detail_ask_director: '👑 Ask the Director to decide',
+        detail_save: 'Save changes',
+        task_create_btn: 'Create story and generate prompt',
+        chat_subtitle: 'Give instructions to the Director or ask any agent',
+        team_subtitle: 'Assign each role its AI engine (API and model, or local AI) and its skills. The Managing Director leads the team.',
     }
 };
 
@@ -195,6 +269,10 @@ export function applyLanguageToDOM() {
             el.setAttribute('title', dict[key]);
         }
     });
+
+    // Textos generados por JS (modo plugin)
+    if (window.renderPluginNotice) window.renderPluginNotice();
+    if (window.renderDirectorPanel) window.renderDirectorPanel();
 
     // Actualizar indicador de idioma en el botón
     const langBtnText = document.getElementById('lang-btn-text');

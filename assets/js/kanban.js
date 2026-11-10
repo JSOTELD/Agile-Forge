@@ -17,7 +17,10 @@ export function renderKanban() {
 
     // Poblar selector de roles en el filtro
     const roleSel = document.getElementById('kanban-filter-role');
-    if (roleSel && roleSel.options.length <= 1) {
+    if (roleSel && roleSel.options.length !== roles.length + 1) {
+        const keep = roleSel.value;
+        roleSel.length = 1;
+        setTimeout(() => { roleSel.value = [...roleSel.options].some(o => o.value === keep) ? keep : 'all'; }, 0);
         roles.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.id;
@@ -249,7 +252,8 @@ export async function updateTaskStatus(taskId, newStatus) {
                 action: 'update_task_status',
                 id: taskId,
                 task_id: taskId,
-                status: newStatus
+                status: newStatus,
+                client: 'web'
             })
         });
         const data = await res.json();
@@ -283,7 +287,12 @@ export async function moveTaskBackward(taskId, currentStatus) {
 
 export function openNewTaskModal() {
     const modal = document.getElementById('new-task-modal');
-    if (modal) modal.classList.remove('hidden');
+    if (!modal) return;
+    if (window.populateRoleSelects) window.populateRoleSelects();
+    const roleSel = document.getElementById('task-role');
+    if (window.populateTaskSkillsSelector) window.populateTaskSkillsSelector(roleSel?.value);
+    modal.classList.remove('hidden');
+    setTimeout(() => document.getElementById('task-title')?.focus(), 30);
 }
 
 export function closeNewTaskModal() {
@@ -291,88 +300,4 @@ export function closeNewTaskModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-export async function submitNewTask() {
-    const title = document.getElementById('new-task-title')?.value?.trim();
-    const role = document.getElementById('new-task-role')?.value;
-    const priority = document.getElementById('new-task-priority')?.value || 'media';
-    const points = parseInt(document.getElementById('new-task-points')?.value) || 2;
-    const story = document.getElementById('new-task-story')?.value?.trim() || '';
-    const dod = document.getElementById('new-task-dod')?.value?.trim() || '';
-
-    if (!title) {
-        showToast('Campo Requerido', 'Por favor ingresa el título de la historia', 'warning');
-        return;
-    }
-
-    try {
-        const res = await apiFetch('api/tasks.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'create_task',
-                title,
-                assigned_to: role,
-                priority,
-                story_points: points,
-                user_story: story,
-                dod
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            closeNewTaskModal();
-            showToast('Historia Creada', `Registrada ${data.task?.id || 'correctamente'}`, 'magic');
-            if (window.fetchTeamData) await window.fetchTeamData();
-        } else {
-            showToast('Error', data.error || 'No se pudo crear la historia', 'error');
-        }
-    } catch (err) {
-        showToast('Error', 'Fallo al crear la historia', 'error');
-    }
-}
-
-export function openTaskDetail(taskId) {
-    const task = (appData.tasks || []).find(t => t.id === taskId);
-    if (!task) return;
-
-    const modal = document.getElementById('task-detail-modal');
-    if (!modal) return;
-
-    const idEl = document.getElementById('detail-task-id');
-    const titleEl = document.getElementById('detail-task-title');
-    const pointsEl = document.getElementById('detail-task-points');
-    const priorityEl = document.getElementById('detail-task-priority');
-    const statusEl = document.getElementById('detail-task-status');
-    const agentEl = document.getElementById('detail-task-agent');
-    const storyEl = document.getElementById('detail-task-story');
-    const dodEl = document.getElementById('detail-task-dod');
-    const skillsContainer = document.getElementById('detail-task-skills');
-
-    if (idEl) idEl.textContent = task.id;
-    if (titleEl) titleEl.textContent = task.title;
-    if (pointsEl) pointsEl.textContent = `${task.story_points || 1} pts`;
-    if (priorityEl) priorityEl.textContent = task.priority || 'media';
-    if (statusEl) statusEl.textContent = (task.status || 'backlog').replace('_', ' ');
-    if (storyEl) storyEl.textContent = task.user_story || 'Sin especificación formal de historia de usuario.';
-    if (dodEl) dodEl.textContent = task.dod || 'DoD pendiente de definir.';
-
-    const role = (appData.roles || []).find(r => r.id === task.assigned_to);
-    if (agentEl) agentEl.textContent = role ? `${role.avatar} ${role.name}` : task.assigned_to;
-
-    if (skillsContainer) {
-        const skills = task.skills || [];
-        skillsContainer.innerHTML = skills.map(s => `
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
-                ⚡ ${escapeHtml(s)}
-            </span>
-        `).join('');
-    }
-
-    modal.classList.remove('hidden');
-}
-
-export function closeTaskDetail() {
-    const modal = document.getElementById('task-detail-modal');
-    if (modal) modal.classList.add('hidden');
-}
 

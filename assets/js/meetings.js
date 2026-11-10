@@ -4,7 +4,99 @@
  */
 
 import { appData, apiFetch, escapeHtml } from './state.js';
-import { showToast } from './ui.js';
+import { showToast, switchMainTab } from './ui.js';
+import { richText, isPluginMode } from './director.js';
+import { t } from './i18n.js';
+
+let meetingBusy = false;
+
+async function post(action, extra = {}) {
+    const res = await apiFetch('api/tasks.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra })
+    });
+    try {
+        return await res.json();
+    } catch (e) {
+        return { success: false, error: `El servidor respondió HTTP ${res.status} sin datos (posible corte por tiempo).` };
+    }
+}
+
+function stagePending(text) {
+    const stage = document.getElementById('meeting-stage-container');
+    if (!stage) return;
+    stage.querySelector('#meeting-pending')?.remove();
+    if (!text) return;
+    const el = document.createElement('div');
+    el.id = 'meeting-pending';
+    el.className = 'p-4 rounded-2xl bg-slate-950/80 border border-indigo-500/30 text-xs text-indigo-200 animate-pulse';
+    el.textContent = text;
+    stage.appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/**
+ * Reunión en vivo: cada agente interviene con su propio motor (una petición por turno) y al final
+ * el Director sintetiza la resolución y los acuerdos. Así ninguna petición se corta por tiempo.
+ */
+export async function runMeetingLive(meetingType, topic, participants) {
+    if (meetingBusy) {
+        showToast('Reunión en curso', 'Espera a que termine la reunión actual', 'warning');
+        return null;
+    }
+    const picked = (appData.roles || []).filter(r => (participants || []).includes(r.id));
+    if (isPluginMode() && picked.every(r => !(r.engine && r.engine.ready))) {
+        showToast(t('plugin_mode_title'), t('plugin_mode_msg'), 'info', 7000);
+        return null;
+    }
+    meetingBusy = true;
+    switchMainTab('meetings');
+    try {
+        const begin = await post('meeting_begin', { meeting_type: meetingType, topic, participants });
+        if (!begin.success) {
+            showToast('No se pudo convocar', begin.error || 'Error al iniciar la reunión', 'error');
+            return null;
+        }
+        const meeting = { ...begin.meeting, turns: [] };
+        renderActiveMeeting(meeting);
+        const noEngine = begin.plan.filter(p => p.engine === 'sin motor');
+        if (noEngine.length === begin.plan.length) {
+            if (isPluginMode()) showToast(t('plugin_mode_title'), t('plugin_mode_msg'), 'info', 7000);
+            else showToast('Sin motor de IA', 'Ningún participante tiene IA disponible: agrega una clave en Motor IA o activa la IA local.', 'warning', 6000);
+        }
+
+        for (let i = 0; i < begin.plan.length; i++) {
+            const p = begin.plan[i];
+            stagePending(`${p.avatar} ${p.name} está interviniendo (${p.engine})… turno ${i + 1} de ${begin.plan.length}`);
+            const r = await post('meeting_turn', { meeting_id: meeting.id, role_id: p.role_id });
+            meeting.turns.push(r.success ? r.turn : {
+                role_id: p.role_id, name: p.name, alias: '', avatar: p.avatar, ai_model: p.engine,
+                statement: '⚠️ ' + (r.error || 'No pudo intervenir'), timestamp: ''
+            });
+            renderActiveMeeting(meeting);
+        }
+
+        stagePending('👑 El Director está sintetizando la resolución y los acuerdos…');
+        const c = await post('meeting_conclude', { meeting_id: meeting.id });
+        stagePending('');
+        if (window.fetchTeamData) await window.fetchTeamData();
+        const final = c.success ? c.meeting : meeting;
+        renderActiveMeeting(final);
+        if (c.success) {
+            showToast('Reunión concluida', `${final.action_items.length} acuerdo(s) listos para el backlog`, 'success', 3500);
+        } else {
+            showToast('Reunión sin síntesis', c.error || 'No se pudo sintetizar', 'warning');
+        }
+        return final;
+    } catch (err) {
+        stagePending('');
+        showToast('Error', 'Se interrumpió la reunión: ' + (err.message || ''), 'error');
+        return null;
+    } finally {
+        meetingBusy = false;
+    }
+}
 
 export function renderMeetingsBadge() {
     const navBadge = document.getElementById('nav-meetings-count');
@@ -17,7 +109,7 @@ export function renderMeetingsView() {
     renderMeetingsBadge();
 
     const stage = document.getElementById('meeting-stage-container');
-    if (stage && meetings.length > 0) {
+    if (stage && meetings.length > 0 && !meetingBusy) {
         renderActiveMeeting(meetings[0]);
     }
 
@@ -58,7 +150,7 @@ export function renderActiveMeeting(meeting) {
                     <button onclick="copyMeetingMinutes('${escapeHtml(meeting.id)}')" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5">
                         <span>📋</span> Copiar Acta
                     </button>
-                    ${!isConverted ? `
+                    ${!isConverted && actionItems.length ? `
                         <button onclick="convertMeetingToTasks('${escapeHtml(meeting.id)}')" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>📥</span> Convertir al Backlog
                         </button>
@@ -79,7 +171,7 @@ export function renderActiveMeeting(meeting) {
                         <span class="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 flex items-center gap-1.5 font-medium whitespace-nowrap">
                             <span>${escapeHtml(r ? r.avatar : '🤖')}</span>
                             <span>${escapeHtml(r ? r.name.split(' ')[0] : pId)}</span>
-                            <span class="text-[9px] font-mono text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded border border-purple-500/20">${escapeHtml((r?.ai_model || 'Claude').split(' ')[0])}</span>
+                            <span class="text-[9px] font-mono text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded border border-purple-500/20">${escapeHtml(r?.engine?.ready ? r.engine.label : 'sin motor')}</span>
                         </span>
                     `;
                 }).join('')}
@@ -106,9 +198,9 @@ export function renderActiveMeeting(meeting) {
                                     <span class="text-slate-500 font-mono text-[10px]">${escapeHtml(t.timestamp)}</span>
                                 </div>
                             </div>
-                            <p class="text-xs text-slate-300 leading-relaxed pl-7 border-l-2 border-indigo-500/30">
-                                ${escapeHtml(t.statement)}
-                            </p>
+                            <div class="text-xs ${String(t.statement || '').startsWith('⚠️') ? 'text-amber-200' : 'text-slate-300'} leading-relaxed pl-7 border-l-2 border-indigo-500/30">
+                                ${richText(t.statement)}
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -120,18 +212,18 @@ export function renderActiveMeeting(meeting) {
                     <h4 class="font-bold text-xs text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
                         <span>📜</span> Acta de Acuerdos & Veredicto Consensuado
                     </h4>
-                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/70 text-emerald-300 border border-emerald-500/30 font-bold">
-                        Unánime
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded-full ${meeting.summary ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/30' : 'bg-slate-900 text-slate-400 border-slate-700'} border font-bold">
+                        ${meeting.summary ? `${actionItems.length} acuerdo(s)` : 'En curso'}
                     </span>
                 </div>
 
                 <p class="text-xs text-slate-200 leading-relaxed">
-                    <strong>Resumen:</strong> ${escapeHtml(meeting.summary)}
+                    <strong>Resumen:</strong> ${meeting.summary ? escapeHtml(meeting.summary) : '<span class="text-slate-500">Se completará al terminar las intervenciones.</span>'}
                 </p>
 
                 <div class="p-3 rounded-xl bg-slate-900/90 border border-indigo-500/20 text-xs">
                     <span class="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Resolución Adoptada:</span>
-                    <span class="text-emerald-400 font-semibold">${escapeHtml(meeting.resolution)}</span>
+                    <span class="text-emerald-400 font-semibold">${escapeHtml(meeting.resolution || '—')}</span>
                 </div>
 
                 <!-- Lista de Acciones / Historias acordadas -->
@@ -224,9 +316,11 @@ export function populateMeetingParticipantsSelector() {
     if (!container) return;
 
     const roles = appData.roles || [];
+    const prev = new Set(Array.from(container.querySelectorAll('input:checked')).map(i => i.value));
+    const firstRender = container.querySelectorAll('input').length === 0;
     container.innerHTML = roles.map(r => `
-        <label class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer text-xs select-none hover:border-slate-700">
-            <input type="checkbox" value="${escapeHtml(r.id)}" checked class="rounded border-slate-700 text-indigo-600 focus:ring-0">
+        <label class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer text-xs select-none hover:border-slate-700" title="${escapeHtml(r.engine?.ready ? 'Responde con ' + r.engine.label : (isPluginMode() ? t('plugin_engine_hint') : 'Sin motor de IA'))}">
+            <input type="checkbox" value="${escapeHtml(r.id)}" ${(firstRender ? ['project_manager', 'lead_architect', 'backend_architect'].includes(r.id) : prev.has(r.id)) ? 'checked' : ''} class="rounded border-slate-700 text-indigo-600 focus:ring-0">
             <span>${escapeHtml(r.avatar)}</span>
             <span class="font-medium text-slate-200">${escapeHtml(r.name.split(' ')[0])}</span>
         </label>
@@ -260,33 +354,13 @@ export async function launchPresetMeeting(presetKey) {
     const p = presets[presetKey];
     if (!p) return;
 
-    showToast('Convocando Reunión', `Iniciando debate con ${p.participants.length} agentes...`, 'magic', 2500);
-
-    try {
-        const res = await apiFetch('api/tasks.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'run_agent_meeting',
-                meeting_type: p.meeting_type,
-                topic: p.topic,
-                participants: p.participants
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            if (window.fetchTeamData) await window.fetchTeamData();
-            renderActiveMeeting(data.meeting);
-            showToast('Reunión Finalizada', `Acuerdos alcanzados en ${data.meeting.id}`, 'success', 3000);
-        }
-    } catch (err) {
-        showToast('Error', 'No se pudo llevar a cabo la reunión', 'error');
-    }
+    showToast('Convocando reunión', `${p.participants.length} agentes intervendrán por turnos`, 'magic', 2500);
+    await runMeetingLive(p.meeting_type, p.topic, p.participants);
 }
 
 export async function submitCustomMeeting() {
-    const meetingType = document.getElementById('meet-type-select').value;
-    const topic = document.getElementById('meet-topic-input').value.trim();
+    const meetingType = document.getElementById('meet-type-select')?.value || 'brainstorming';
+    const topic = (document.getElementById('meet-topic-input')?.value || '').trim();
     const checked = Array.from(document.querySelectorAll('#meet-participants-selector input:checked')).map(i => i.value);
 
     if (!topic) {
@@ -299,29 +373,8 @@ export async function submitCustomMeeting() {
         return;
     }
 
-    showToast('Convocando Mesa', 'Generando debate colaborativo entre los agentes...', 'magic', 3000);
-
-    try {
-        const res = await apiFetch('api/tasks.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'run_agent_meeting',
-                meeting_type: meetingType,
-                topic: topic,
-                participants: checked
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            toggleMeetingComposer();
-            if (window.fetchTeamData) await window.fetchTeamData();
-            renderActiveMeeting(data.meeting);
-            showToast('Debate Concluido', `Se emitieron ${data.meeting.action_items.length} acuerdos formales`, 'success');
-        }
-    } catch (err) {
-        showToast('Error', 'Error al ejecutar la reunión', 'error');
-    }
+    toggleMeetingComposer();
+    await runMeetingLive(meetingType, topic, checked);
 }
 
 export async function convertMeetingToTasks(meetingId) {
@@ -340,6 +393,8 @@ export async function convertMeetingToTasks(meetingId) {
             showToast('¡Historias Creadas!', data.message, 'success', 3500);
             const m = (appData.meetings || []).find(x => x.id === meetingId);
             if (m) renderActiveMeeting(m);
+        } else {
+            showToast('No se convirtió', data.error || 'Error al crear las historias', 'error');
         }
     } catch (err) {
         showToast('Error', 'No se pudieron convertir los acuerdos en historias', 'error');

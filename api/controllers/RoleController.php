@@ -11,7 +11,11 @@ namespace AgileForge\Controllers;
 use AgileForge\Bootstrap;
 use AgileForge\Database;
 use AgileForge\Repository;
+use AgileForge\Services\EngineService;
+use AgileForge\Services\LlmService;
 use PDO;
+
+require_once dirname(__DIR__) . '/services/EngineService.php';
 
 class RoleController
 {
@@ -40,6 +44,7 @@ class RoleController
         $stmt = $pdo->prepare("SELECT * FROM roles WHERE id = ?");
         $stmt->execute([$id]);
         $role = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$role) {
             Bootstrap::jsonResponse(['error' => 'Rol no encontrado'], 404);
@@ -74,12 +79,50 @@ class RoleController
         Bootstrap::jsonResponse(['success' => true, 'role_id' => $roleId, 'skills' => $cleanSkills]);
     }
 
+    /**
+     * Asigna el motor de IA de un rol: proveedor de API + modelo, "local" (la IA local activa)
+     * o vacío para heredar el motor global.
+     */
+    public function updateEngine(array $input): void
+    {
+        $roleId = trim((string)($input['role_id'] ?? ''));
+        $provider = trim((string)($input['ai_provider'] ?? ''));
+        $model = trim((string)($input['ai_model'] ?? ''));
+
+        $pdo = Database::getPdo();
+        $stmt = $pdo->prepare("SELECT id FROM roles WHERE id = ?");
+        $stmt->execute([$roleId]);
+        if (!$stmt->fetch()) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Rol no encontrado'], 404);
+        }
+
+        $llm = new LlmService();
+        if ($provider === '' || $provider === 'local') {
+            $model = $provider === 'local' ? 'IA local' : '';
+        } elseif (!$llm->providerConfig($provider)) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => "Proveedor desconocido: {$provider}"], 422);
+        } else {
+            if (!$llm->isKnownModel($provider, $model)) {
+                Bootstrap::jsonResponse(['success' => false, 'error' => "El modelo '{$model}' no pertenece a " . $llm->providerName($provider)], 422);
+            }
+        }
+
+        $pdo->prepare("UPDATE roles SET ai_provider = ?, ai_model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+            ->execute([$provider === '' ? null : $provider, $model === '' ? null : $model, $roleId]);
+
+        $engines = new EngineService($this->repo);
+        $role = $pdo->prepare("SELECT * FROM roles WHERE id = ?");
+        $role->execute([$roleId]);
+        Bootstrap::jsonResponse(['success' => true, 'role_id' => $roleId, 'engine' => $engines->resolveForRole($role->fetch())]);
+    }
+
     public function getBrief(string $roleId): void
     {
         $pdo = Database::getPdo();
         $stmt = $pdo->prepare("SELECT * FROM roles WHERE id = ?");
         $stmt->execute([$roleId]);
         $role = $stmt->fetch();
+        $stmt->closeCursor();
 
         if (!$role) {
             Bootstrap::jsonResponse(['error' => 'Rol no encontrado'], 404);

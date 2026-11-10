@@ -1,23 +1,40 @@
 ---
 name: compliance-sentinel
-title: "Compliance & Privacy Sentinel"
+description: Úsala cuando necesites revisar una historia o entrega contra requisitos legales, de licencias y de privacidad antes de enviarla a revisión.
+title: "Centinela de cumplimiento"
 category: legal
 level: Principal
 status: active
 tags: ["AgileForge","legal"]
 ---
 
-# Compliance & Privacy Sentinel
+# Centinela de cumplimiento
 
-> **Especialidad:** `compliance-sentinel` | **Categoría:** legal | **Nivel:** Principal | **Estado:** ACTIVE
+> Aviso: esta guía es orientativa y no sustituye la asesoría de un abogado o profesional colegiado. Valida con un profesional antes de publicar o firmar.
 
-Habilidad técnica especializada dentro del catálogo del ecosistema AgileForge.
+## Cuándo usarla
+Como puerta final en historias con datos personales, pagos, contenido de terceros, dependencias nuevas o textos públicos.
 
-## Centinela de Cumplimiento Legal y Normativo
-1. **Detección Automática de Jurisdicción**: Identificar el marco regulatorio del país activo (Perú, España, México, Colombia, etc.).
-2. **Protección de PII**: Aplicar principios de minimización de datos personales y disociación en logs.
-3. **Transparencia al Consumidor**: Exigir libro de reclamaciones, políticas de privacidad y cláusulas de exención vigentes.
+## Checklist
+1. **Datos:** ¿qué datos personales nuevos aparecen? ¿hay finalidad, consentimiento y retención definidos (ver `legal-frameworks`)? ¿se registran en logs?
+2. **Secretos:** busca claves, tokens o contraseñas en código y commits; deben vivir en `.env` ignorado por git.
+3. **Licencias:** toda dependencia, fuente, icono o imagen nueva tiene licencia compatible (MIT, Apache, OFL) y atribución si la exige. Nada de código o texto copiado sin permiso.
+4. **Textos públicos:** términos, privacidad, Libro de Reclamaciones y avisos presentes cuando haya venta o captura de datos (ver `terms-and-disclaimers`).
+5. **Promesas:** afirmaciones de producto verificables; sin garantías ni cifras inventadas.
+6. **Terceros:** servicios externos listados con qué datos reciben.
+7. **Menores y datos sensibles:** salud, biometría, ubicación exigen consentimiento reforzado; si no es indispensable, no se recoge.
+8. **Trazabilidad:** decisión legal relevante registrada con `record_decision` (o `registrar_decision` en la web).
 
-## Criterio de Verificación
-- Todo entregable generado con esta skill debe satisfacer la Definition of Done (DoD).
-- La evidencia debe registrarse mediante la herramienta MCP `submit_for_review`.
+## Severidad
+- Bloqueante: dato sensible sin consentimiento, secreto expuesto, licencia incompatible.
+- Alta: falta política o aviso obligatorio.
+- Media/baja: redacción, mejoras.
+
+## Anti-patrones
+- Aprobar "porque es un prototipo".
+- Revisar solo el código y no los textos.
+
+## Cómo verificar
+- Informe breve (≤ 200 palabras): hallazgos por severidad con archivo y línea.
+- Salida de `grep` para secretos y lista de licencias nuevas.
+- Recuerda: no sustituye asesoría profesional; marca lo que requiera abogado. Entrégalo con `add_comment` o `submit_for_review`.

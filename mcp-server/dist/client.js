@@ -1,188 +1,88 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-export class AgileForgeClient {
-    apiUrl;
-    apiToken;
-    defaultClient;
-    constructor() {
-        this.apiUrl = process.env.AGILEFORGE_API_URL || 'http://localhost/Open-to-code/api';
-        this.defaultClient = process.env.AGILEFORGE_CLIENT || 'claude-code';
-        this.apiToken = process.env.AGILEFORGE_API_TOKEN || this.loadTokenFromEnv();
+export class ApiError extends Error {
+    status;
+    constructor(message, status = 0) {
+        super(message);
+        this.status = status;
     }
-    loadTokenFromEnv() {
-        // Buscar .env en el directorio actual o en la raíz del proyecto
-        const candidates = [
-            path.resolve(process.cwd(), '.env'),
-            path.resolve(__dirname, '../../.env'),
-            path.resolve(__dirname, '../.env')
-        ];
-        for (const p of candidates) {
-            if (fs.existsSync(p)) {
-                try {
-                    const content = fs.readFileSync(p, 'utf8');
-                    const match = content.match(/AGILEFORGE_API_TOKEN=([a-zA-Z0-9_-]+)/);
-                    if (match && match[1]) {
-                        return match[1].trim();
-                    }
-                }
-                catch {
-                    // Continuar al siguiente candidato
-                }
-            }
-        }
-        return '';
+}
+export const TIMEOUT_MS = 15000;
+export class ReadClient {
+    cfg;
+    timeoutMs;
+    constructor(cfg, timeoutMs = TIMEOUT_MS) {
+        this.cfg = cfg;
+        this.timeoutMs = timeoutMs;
     }
-    async request(endpoint, options = {}) {
-        const url = endpoint.startsWith('http') ? endpoint : `${this.apiUrl.replace(/\/+$/, '')}/${endpoint.replace(/^\/+/, '')}`;
-        const token = this.apiToken;
-        const headers = {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'X-AgileForge-Token': token,
-            ...(options.headers || {})
-        };
-        if (options.body && !headers['Content-Type']) {
-            headers['Content-Type'] = 'application/json';
+    /** URL de una ruta REST, sin credenciales (se usa en los mensajes de error). */
+    urlFor(route, params) {
+        let base = this.cfg.apiUrl;
+        let r = route.replace(/^\/+/, '');
+        if (!/\/index\.php$/.test(base) && !/\.php$/.test(r))
+            r = `index.php/${r}`;
+        const qs = new URLSearchParams();
+        for (const [k, v] of Object.entries(params ?? {}))
+            if (v !== undefined && v !== '')
+                qs.set(k, String(v));
+        const q = qs.toString();
+        let u = `${base}/${r}`.replace(/\/index\.php\/index\.php/, '/index.php');
+        return q ? `${u}?${q}` : u;
+    }
+    headers(extra = {}) {
+        const h = { Accept: 'application/json', ...extra };
+        if (this.cfg.token) {
+            h.Authorization = `Bearer ${this.cfg.token}`;
+            h['X-AgileForge-Token'] = this.cfg.token;
         }
+        return h;
+    }
+    connectionHint() {
+        return `Configura AGILEFORGE_API_URL (origen actual: ${this.cfg.urlOrigin}).`;
+    }
+    tokenHint() {
+        const env = this.cfg.mode === 'vista' ? 'AGILEFORGE_VIEW_TOKEN' : 'AGILEFORGE_API_TOKEN';
+        return this.cfg.token
+            ? `El token (${this.cfg.tokenKind}, origen: ${this.cfg.tokenOrigin}) no fue aceptado; revisa ${env}.`
+            : `No hay token configurado: define ${env} o ponlo en .env / ~/.agileforge/config.json.`;
+    }
+    async settle(res, url) {
+        const text = await res.text();
+        let data;
         try {
-            const res = await fetch(url, { ...options, headers });
-            const text = await res.text();
-            let data;
-            try {
-                data = JSON.parse(text);
+            data = JSON.parse(text);
+        }
+        catch {
+            if (res.status === 404 || res.ok) {
+                throw new ApiError(`${url} no responde como API de AgileForge (HTTP ${res.status}, no es JSON). La URL debe terminar en /api. ${this.connectionHint()}`, res.status);
             }
-            catch {
-                throw new Error(`Respuesta no JSON del backend AgileForge (HTTP ${res.status}): ${text.substring(0, 200)}`);
-            }
-            if (!res.ok) {
-                throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
-            }
-            return data;
+            throw new ApiError(`Respuesta no JSON de ${url} (HTTP ${res.status}): ${text.slice(0, 120).replace(/\s+/g, ' ')}`, res.status);
+        }
+        if (res.status === 401) {
+            throw new ApiError(`No autorizado (401) en ${url}. ${this.tokenHint()}`, 401);
+        }
+        if (!res.ok || data?.success === false) {
+            const msg = data?.error || data?.message || `HTTP ${res.status}`;
+            const extra = res.status === 403 && this.cfg.mode === 'vista' ? ' (modo Vista: solo lectura)' : '';
+            throw new ApiError(`${msg}${extra} [HTTP ${res.status} ${url}]`, res.status);
+        }
+        return data;
+    }
+    netError(err, url) {
+        if (err instanceof ApiError)
+            return err;
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+            return new ApiError(`Tiempo de espera agotado (${Math.round(this.timeoutMs / 1000)} s) con ${url}. ¿Está el servidor encendido? ${this.connectionHint()}`);
+        }
+        const code = err?.cause?.code ? ` (${err.cause.code})` : '';
+        return new ApiError(`No pude conectar con ${url}${code}. ¿Está XAMPP/PHP encendido y la URL es correcta? ${this.connectionHint()}`);
+    }
+    async get(route, params) {
+        const url = this.urlFor(route, params);
+        try {
+            const res = await fetch(url, { method: 'GET', headers: this.headers(), signal: AbortSignal.timeout(this.timeoutMs) });
+            return (await this.settle(res, url));
         }
         catch (err) {
-            throw new Error(`[AgileForge API Error] ${err.message}`);
+            throw this.netError(err, url);
         }
-    }
-    // --- Herramientas de Sprint ---
-    async getSprintStatus() {
-        return this.request('index.php/sprint/status');
-    }
-    // --- Herramientas de Tareas ---
-    async listTasks(filters = {}) {
-        const query = new URLSearchParams();
-        if (filters.status)
-            query.append('status', filters.status);
-        if (filters.role)
-            query.append('role', filters.role);
-        if (filters.priority)
-            query.append('priority', filters.priority);
-        if (filters.project)
-            query.append('project', filters.project);
-        const qs = query.toString();
-        const endpoint = qs ? `index.php/tasks?${qs}` : 'index.php/tasks';
-        return this.request(endpoint);
-    }
-    async getTask(taskId) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}`);
-    }
-    async claimTask(taskId, roleKey, client) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}/claim`, {
-            method: 'POST',
-            body: JSON.stringify({
-                role_key: roleKey,
-                client: client || this.defaultClient
-            })
-        });
-    }
-    async updateTaskStatus(taskId, status, note, roleKey, client, humanApproved) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}/status`, {
-            method: 'POST',
-            body: JSON.stringify({
-                status,
-                note,
-                role: roleKey,
-                client: client || this.defaultClient,
-                human_approved: humanApproved
-            })
-        });
-    }
-    async addComment(taskId, role, content, name, avatar) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}/comments`, {
-            method: 'POST',
-            body: JSON.stringify({
-                role,
-                content,
-                name: name || role,
-                avatar: avatar || '💬'
-            })
-        });
-    }
-    async submitForReview(taskId, roleKey, filesChanged, testsRun, summary) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}/submit-review`, {
-            method: 'POST',
-            body: JSON.stringify({
-                role_key: roleKey,
-                evidence: {
-                    files_changed: filesChanged,
-                    tests_run: testsRun,
-                    summary
-                }
-            })
-        });
-    }
-    async reviewTask(taskId, decision, checklist, reviewerRole) {
-        return this.request(`index.php/tasks/${encodeURIComponent(taskId)}/review`, {
-            method: 'POST',
-            body: JSON.stringify({
-                decision,
-                checklist,
-                reviewer_role: reviewerRole
-            })
-        });
-    }
-    async createTask(data) {
-        return this.request('index.php/tasks', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-    // --- Herramientas de Salas de Reunión ---
-    async startMeeting(data) {
-        return this.request('index.php/meetings', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-    async addMeetingTurn(meetingId, turn) {
-        return this.request(`index.php/meetings/${encodeURIComponent(meetingId)}/turns`, {
-            method: 'POST',
-            body: JSON.stringify(turn)
-        });
-    }
-    async closeMeeting(meetingId, data) {
-        return this.request(`index.php/meetings/${encodeURIComponent(meetingId)}/close`, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-    // --- Herramienta de Decisiones (ADR) ---
-    async recordDecision(data) {
-        return this.request('index.php/decisions', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-    // --- Roles y Brief de Sistema ---
-    async getRoleBrief(roleId) {
-        return this.request(`index.php/roles/${encodeURIComponent(roleId)}/brief`);
-    }
-    async listRoles() {
-        return this.request('index.php/roles');
-    }
-    async getFullState() {
-        return this.request('index.php/state');
     }
 }

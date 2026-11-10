@@ -30,7 +30,8 @@ import {
     toggleLanguage,
     setLanguage,
     getLanguage,
-    applyLanguageToDOM
+    applyLanguageToDOM,
+    t
 } from './i18n.js';
 
 import {
@@ -51,10 +52,7 @@ import {
     moveTaskForward,
     moveTaskBackward,
     openNewTaskModal,
-    closeNewTaskModal,
-    submitNewTask,
-    openTaskDetail,
-    closeTaskDetail
+    closeNewTaskModal
 } from './kanban.js';
 
 import {
@@ -115,6 +113,31 @@ import {
     detectLocalAi
 } from './local-ai.js';
 
+import {
+    openTaskDetail,
+    closeTaskDetail,
+    showTaskPrompt,
+    showReviewPrompt,
+    populateTaskSkillsSelector,
+    renderJurisdictionBadge,
+    openChangeWorkspaceModal,
+    closeChangeWorkspaceModal,
+    saveWorkspaceChange,
+    openJurisdictionModal,
+    closeJurisdictionModal,
+    openAiEngineModal
+} from './bindings.js';
+
+import { renderDirectorPanel, isPluginMode } from './director.js';
+
+export function renderPluginNotice() {
+    const el = document.getElementById('plugin-notice');
+    if (!el) return;
+    const on = isPluginMode();
+    el.classList.toggle('hidden', !on);
+    el.textContent = on ? 'ℹ️ ' + t('plugin_notice') : '';
+}
+
 // -------------------------------------------------------------
 // 1. CARGA DE DATOS & SINCRONIZACIÓN CON BACKEND SQLITE
 // -------------------------------------------------------------
@@ -126,9 +149,10 @@ export async function fetchTeamData() {
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
         rawData = await res.json();
+        if (rawData && rawData.success === false) throw new Error(rawData.error || 'Respuesta de error del servidor');
     } catch (netErr) {
         console.error('Error de red al consultar api/tasks.php:', netErr);
-        showToast('Sin conexión', 'No se pudo conectar con el backend local (api/tasks.php)', 'error');
+        showToast('Sin conexión', 'No se pudo cargar el tablero: ' + (netErr.message || 'revisa que Apache esté encendido'), 'error', 6000);
         return;
     }
 
@@ -140,6 +164,7 @@ export async function fetchTeamData() {
         renderAiEngineBadge();
         renderSprintBanner();
         renderRoles();
+        renderPluginNotice();
         renderKanban();
         renderChat();
         populateRoleSelects();
@@ -147,6 +172,7 @@ export async function fetchTeamData() {
         renderMeetingsBadge();
         renderActivityFeed();
         renderLocalAiControls();
+        renderDirectorPanel();
         if (currentTab === 'meetings') renderMeetingsView();
     } catch (renderErr) {
         console.error('Error de renderizado en frontend:', renderErr);
@@ -274,6 +300,7 @@ export function renderRoles() {
     const providers = appData.ai_engine?.available_providers || [];
     const execMode = appData.ai_engine?.execution_mode || 'cli';
     const roleRouting = !!appData.ai_engine?.role_routing_enabled;
+    const pluginMode = isPluginMode();
 
     container.innerHTML = appData.roles.map(r => {
         const assignedSkills = r.assigned_skills || [];
@@ -286,20 +313,33 @@ export function renderRoles() {
         if (isUx) badgeGlow = 'border-pink-500/30 bg-pink-950/10';
         if (isDesigner) badgeGlow = 'border-purple-500/30 bg-purple-950/10';
 
-        const roleProvider = (roleRouting && r.ai_provider) ? r.ai_provider : (appData.ai_engine?.active_provider || 'anthropic');
-        const roleModel = (roleRouting && r.ai_model) ? r.ai_model : (appData.ai_engine?.active_model || 'claude-sonnet-5-5');
-        const provObj = providers.find(p => p.id === roleProvider);
-
-        let engineBadge = '';
-        if (execMode === 'cli') {
-            engineBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border border-indigo-500/30 text-indigo-300 flex items-center gap-1" title="Ejecutado por IA anfitriona (Claude Code u otra vía MCP)"><span>🔌</span> Modo Plugin (${escapeHtml(roleModel)})</span>`;
-        } else if (provObj?.api_key_configured) {
-            engineBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border border-emerald-500/40 text-emerald-300 flex items-center gap-1" title="API Key configurada en .env"><span>🟢</span> Motor Activo: ${escapeHtml(roleModel)}</span>`;
-        } else if (roleProvider === 'ollama') {
-            engineBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border border-amber-500/40 text-amber-300 flex items-center gap-1" title="Servicio local Ollama"><span>🦙</span> Ollama Local</span>`;
-        } else {
-            engineBadge = `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border border-amber-500/40 text-amber-300 flex items-center gap-1" title="Sin clave en .env (opera en Modo Plugin)"><span>⚠️</span> Sin Motor (.env)</span>`;
-        }
+        const eng = r.engine || {};
+        const sourceText = { role: 'motor propio del rol', local: 'IA local', global: 'motor global', none: 'sin motor' }[eng.source] || '';
+        const engineBadge = eng.ready
+            ? `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border ${eng.kind === 'local' ? 'border-emerald-500/40 text-emerald-300' : 'border-purple-500/40 text-purple-300'} flex items-center gap-1" title="Responde con ${escapeHtml(eng.label)} (${sourceText})${eng.reason ? ' — ' + escapeHtml(eng.reason) : ''}">🤖 ${escapeHtml(eng.label)}</span>`
+            : pluginMode
+            ? `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-600 text-slate-300 flex items-center gap-1" title="${escapeHtml(t('plugin_engine_hint'))}">${escapeHtml(t('plugin_engine_badge'))}</span>`
+            : `<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950 border border-amber-500/40 text-amber-300 flex items-center gap-1" title="${escapeHtml(eng.reason || '')}">⚠️ Sin motor</span>`;
+        const currentVal = r.ai_provider === 'local' ? 'local::' : (r.ai_provider ? `${r.ai_provider}::${r.ai_model || ''}` : '');
+        const engineSelect = `
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <label class="block text-[10px] uppercase text-slate-400 font-bold tracking-wider">Motor de IA de este rol</label>
+                    ${!roleRouting ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20" title="Actívalo en Motor IA → Enrutamiento Especializado por Rol">Global activo</span>` : ''}
+                </div>
+                <select onchange="changeRoleEngine('${escapeHtml(r.id)}', this.value)" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-[11px] font-mono outline-none focus:border-purple-500 ${!roleRouting ? 'opacity-70' : ''}">
+                    <option value="" ${currentVal === '' ? 'selected' : ''}>Heredar (motor global o IA local)</option>
+                    <option value="local::" ${currentVal === 'local::' ? 'selected' : ''}>🏠 IA local activa (Ollama / Colibri)</option>
+                    ${providers.map(p => `
+                        <optgroup label="${escapeHtml(p.icon || '')} ${escapeHtml(p.name)}${p.api_key_configured ? ' ✓' : (p.env_key ? ' — sin clave' : '')}">
+                            ${(p.models || []).map(m => `<option value="${escapeHtml(p.id)}::${escapeHtml(m.id)}" ${currentVal === `${p.id}::${m.id}` ? 'selected' : ''}>${escapeHtml(m.name || m.id)}</option>`).join('')}
+                        </optgroup>`).join('')}
+                </select>
+                ${!roleRouting ? `<p class="text-[10px] text-indigo-300">ℹ️ Enrutamiento desactivado: este rol usa el motor global <strong>${escapeHtml(appData.ai_engine?.provider_name || 'Global')}</strong>.</p>` : `
+                <p class="text-[10px] ${eng.ready || pluginMode ? 'text-slate-400' : 'text-amber-300'}">${eng.ready ? `Responde ahora: <span class="font-mono text-slate-200">${escapeHtml(eng.label)}</span> (${sourceText})` : (pluginMode ? escapeHtml(t('plugin_engine_hint')) : escapeHtml(eng.reason || 'Sin motor disponible'))}${eng.ready && eng.reason ? `<br><span class="text-amber-300/80">${escapeHtml(eng.reason)}</span>` : ''}</p>`}
+            </div>`;
+        const isDirector = r.id === 'director';
+        if (isDirector) badgeGlow = 'border-amber-500/50 bg-gradient-to-br from-amber-950/30 to-slate-950 md:col-span-2 lg:col-span-3';
 
         return `
             <div class="glass-card rounded-3xl p-5 border ${badgeGlow} flex flex-col justify-between space-y-4 hover:border-indigo-500/40 transition">
@@ -316,6 +356,8 @@ export function renderRoles() {
                     </div>
 
                     <p class="text-xs text-slate-300">${escapeHtml(r.specialty)}</p>
+                    ${isDirector ? `<p class="text-[11px] text-amber-200/90">${escapeHtml(r.description || '')}</p>` : ''}
+                    ${engineSelect}
 
                     <!-- Chips de Skills Asignadas -->
                     <div class="space-y-1.5">
@@ -363,96 +405,10 @@ export function renderWorkspace() {
     }
 }
 
-export function openChangeWorkspaceModal() {
-    const modal = document.getElementById('change-workspace-modal');
-    const input = document.getElementById('workspace-input');
-    if (input) input.value = appData.current_project?.path || appData.active_workspace || '';
-    if (modal) modal.classList.remove('hidden');
-}
-
-export function closeChangeWorkspaceModal() {
-    const modal = document.getElementById('change-workspace-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-export async function saveWorkspace() {
-    const input = document.getElementById('workspace-input');
-    const ws = input?.value?.trim();
-    if (!ws) return;
-
-    try {
-        const res = await apiFetch('api/tasks.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'update_workspace', workspace: ws })
-        });
-        const data = await res.json();
-        if (data.success) {
-            closeChangeWorkspaceModal();
-            showToast('Workspace Actualizado', ws, 'success');
-            await fetchTeamData();
-        } else {
-            showToast('Error', data.error || 'No se pudo actualizar workspace', 'error');
-        }
-    } catch (err) {
-        showToast('Error', 'Fallo al actualizar workspace', 'error');
-    }
-}
-
-export function renderJurisdictionBadge() {
-    const juris = appData.jurisdiction || {};
-    const badge = document.getElementById('jurisdiction-badge');
-    if (badge) {
-        badge.innerHTML = `<span>${juris.flag || '🇵🇪'}</span> <span>${juris.country_name || 'Perú'}</span>`;
-    }
-}
-
-export function openJurisdictionModal() {
-    const modal = document.getElementById('jurisdiction-modal');
-    if (modal) modal.classList.remove('hidden');
-}
-
-export function closeJurisdictionModal() {
-    const modal = document.getElementById('jurisdiction-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-export async function saveJurisdiction() {
-    const country = document.getElementById('jurisdiction-country-select')?.value || 'PE';
-    const names = { PE: 'Perú', CO: 'Colombia', MX: 'México', CL: 'Chile', AR: 'Argentina', ES: 'España', US: 'Estados Unidos' };
-    const flags = { PE: '🇵🇪', CO: '🇨🇴', MX: '🇲🇽', CL: '🇨🇱', AR: '🇦🇷', ES: '🇪🇸', US: '🇺🇸' };
-
-    try {
-        const res = await apiFetch('api/tasks.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'update_jurisdiction',
-                country_code: country,
-                country_name: names[country] || 'Perú',
-                flag: flags[country] || '🇵🇪'
-            })
-        });
-        const data = await res.json();
-        if (data.success) {
-            closeJurisdictionModal();
-            showToast('Jurisdicción Actualizada', `${flags[country]} ${names[country]}`, 'success');
-            await fetchTeamData();
-        }
-    } catch (err) {
-        showToast('Error', 'No se pudo actualizar jurisdicción', 'error');
-    }
-}
-
 export function renderAiEngineBadge() {
     // El badge "Motor IA" de la barra superior (header-ai-icon / header-ai-model) lo pinta local-ai.js,
     // porque muestra el modelo local cuando la IA local está activada.
     renderLocalAiControls();
-}
-
-export function openAiEngineModal() {
-    const modal = document.getElementById('ai-engine-modal');
-    if (modal) modal.classList.remove('hidden');
 }
 
 export function closeAiEngineModal() {
@@ -463,8 +419,9 @@ export function closeAiEngineModal() {
 export async function saveAiEngineSettings() {
     const provider = document.getElementById('ai-provider-select')?.value || 'anthropic';
     const model = document.getElementById('ai-model-select')?.value || 'claude-sonnet-5-5';
-    const mode = document.getElementById('ai-execution-mode')?.value || 'cli';
+    const mode = document.getElementById('ai-execution-mode')?.value || 'api';
     const roleRouting = document.getElementById('ai-role-routing-toggle')?.checked !== false;
+    const endpoint = document.getElementById('ai-endpoint-input')?.value?.trim() || '';
 
     try {
         const res = await apiFetch('api/tasks.php', {
@@ -475,7 +432,8 @@ export async function saveAiEngineSettings() {
                 active_provider: provider,
                 active_model: model,
                 execution_mode: mode,
-                role_routing_enabled: roleRouting
+                role_routing_enabled: roleRouting,
+                endpoint: endpoint
             })
         });
         const data = await res.json();
@@ -483,34 +441,74 @@ export async function saveAiEngineSettings() {
             closeAiEngineModal();
             showToast('Motor IA Configurado', `${provider} (${model})`, 'magic');
             await fetchTeamData();
+        } else {
+            showToast('No se guardó', data.error || 'No se pudo actualizar el motor IA', 'error');
         }
     } catch (err) {
         showToast('Error', 'No se pudo actualizar motor IA', 'error');
     }
 }
 
+export async function toggleRoleRoutingImmediate(enabled) {
+    try {
+        const ai = appData.ai_engine || {};
+        const res = await apiFetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'update_ai_engine',
+                active_provider: ai.active_provider || 'anthropic',
+                active_model: ai.active_model || 'claude-sonnet-5-5',
+                execution_mode: ai.execution_mode || 'api',
+                role_routing_enabled: enabled
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(
+                enabled ? 'Enrutamiento por Rol Activado' : 'Enrutamiento por Rol Desactivado',
+                enabled ? 'Cada agente responderá con su motor asignado en Equipo de Agentes.' : 'Todos los agentes responderán con el motor global.',
+                'info',
+                3000
+            );
+            await fetchTeamData();
+        }
+    } catch (err) {
+        console.error('Error toggling role routing:', err);
+    }
+}
+
 export function populateRoleSelects() {
-    const taskRole = document.getElementById('task-role');
-    const chatRole = document.getElementById('chat-target-role');
     const roles = appData.roles || [];
+    const fill = (sel, label, fallback) => {
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = roles.map(r => `<option value="${escapeHtml(r.id)}">${escapeHtml(label(r))}</option>`).join('');
+        sel.value = roles.some(r => r.id === prev) ? prev : fallback;
+    };
+    fill(document.getElementById('task-role'), r => `${r.avatar} ${r.name}`, roles.find(r => r.id === 'project_manager') ? 'project_manager' : roles[0]?.id);
+    fill(document.getElementById('chat-target-role'), r => `${r.avatar} ${r.name}${r.alias ? ' (' + r.alias + ')' : ''}`, 'director');
+}
 
-    if (taskRole && taskRole.options.length <= 1) {
-        roles.forEach(r => {
-            const opt = document.createElement('option');
-            opt.value = r.id;
-            opt.textContent = `${r.avatar} ${r.name}`;
-            taskRole.appendChild(opt);
+export async function changeRoleEngine(roleId, value) {
+    const [provider, model] = String(value || '').split('::');
+    try {
+        const res = await apiFetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update_role_engine', role_id: roleId, ai_provider: provider || '', ai_model: model || '' })
         });
+        const data = await res.json();
+        if (!data.success) {
+            showToast('No se cambió el motor', data.error || 'Error', 'error');
+        } else {
+            const e = data.engine || {};
+            showToast('Motor asignado', e.ready ? `${roleId} responderá con ${e.label}` : `${roleId}: ${e.reason || 'sin motor disponible'}`, e.ready ? 'success' : 'warning', 4000);
+        }
+    } catch (err) {
+        showToast('Error', 'No se pudo cambiar el motor del rol', 'error');
     }
-
-    if (chatRole && chatRole.options.length <= 1) {
-        roles.forEach(r => {
-            const opt = document.createElement('option');
-            opt.value = r.id;
-            opt.textContent = `${r.avatar} ${r.name} (${r.alias})`;
-            chatRole.appendChild(opt);
-        });
-    }
+    await fetchTeamData();
 }
 
 // -------------------------------------------------------------
@@ -539,9 +537,10 @@ window.moveTaskBackward = moveTaskBackward;
 window.updateTaskStatus = updateTaskStatus;
 window.openNewTaskModal = openNewTaskModal;
 window.closeNewTaskModal = closeNewTaskModal;
-window.submitNewTask = submitNewTask;
 window.openTaskDetail = openTaskDetail;
 window.closeTaskDetail = closeTaskDetail;
+window.changeRoleEngine = changeRoleEngine;
+window.populateRoleSelects = populateRoleSelects;
 
 // Costos & Sprint
 window.renderSprintBanner = renderSprintBanner;
@@ -596,17 +595,18 @@ window.handleGenerateLegalDoc = handleGenerateLegalDoc;
 // Modales globales & Preferencias (Temas / Idioma / Manual)
 window.openChangeWorkspaceModal = openChangeWorkspaceModal;
 window.closeChangeWorkspaceModal = closeChangeWorkspaceModal;
-window.saveWorkspace = saveWorkspace;
+window.saveWorkspace = saveWorkspaceChange;
 window.openJurisdictionModal = openJurisdictionModal;
 window.closeJurisdictionModal = closeJurisdictionModal;
-window.saveJurisdiction = saveJurisdiction;
 window.openAiEngineModal = openAiEngineModal;
 window.closeAiEngineModal = closeAiEngineModal;
 window.saveAiEngineSettings = saveAiEngineSettings;
+window.toggleRoleRoutingImmediate = toggleRoleRoutingImmediate;
 window.toggleDayNightMode = toggleDayNightMode;
 window.openBeginnerManualModal = openBeginnerManualModal;
 window.closeBeginnerManualModal = closeBeginnerManualModal;
 window.toggleLanguage = toggleLanguage;
+window.renderPluginNotice = renderPluginNotice;
 window.setLanguage = setLanguage;
 
 // -------------------------------------------------------------
@@ -635,8 +635,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (action === 'move-task-forward') moveTaskForward(taskId, status);
         else if (action === 'move-task-backward') moveTaskBackward(taskId, status);
         else if (action === 'open-task-detail') openTaskDetail(taskId);
-        else if (action === 'show-task-prompt') openTaskDetail(taskId);
-        else if (action === 'request-task-review') openTaskDetail(taskId);
+        else if (action === 'show-task-prompt') showTaskPrompt(taskId);
+        else if (action === 'request-task-review') showReviewPrompt(taskId);
     });
 
     // Actualización de viewport al redimensionar ventana

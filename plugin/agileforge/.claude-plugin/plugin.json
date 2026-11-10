@@ -1,12 +1,38 @@
 {
   "name": "agileforge",
-  "version": "2.0.0",
-  "description": "Equipo de desarrollo multi-agente para Claude Code y asistentes MCP bajo metodología Scrum y PMBOK 7ma Edición.",
+  "displayName": "AgileForge Control",
+  "version": "2.1.0",
+  "description": "Equipo ágil de agentes que maneja el tablero AgileForge desde Claude Code. / Agile agent team that runs the AgileForge board from Claude Code.",
   "author": {
-    "name": "AgileForge Ecosystem",
-    "email": "dev@agileforge.local"
+    "name": "JSOTELD",
+    "url": "https://github.com/JSOTELD"
   },
-  "keywords": ["scrum", "agile", "pmbok", "multi-agent", "mcp", "teamwork"],
-  "homepage": "http://localhost/Open-to-code/"
+  "homepage": "https://github.com/JSOTELD/agile-forge",
+  "repository": "https://github.com/JSOTELD/agile-forge",
+  "license": "MIT",
+  "keywords": [
+    "scrum",
+    "agile",
+    "multi-agent",
+    "kanban",
+    "mcp",
+    "agileforge"
+  ],
+  "mcpServers": {
+    "board": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/agileforge-mcp.mjs"
+      ],
+      "env": {
+        "AGILEFORGE_MODE": "full",
+        "AGILEFORGE_CLIENT": "claude-code",
+        "AGILEFORGE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}",
+        "AGILEFORGE_API_URL": "${AGILEFORGE_API_URL:-}",
+        "AGILEFORGE_API_TOKEN": "${AGILEFORGE_API_TOKEN:-}",
+        "AGILEFORGE_HOME": "${AGILEFORGE_HOME:-}",
+        "AGILEFORGE_ENGINE_TOOLS": "${AGILEFORGE_ENGINE_TOOLS:-off}"
+      }
+    }
+  }
 }
-

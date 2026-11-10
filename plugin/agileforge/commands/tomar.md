@@ -1,17 +1,12 @@
 ---
-name: tomar
-description: Toma una historia de usuario asignándola a un rol y activando un lock atómico exclusivo para evitar colisiones entre agentes.
+description: Asigna una historia a un especialista de AgileForge, que la toma con lock (claim_task) y la desarrolla hasta enviarla a revisión.
+argument-hint: "<US-id> [agente: backend|frontend|chief-architect]"
 ---
 
-# Comando: /tomar <US-id> [rol]
+Historia y agente pedidos: `$ARGUMENTS`
 
-Reclama la propiedad de una historia de usuario en el tablero AgileForge utilizando la herramienta MCP `claim_task`:
-
-1. **Argumentos**:
-   - `<US-id>`: Código de la historia de usuario (ej: `US-101`, `US-102`).
-   - `[rol]` (opcional): Identificador del rol (`frontend_master`, `backend_architect`, `qa_security_guard`, etc.). Si no se proporciona, usa el rol activo del agente invocador.
-2. **Procedimiento**:
-   - Invoca la herramienta MCP `claim_task({ task_id: "<US-id>", role_key: "<rol>", client: "claude-code" })`.
-   - Si la tarea ya está bloqueada por otro agente, informa el conflicto con el nombre del agente que la retiene.
-   - Si se bloquea con éxito, consulta el detalle con `get_task({ task_id: "<US-id>" })` y presenta el criterio de aceptación y la Definition of Done para comenzar el desarrollo.
-
+1. Separa el ID (`US-…`) y el agente opcional. Sin ID → pide el ID y para.
+2. `mcp__plugin_agileforge_board__get_task` con ese ID. Si está `completada`, o con lock de otro rol, informa y para.
+3. Elige el agente: el indicado; si no, según `assigned_to` (`backend_architect`→`backend`, `frontend_master`→`frontend`, `lead_architect`→`chief-architect`). Otro rol (QA, legal, creativo, PM) → explica que esos roles no desarrollan y para.
+4. Delega con la herramienta Agent en `agileforge:<agente>` (sin pasar `model` ni `effort`). Prompt: ID, título, DoD y "sigue tu flujo: claim_task antes de editar; si falla, no toques nada; termina con submit_for_review".
+5. Resume su entrega en ≤8 líneas y sugiere `/agileforge:dod <US-id>` para el dictamen de QA.

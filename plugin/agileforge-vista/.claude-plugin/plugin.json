@@ -1,0 +1,37 @@
+{
+  "name": "agileforge-vista",
+  "displayName": "AgileForge Vista",
+  "version": "2.1.0",
+  "description": "Vista de solo lectura del tablero AgileForge en Claude Code. / Read-only view of the AgileForge board in Claude Code.",
+  "author": {
+    "name": "JSOTELD",
+    "url": "https://github.com/JSOTELD"
+  },
+  "homepage": "https://github.com/JSOTELD/agile-forge",
+  "repository": "https://github.com/JSOTELD/agile-forge",
+  "license": "MIT",
+  "keywords": [
+    "scrum",
+    "agile",
+    "dashboard",
+    "read-only",
+    "mcp",
+    "agileforge"
+  ],
+  "mcpServers": {
+    "board": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/agileforge-vista-mcp.mjs"
+      ],
+      "env": {
+        "AGILEFORGE_MODE": "viewer",
+        "AGILEFORGE_CLIENT": "claude-code",
+        "AGILEFORGE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}",
+        "AGILEFORGE_VIEW_TOKEN": "${AGILEFORGE_VIEW_TOKEN:-}",
+        "AGILEFORGE_API_URL": "${AGILEFORGE_API_URL:-}",
+        "AGILEFORGE_HOME": "${AGILEFORGE_HOME:-}"
+      }
+    }
+  }
+}

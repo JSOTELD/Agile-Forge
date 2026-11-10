@@ -1,188 +1,209 @@
-# 🔰 Manual de AgileForge v2 para Novatos (Principiantes)
-> *Guía paso a paso para dominar tu Centro de Comando de Agentes IA sin enredos técnicos.*
+# 🔰 Manual de AgileForge v2 para Novatos
 
-[![Español](https://img.shields.io/badge/Idioma-Espa%C3%B1ol-yellow.svg)](#-guía-en-español)
-[![English](https://img.shields.io/badge/Language-English-blue.svg)](#-english-beginners-guide)
-[![Modo Día/Noche](https://img.shields.io/badge/Temas-D%C3%ADa%20%2F%20Noche-purple.svg)](#3--colores-modo-día-y-modo-noche)
+🌐 [English](BEGINNERS_GUIDE.md) · **Español**
 
----
+> *Guía paso a paso para dominar tu centro de comando de agentes de IA sin enredos técnicos.*
 
-## 🇪🇸 Guía en Español
-
-Bienvenido a **AgileForge v2**. Si nunca has usado un entorno de desarrollo ágil con agentes de Inteligencia Artificial, ¡este manual es para ti! Aquí aprenderás todo lo necesario desde cero, de forma sencilla y directa.
+Bienvenido a **AgileForge v2**. Si nunca has usado un entorno ágil con agentes de Inteligencia Artificial, este manual es para ti: aquí aprendes lo necesario desde cero, de forma sencilla y directa.
 
 ---
 
-### 1. 🔰 ¿Qué es AgileForge y para qué sirve?
+## 1. 🔰 ¿Qué es AgileForge y para qué sirve?
 
-Imagina tener a un equipo completo de profesionales sentados a tu lado:
-- 📋 **Project Manager:** Organiza el trabajo y define las prioridades.
-- 🎨 **Director Creativo & UX/UI:** Diseña interfaces limpias y verifica la usabilidad.
-- 🏛️ **Jefe de Arquitectura:** Elige las mejores tecnologías y diseña la estructura.
-- 💻 **Frontend Master:** Programa los botones, pantallas y diseño visual.
-- ⚙️ **Backend Master:** Programa la base de datos, APIs y lógica del servidor.
-- 🛡️ **QA & Seguridad:** Revisa que el código no tenga errores ni vulnerabilidades.
-- ⚖️ **Abogado / Legal Counsel:** Revisa que cumplas las leyes de privacidad (RGPD, Ley de Protección de Datos, etc.).
+Imagina tener a un equipo completo trabajando a tu lado:
+- 👑 **Director General:** el jefe del equipo. Le das una instrucción, revisa el tablero, decide y reparte el trabajo.
+- 📋 **Project Manager:** organiza el trabajo y define prioridades.
+- 🎨 **Director Creativo & UX/UI:** diseña interfaces limpias y cuida la usabilidad.
+- 🏛️ **Arquitecto Jefe:** elige las tecnologías y diseña la estructura.
+- 💻 **Frontend Master:** programa las pantallas, botones y diseño visual.
+- ⚙️ **Backend Master:** programa la base de datos, las APIs y la lógica del servidor.
+- 🛡️ **QA & Seguridad:** revisa que el código no tenga errores ni vulnerabilidades.
+- ⚖️ **Asesor Legal:** revisa que cumplas las leyes (protección de datos, consumidor, etc.).
 
-En lugar de tener que copiar y pegar prompts gigantescos en ChatGPT o Claude, **AgileForge les da a estos agentes un tablero Scrum real**. Ellos leen las tareas, las toman, escriben reportes técnicos y se reúnen para debatir soluciones contigo como el Product Owner humano.
+En lugar de copiar y pegar prompts gigantes en un chat, **AgileForge les da a estos agentes un tablero Scrum real**. Leen las tareas, las toman, reportan avances y se reúnen para debatir soluciones contigo, el Product Owner humano.
 
 ---
 
-### 2. ⚡ Puesta en Marcha Rápida (Primer Uso)
+## 2. ⚡ Puesta en marcha (primer uso)
 
-Si acabas de descargar el proyecto:
-
-1. **Abre tu terminal** en la carpeta del proyecto.
-2. **Ejecuta la inicialización automática:**
+1. **Abre una terminal** en la carpeta del proyecto.
+2. **Inicializa todo:**
    ```bash
    php bin/migrate.php
    ```
-   *Esto crea la base de datos local y configura tu token seguro.*
-3. **Inicia el servidor:**
-   - Si usas XAMPP: abre tu navegador en `http://localhost/Open-to-code/`.
-   - Si prefieres PHP directo:
-     ```bash
-     php -S localhost:8000
-     ```
-     y abre `http://localhost:8000` en tu navegador.
+   *Crea la base de datos local y tu token seguro en `.env`.*
+3. **Abre la aplicación:**
+   - Con XAMPP: `http://localhost/Open-to-code/` (o el nombre de tu carpeta).
+   - Con PHP directo: ejecuta `php -S localhost:8080 router.php` y abre `http://localhost:8080`. (El `router.php` es importante: el servidor de PHP ignora los `.htaccess` y, sin él, cualquiera en tu red podría descargar tu `.env` con las claves y tu base de datos.)
 
 ---
 
-### 3. 🌓 Colores: Modo Día y Modo Noche
+## 3. 🧠 Dale cerebro a tus agentes (elige una opción)
 
-AgileForge cuida tu vista y se adapta a cualquier ambiente de iluminación:
+Los agentes necesitan una IA para responder. Tienes tres caminos y puedes combinarlos:
 
-#### ☀️ ¿Cómo activar el Modo Día (Luz)?
-- **Opción rápida:** En la barra superior, haz clic en el botón con el icono **🌙 Noche / ☀️ Día**. Al hacer clic pasará inmediatamente a **☀️ Modo Día (Solar Day)** con fondo blanco y tipografía oscura de máximo contraste.
-- **Opción avanzada (Paletas):** Haz clic en el botón **🎨 Tema** para elegir entre 6 paletas:
-  1. **Cyber Obsidian (Noche):** Fondo ultra oscuro tipo terminal cyberpunk (predeterminado).
-  2. **Electric Indigo (Noche Azul):** Fondo azul profundo relajante para la vista nocturna.
-  3. **Neon Emerald (Noche Verde):** Estilo hacker verde matriz con alta legibilidad.
-  4. **Midnight Violet (Noche Púrpura):** Estilo sobrio y moderno en tonos violeta.
-  5. **☀️ Solar Day (Modo Día):** Fondo blanco puro de alto contraste, ideal para oficinas con luz o proyectores.
-  6. **📄 Clean Paper (Día Suave):** Fondo cálido tipo papel libro, ideal para leer sin encandilarte.
+| Opción | Costo | Cómo |
+|---|---|---|
+| **IA local** (Ollama / Colibri) | Gratis, 100 % privado | Ver sección 7. |
+| **Modelos en la nube** (Claude, Gemini, GPT, DeepSeek) | Pagas por uso | Pega tu clave en **⚙️ Motor IA → 🔑 Claves de API**. |
+| **Modo plugin** (Claude Code) | Lo que ya pagas de Claude Code | Trabaja con los agentes desde Claude Code (sección 10). No necesita claves. |
 
-> 💡 **Nota:** Tu tema preferido se guarda automáticamente. Cuando cierres y vuelvas a abrir el navegador, recordará tu elección.
+### Cómo agregar una clave de API (2 minutos)
+1. Consigue tu clave en la consola del proveedor. La guía completa, con el formato de cada clave, está en **[docs/API_KEYS.es.md](docs/API_KEYS.es.md)**.
+2. En AgileForge pulsa **⚙️ Motor IA** (barra superior) y baja a **🔑 Claves de API**.
+3. Pega la clave en la fila de su proveedor y pulsa **Guardar**. Se prueba sola y verás `✅ … respondió en Xs`.
 
----
+> ⚠️ **Google Gemini:** AI Studio te muestra un ejemplo con `curl`. Eso **no** es la clave: la clave es solo el texto que va después de `x-goog-api-key:` (suele empezar por `AIza`).
+>
+> 🔒 Tus claves se guardan solo en el archivo `.env` de tu PC, nunca se suben a GitHub y el navegador solo ve una pista (`sk-ant-…a1b2`). No las compartas en chats ni capturas.
 
-### 4. 🌐 Idioma: Español e Inglés (i18n)
-
-¿Prefieres la interfaz en inglés o en español?
-
-- En la barra superior, busca el botón **🌐 ES | EN**.
-- Haz clic una vez y la aplicación cambiará instantáneamente todo su vocabulario entre **Español** e **Inglés**:
-  - *Tablero Scrum* ⇄ *Scrum Board*
-  - *Laboratorio UX/UI* ⇄ *UX/UI & Design Lab*
-  - *Sala de Reuniones* ⇄ *Meeting Room*
-  - *Nueva Historia* ⇄ *New Story*
-- La preferencia se almacena en tu navegador para tus próximas sesiones.
+### Elige qué IA usa cada agente
+En la pestaña **🤖 Equipo de Agentes**, cada tarjeta tiene el selector **Motor de IA de este rol**: un modelo concreto (por ejemplo *Claude Opus 5.5* para el Director), la **IA local** o *Heredar*. Debajo ves quién responde de verdad en este momento. Si a un rol le falta su clave, responde la IA local y la tarjeta te avisa.
 
 ---
 
-### 5. 📋 El Tablero Scrum (Cómo organizar el trabajo)
+## 4. 👑 El Director General: dale instrucciones
 
-El tablero Kanban tiene **4 columnas** que representan el ciclo de vida de cualquier trabajo:
+En el **Tablero Scrum**, arriba, está el panel del **Director General**:
+
+1. Escribe lo que quieres lograr, como se lo dirías a un jefe de proyecto. Por ejemplo:
+   - *"Prioriza lo necesario para lanzar las reservas online esta semana y reparte el trabajo."*
+   - *"¿Qué está bloqueado? Decide los siguientes pasos."*
+2. Pulsa **Dar instrucción** (o `Ctrl + Enter`).
+3. El Director revisa el tablero, decide, crea o reasigna historias, consulta a los especialistas si hace falta y te responde con: **Decisión**, **Qué hice**, **Siguientes pasos** y **Riesgos o preguntas**. Debajo verás cada acción que hizo en el tablero.
+
+> Con Claude responde en segundos; con IA local puede tardar 1–3 minutos. El Director **nunca** marca historias como terminadas: eso lo apruebas tú.
+
+También puedes hablarle desde **💬 Consultar** (el chat) o, en cada historia, con el botón **👑 Pedir decisión al Director**.
+
+---
+
+## 5. 📋 El tablero Scrum
 
 | Columna | ¿Qué significa? | ¿Quién actúa aquí? |
 | :--- | :--- | :--- |
-| **1. Historias (Backlog)** | Ideas, tareas y requerimientos por hacer. | Tú (humano) o el Project Manager. |
-| **2. En Desarrollo** | Tareas que alguien está programando o diseñando activamente. | Un agente o tú. (La tarea queda bloqueada para que nadie más la pise). |
-| **3. Revisión DoD / QA** | Trabajo terminado esperando control de calidad. | El agente aporta pruebas o diffs. |
-| **4. Aprobadas / Done** | Tareas finalizadas y listas para producción. | **Solo tú (humano) o el rol QA**. |
+| **1. Backlog** | Ideas, tareas y requerimientos por hacer. | Tú, el Director o el Project Manager. |
+| **2. En Progreso** | Trabajo en curso (la historia queda bloqueada para que nadie más la pise). | Un agente o tú. |
+| **3. En Revisión (DoD)** | Trabajo terminado esperando control de calidad. | El agente aporta pruebas o diffs. |
+| **4. Completadas** | Trabajo aprobado. | **Solo tú o el rol QA**. |
 
-#### 📝 ¿Cómo crear tu primera tarea?
-1. Haz clic en el botón azul **"+ Nueva Historia"** (esquina superior derecha).
-2. Escribe el título (ej: *"Crear pantalla de inicio de sesión"*).
-3. Asigna el rol (ej: *Frontend Master* o *Backend Master*).
-4. Elige los puntos de esfuerzo (Story Points: 1, 2, 3, 5, 8).
-5. Escribe la historia de usuario y qué condiciones debe cumplir para considerarse terminada (DoD).
-6. Haz clic en **Guardar Historia**. ¡Aparecerá en la columna Backlog de inmediato!
+### Crear tu primera historia
+1. Pulsa **+ Nueva Historia**.
+2. Escribe el título (ej.: *"Crear pantalla de inicio de sesión"*), elige el agente, la prioridad y los puntos (1, 2, 3, 5, 8, 13).
+3. Completa la historia de usuario y la Definition of Done (qué debe cumplirse para darla por terminada).
+4. Pulsa **Crear historia y generar prompt**. Aparece en el Backlog y se abre su prompt de misión, listo para copiar en Claude Code.
+
+### Editar una historia
+Haz clic en el título de cualquier tarjeta: puedes cambiar agente, prioridad, puntos y textos, copiar su prompt, pedir una decisión al Director o eliminarla (🗑️).
 
 ---
 
-### 6. 🦙 Inteligencia Artificial Local (Ollama & Colibri)
+## 6. 🌓 Modo día y modo noche
 
-¿Quieres usar IA **completamente gratis, sin pagar suscripciones a OpenAI o Anthropic y con 100% de privacidad**?
+- **Rápido:** en la barra superior pulsa **🌙 Noche / ☀️ Día**.
+- **Paletas:** pulsa **🎨 Tema** y elige entre 6: *Cyber Obsidian*, *Electric Indigo*, *Neon Emerald*, *Midnight Violet* (noche), *Solar Day* y *Clean Paper* (día). También puedes elegir la densidad (*Cómodo* o *Compacto*).
+- Tu elección se guarda en el navegador.
 
-1. Instala **Ollama** en tu computadora (descárgalo gratis en [ollama.com](https://ollama.com)) y descarga un modelo rápido en tu terminal:
+---
+
+## 7. 🦙 Inteligencia artificial local (gratis y privada)
+
+1. Instala **Ollama** ([ollama.com](https://ollama.com)) y descarga un modelo:
    ```bash
-   ollama run gemma:2b
-   # o
-   ollama run llama3.2
+   ollama pull gemma4:e4b
    ```
-2. Abre AgileForge: notarás que el botón **🦙 IA local** en la cabecera se pone en verde indicando el modelo detectado.
-3. Al encenderlo, las consultas del chat y los debates de las reuniones se procesarán **directamente en tu tarjeta de video o memoria RAM**. ¡Cero costos y ningún dato saldrá a internet!
+2. Abre AgileForge: el botón **🦙 IA local** detecta el modelo.
+3. Actívalo: los agentes sin motor de API propio responderán **en tu PC**. Cero costo y ningún dato sale a internet.
+
+¿Tienes una PC potente? En Windows puedes usar **Colibri** para modelos más grandes: ejecuta `bin\colibri-instalar.cmd` y luego `bin\colibri-crear-acceso-directo.cmd` para tener el acceso directo **"Colibri IA"** en el escritorio.
 
 ---
 
-### 7. 🎙️ Salas de Reunión: Debates Multi-Agente
+## 8. 🌐 Idioma: español e inglés
 
-Cuando tengas una duda difícil o necesites innovar:
-1. Haz clic en la pestaña **"Sala de Reuniones"** (o presiona `Alt + 4`).
-2. Elige el tipo de reunión:
-   - **💡 Brainstorming de Innovación:** Ideal para generar ideas locas y creativas para tu producto.
-   - **🏛️ Consejo de Arquitectura (ADR):** Para tomar decisiones técnicas cruciales (ej: ¿SQL o NoSQL?).
-3. Selecciona los agentes participantes (ej: Arquitecto + Director Creativo + Seguridad).
-4. Haz clic en **Iniciar Reunión**.
-5. Los agentes hablarán por turnos, debatirán entre sí y redactarán un **Acta Formal con Acuerdos**.
-6. Si estás de acuerdo con una propuesta, presiona **"Convertir en Historia de Backlog"** y pasará directo a tu tablero Kanban.
+En la barra superior pulsa **🌐 ES | EN**: la interfaz cambia entre español e inglés (*Tablero Scrum ⇄ Scrum Board*, *Sala de Reuniones ⇄ Meeting Room*…). Los agentes responden en el idioma en que les escribes.
 
 ---
 
-### 8. ⌨️ Atajos de Teclado Imprescindibles
+## 9. 🎙️ Sala de reuniones
+
+1. Ve a **Sala de Reuniones** (`Alt + 4`).
+2. Elige una reunión rápida o arma la tuya: tipo (*Brainstorming*, *Consejo de Arquitectura*, *Compliance*, *Daily*), tema y participantes.
+3. Cada agente interviene por turnos con su propia IA (verás el progreso en pantalla) y al final el Director redacta el **acta con resolución y acuerdos**.
+4. Si estás de acuerdo, pulsa **📥 Convertir al Backlog** y los acuerdos pasan a tu Backlog como historias.
+
+---
+
+## 10. 🤖 Trabajar desde Claude Code
+
+Puedes usar todo el equipo de agentes desde **Claude Code** sin ninguna clave de API y sin IA local: el cerebro es Claude Code. Solo usas tu plan normal de Claude Code.
+
+1. Comprueba que AgileForge está en marcha (el tablero se abre en tu navegador).
+2. En Claude Code escribe estas dos líneas, una por una:
+   ```text
+   /plugin marketplace add JSOTELD/agile-forge
+   /plugin install agileforge@agileforge
+   ```
+   Así se instala el plugin **AgileForge Control**. Luego escribe `/reload-plugins` (o abre una sesión nueva).
+3. Prueba los comandos principales:
+
+| Comando | Qué hace |
+|---|---|
+| `/agileforge:director <lo que quieres>` | Hablas con el Director General: decide y reparte el trabajo. |
+| `/agileforge:equipo` | Muestra el equipo: quién hace qué y con qué modelo. |
+| `/agileforge:sprint` | Te cuenta cómo va el sprint. |
+| `/agileforge:tomar US-101` | El especialista adecuado toma una historia, la construye y la manda a revisión. |
+| `/agileforge:dod US-101` | QA revisa si la historia está realmente terminada. |
+
+Si algo no conecta, pídele a Claude "ejecuta connection_info": te dice a qué dirección está intentando conectarse. Más detalles en [adapters/README.es.md](adapters/README.es.md) y en la [guía del plugin](plugin/agileforge/README.es.md).
+
+> 🛡️ **Regla de seguridad:** un agente nunca puede aprobar su propio trabajo. Una historia solo pasa a *Completadas* cuando tú la apruebas o cuando el agente de QA aprueba un trabajo hecho por otro.
+
+---
+
+## 11. 👁️ Ver el avance (Vista)
+
+A veces tú, tu jefe o un cliente solo quieren **ver** cómo van las cosas, sin riesgo de cambiar algo por accidente. Para eso existe **Vista**, en dos formas:
+
+- **El botón 👁️ Vista:** en la barra superior de AgileForge. Abre en otra pestaña una página con el sprint, quién trabaja en qué, las reuniones, las decisiones y la actividad reciente. También puedes abrirla directamente en `vista.php` (por ejemplo `http://localhost/Open-to-code/vista.php`).
+- **El plugin AgileForge Vista (para Claude Code):** si solo quieres mirar, instala este en lugar de Control:
+  ```text
+  /plugin marketplace add JSOTELD/agile-forge
+  /plugin install agileforge-vista@agileforge
+  ```
+  Después usa `/agileforge-vista:estado` para un resumen de 5 líneas, o `/agileforge-vista:tablero`, `/agileforge-vista:reuniones`, `/agileforge-vista:decisiones` y `/agileforge-vista:actividad`.
+
+Conviene saber:
+- Vista es de **solo lectura**: nadie puede cambiar el tablero desde ahí.
+- Usa un **token de solo lectura** especial (`AGILEFORGE_VIEW_TOKEN` en tu `.env`) que se crea solo. Si quieres que alguien mire, comparte solo ese, **nunca** tu token principal.
+- Los plugins Control y Vista **no se instalan juntos**: elige uno. Si quieres cambiar, desinstala primero el otro.
+
+---
+
+## 12. ⌨️ Atajos de teclado
 
 | Atajo | Acción |
 | :--- | :--- |
 | <kbd>Ctrl</kbd> + <kbd>K</kbd> | Búsqueda rápida de historias y comandos |
-| <kbd>Alt</kbd> + <kbd>M</kbd> | Abrir este manual de novatos en pantalla |
-| <kbd>Alt</kbd> + <kbd>1</kbd> | Ir al Tablero Scrum |
-| <kbd>Alt</kbd> + <kbd>2</kbd> | Ir al Laboratorio UX/UI |
-| <kbd>Alt</kbd> + <kbd>3</kbd> | Ir a Auditoría Legal |
-| <kbd>Alt</kbd> + <kbd>4</kbd> | Ir a Sala de Reuniones |
-| <kbd>Alt</kbd> + <kbd>5</kbd> | Ir al Equipo de Agentes |
-| <kbd>ESC</kbd> | Cerrar cualquier ventana emergente |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Enviar la instrucción al Director |
+| <kbd>Alt</kbd> + <kbd>M</kbd> | Abrir este manual en pantalla |
+| <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>5</kbd> | Tablero · UX/UI · Legal · Reuniones · Equipo |
+| <kbd>Esc</kbd> | Cerrar cualquier ventana |
 
 ---
 
-## 🇺🇸 English Beginner's Guide
+## 13. 🆘 Si algo falla
 
-Welcome to **AgileForge v2**! This quick start guide will help you understand and use the multi-agent AI workspace in minutes.
-
-### 1. What is AgileForge?
-AgileForge is a multi-agent Scrum Command Center. Instead of manually copy-pasting prompts into chat models, AgileForge provides an autonomous squad of 7 AI specialists (Project Manager, UX Designer, Chief Architect, Frontend Master, Backend Master, QA Sentinel, Legal Counsel) working collaboratively on a real Kanban board with SQLite transactional persistence.
-
-### 2. Day & Night Modes (Theme Colors)
-- Click the **🌙 Night / ☀️ Day** button in the top navbar to instantly toggle between dark mode and high-contrast light mode.
-- Click the **🎨 Theme** button to choose from 6 calibrated palettes:
-  - *Cyber Obsidian* (Default Cyber Dark)
-  - *Electric Indigo* (Deep Night Blue)
-  - *Neon Emerald* (Matrix Green)
-  - *Midnight Violet* (Deep Purple)
-  - *Solar Day* (Clean White, High Contrast)
-  - *Clean Paper* (Warm Soft Paper)
-
-### 3. Language Switcher (Spanish / English)
-- Click the **🌐 ES | EN** button in the top header.
-- The entire interface instantly updates all labels, tabs, and columns to English.
-- Your language preference is saved in your browser storage.
-
-### 4. Scrum Kanban Flow
-1. **Backlog:** Work waiting to be tackled. Click `+ New Story` to create one.
-2. **In Progress:** Stories currently being worked on (atomically locked to prevent conflicts).
-3. **DoD / QA Review:** Finished work submitted with diff and test evidence.
-4. **Approved / Done:** Stories verified and completed. *(Governance rule: AI agents cannot approve their own work; approval requires human sign-off or QA Sentinel clearance)*.
-
-### 5. Local AI Support (Zero Cloud Cost & Privacy)
-Toggle the **🦙 Local AI** switch in the header to run all agents locally using **Ollama** or **Colibri** on your PC. No data leaves your machine and API cost is \$0.00.
-
-### 6. Keyboard Shortcuts
-- <kbd>Ctrl</kbd> + <kbd>K</kbd>: Instant search
-- <kbd>Alt</kbd> + <kbd>M</kbd>: Open Beginner Manual
-- <kbd>Alt</kbd> + <kbd>1..5</kbd>: Switch tabs
-- <kbd>ESC</kbd>: Close modals
+| Problema | Solución |
+|---|---|
+| Un agente responde "⚠️ sin motor" | Agrega una clave en Motor IA o activa la IA local (no hace falta si usas el plugin de Claude Code). |
+| El plugin no conecta | Comprueba que AgileForge está en marcha y pídele a Claude "ejecuta connection_info" para ver qué dirección usa. |
+| `HTTP 401` al probar una clave | La clave está mal copiada o fue revocada: cópiala de nuevo o crea otra. |
+| El Director tarda mucho | Con IA local es normal (1–3 min). Con una clave de Claude responde en segundos. |
+| Otro error | Revisa `data/logs/agileforge.log` y la guía [docs/API_KEYS.es.md](docs/API_KEYS.es.md#7-solución-de-problemas). |
 
 ---
 
-*Desarrollado con ❤️ por el equipo de AgileForge. ¡A programar el futuro!*
+> ⚠️ Los agentes de IA (incluido el Asesor Legal) ofrecen orientación y no sustituyen la asesoría profesional. Los costos de las API de terceros corren por tu cuenta. AgileForge es software independiente, con licencia MIT y entregado "tal cual"; no está afiliado a Anthropic, Google, OpenAI ni DeepSeek. Más en el [README](README.es.md).
 
+*Hecho con ❤️ por el equipo de AgileForge.*

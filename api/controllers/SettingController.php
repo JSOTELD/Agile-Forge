@@ -34,15 +34,16 @@ class SettingController
             $this->repo->setSetting('active_workspace', $validatedPath);
 
             $pdo = Database::getPdo();
-            $stmt = $pdo->prepare("UPDATE projects SET path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'default'");
-            $stmt->execute([$validatedPath]);
+            $activeId = (string)($this->repo->getActiveProject()['id'] ?? 'default');
+            $stmt = $pdo->prepare("UPDATE projects SET path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$validatedPath, $activeId]);
 
             Bootstrap::jsonResponse([
                 'success'          => true,
                 'active_workspace' => $validatedPath
             ]);
         } catch (\InvalidArgumentException $e) {
-            Bootstrap::jsonResponse(['error' => $e->getMessage()], 422);
+            Bootstrap::jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
         }
     }
 
@@ -74,38 +75,95 @@ class SettingController
             $input = array_merge($input, $input['settings']);
         }
         $providerId = trim((string)($input['active_provider'] ?? 'anthropic'));
-        $model = trim((string)($input['active_model'] ?? 'claude-sonnet-5-5'));
-        $execMode = in_array($input['execution_mode'] ?? '', ['cli', 'api'], true) ? $input['execution_mode'] : 'cli';
-        $roleRouting = !empty($input['role_routing_enabled']);
+        if (!$this->llm->providerConfig($providerId)) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => "Proveedor desconocido: {$providerId}"], 422);
+        }
+        $model = $this->llm->normalizeModel($providerId, (string)($input['active_model'] ?? ''));
+        $execMode = in_array($input['execution_mode'] ?? '', ['cli', 'api'], true) ? $input['execution_mode'] : 'api';
+        $roleRouting = !array_key_exists('role_routing_enabled', $input) || !empty($input['role_routing_enabled']);
         $customEndpoint = trim((string)($input['endpoint'] ?? ''));
 
         $aiEngine = $this->repo->getSetting('ai_engine', []);
-        $providers = $this->llm->getProviders();
-        $providerName = 'Anthropic Claude';
-        $icon = '🟣';
-
-        foreach ($providers as $p) {
-            if ($p['id'] === $providerId) {
-                $providerName = $p['name'];
-                $icon = $p['icon'];
-                break;
-            }
-        }
-
+        unset($aiEngine['available_providers'], $aiEngine['api_key_configured']);
         $aiEngine['active_provider'] = $providerId;
         $aiEngine['active_model'] = $model;
-        $aiEngine['provider_name'] = $providerName;
-        $aiEngine['icon'] = $icon;
+        $aiEngine['provider_name'] = $this->llm->providerName($providerId);
+        $aiEngine['icon'] = (string)($this->llm->providerConfig($providerId)['icon'] ?? '🟣');
         $aiEngine['execution_mode'] = $execMode;
         $aiEngine['role_routing_enabled'] = $roleRouting;
-        $aiEngine['api_key_configured'] = $this->llm->isProviderConfigured($providerId);
-        $aiEngine['available_providers'] = $providers;
-        if ($customEndpoint !== '') {
-            $aiEngine['endpoint'] = $customEndpoint;
-        }
+        $aiEngine['endpoint'] = ($customEndpoint !== '' && preg_match('#^https?://#', $customEndpoint))
+            ? $customEndpoint
+            : (string)($this->llm->providerConfig($providerId)['endpoint'] ?? '');
 
         $this->repo->setSetting('ai_engine', $aiEngine);
+        $aiEngine['api_key_configured'] = $this->llm->isProviderConfigured($providerId);
+        $aiEngine['available_providers'] = $this->llm->getProviders();
         Bootstrap::jsonResponse(['success' => true, 'ai_engine' => $aiEngine]);
+    }
+
+    /**
+     * Guarda la clave de API de un proveedor en el .env del servidor.
+     * La clave la escribe el usuario en la interfaz; nunca se devuelve al navegador (solo una pista: sk-ant-…a1b2).
+     */
+    public function saveApiKey(array $input): void
+    {
+        $provider = trim((string)($input['provider'] ?? ''));
+        $key = trim((string)($input['api_key'] ?? ''));
+        $envKey = $this->llm->envKeyFor($provider);
+        if ($envKey === '') {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Ese proveedor no usa clave de API.'], 422);
+        }
+        if (strlen($key) < 20 || strlen($key) > 300 || preg_match('/\s/', $key)) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'La clave no tiene un formato válido (revisa que la copiaste completa y sin espacios).'], 422);
+        }
+        if ($provider === 'anthropic' && !str_starts_with($key, 'sk-ant-')) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Las claves de Anthropic empiezan por "sk-ant-".'], 422);
+        }
+        try {
+            Bootstrap::setEnvValue($envKey, $key);
+        } catch (\Throwable $e) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+        Bootstrap::log("Clave de API guardada para {$provider}");
+        Bootstrap::jsonResponse(['success' => true, 'providers' => $this->llm->getProviders()]);
+    }
+
+    /** Workspace de Anthropic (solo para claves que no están asociadas a un workspace). Vacío = quitarlo. */
+    public function saveAnthropicWorkspace(array $input): void
+    {
+        $ws = trim((string)($input['workspace_id'] ?? ''));
+        if ($ws !== '' && !preg_match('/^wrkspc_[A-Za-z0-9]{4,80}$/', $ws)) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'El ID de workspace empieza por "wrkspc_" (lo ves en la consola de Claude → Workspaces).'], 422);
+        }
+        Bootstrap::setEnvValue('ANTHROPIC_WORKSPACE_ID', $ws === '' ? null : $ws);
+        Bootstrap::jsonResponse(['success' => true, 'providers' => $this->llm->getProviders()]);
+    }
+
+    public function removeApiKey(array $input): void
+    {
+        $provider = trim((string)($input['provider'] ?? ''));
+        $envKey = $this->llm->envKeyFor($provider);
+        if ($envKey === '') {
+            Bootstrap::jsonResponse(['success' => false, 'error' => 'Ese proveedor no usa clave de API.'], 422);
+        }
+        Bootstrap::setEnvValue($envKey, null);
+        Bootstrap::log("Clave de API eliminada para {$provider}");
+        Bootstrap::jsonResponse(['success' => true, 'providers' => $this->llm->getProviders()]);
+    }
+
+    /** Prueba la conexión real con un proveedor (una respuesta de pocas palabras). */
+    public function testProvider(array $input): void
+    {
+        $provider = trim((string)($input['provider'] ?? ''));
+        if (!$this->llm->providerConfig($provider)) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => "Proveedor desconocido: {$provider}"], 422);
+        }
+        try {
+            $res = $this->llm->testProvider($provider, isset($input['model']) ? (string)$input['model'] : null);
+            Bootstrap::jsonResponse(['success' => true, 'result' => $res]);
+        } catch (\Throwable $e) {
+            Bootstrap::jsonResponse(['success' => false, 'error' => $e->getMessage()], 502);
+        }
     }
 
     public function saveUiPreferences(array $input): void

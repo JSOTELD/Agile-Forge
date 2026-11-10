@@ -26,6 +26,26 @@ class SprintController
         $this->llm = new LlmService();
     }
 
+    /** POST {action:"start_sprint"}: abre el sprint N+1 del proyecto y cierra el activo anterior. */
+    public function start(array $input): void
+    {
+        $name = trim((string)($input['name'] ?? ''));
+        $projectId = isset($input['project_id']) && $input['project_id'] !== '' ? (string)$input['project_id'] : null;
+        $num = static fn($v): ?int => isset($v) && is_numeric($v) ? (int)$v : null;
+        try {
+            $sprint = $this->repo->startSprint(
+                $projectId,
+                $name,
+                (string)($input['goal'] ?? ''),
+                $num($input['days_remaining'] ?? null),
+                $num($input['velocity_points'] ?? null)
+            );
+        } catch (\InvalidArgumentException $e) {
+            Bootstrap::fail($e->getMessage(), $projectId !== null ? 404 : 400);
+        }
+        Bootstrap::jsonResponse(['success' => true, 'sprint' => $sprint]);
+    }
+
     public function getStatus(): void
     {
         $state = $this->repo->getFullState();

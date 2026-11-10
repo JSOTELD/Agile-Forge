@@ -3,7 +3,7 @@
  * Manejo del estado global de la aplicación, comunicación con la API y sanitización XSS.
  */
 
-export let appData = {
+export const appData = {
     org_name: 'AgileForge Ecosystem',
     active_workspace: '',
     projects: [],
@@ -29,7 +29,8 @@ export let activeFilterSkill = 'all';
 export let activeFilterText = '';
 
 export function setAppData(newData) {
-    appData = { ...appData, ...newData };
+    // Se actualiza el mismo objeto (no se reemplaza) para que window.appData y todos los módulos vean lo mismo
+    Object.assign(appData, newData || {});
 }
 
 export function setCurrentTab(tab) {

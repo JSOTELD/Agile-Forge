@@ -6,44 +6,65 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/api/Database.php';
+require_once dirname(__DIR__) . '/api/bootstrap.php';
 
+use AgileForge\Bootstrap;
 use AgileForge\Database;
 
 $rootDir = dirname(__DIR__);
 $jsonFile = $rootDir . '/data/team.json';
-$dbFile = $rootDir . '/data/agileforge.sqlite';
 
+// 0. .env: si no existe se crea con el token principal, el token de vista (solo lectura) y la ruta de la base.
+//    Si ya existe NO se toca (solo se añade AGILEFORGE_VIEW_TOKEN cuando falta). Los tokens no se imprimen.
+$envFile = $rootDir . '/.env';
+$envExisted = is_file($envFile);
+Bootstrap::loadEnv();
+echo $envExisted
+    ? "[*] .env existente: se conserva (token de vista verificado)\n"
+    : "[+] .env creado con token principal, token de vista y ruta de la base de datos\n";
+
+$data = null;
 if (!file_exists($jsonFile)) {
-    echo "[-] No se encontró data/team.json. Abortando.\n";
-    exit(1);
+    echo "[-] No se encontró data/team.json: solo se inicializa el esquema de la base de datos.\n";
+} else {
+    $raw = file_get_contents($jsonFile);
+    $data = json_decode((string)$raw, true);
+    if (!is_array($data)) {
+        echo "[-] JSON inválido en data/team.json.\n";
+        exit(1);
+    }
 }
 
-$raw = file_get_contents($jsonFile);
-$data = json_decode((string)$raw, true);
+// Por defecto NO sobrescribe nada: solo agrega lo que falta. Usa --force para restaurar desde team.json.
+$force = in_array('--force', $argv ?? [], true);
+$verb = $force ? 'INSERT OR REPLACE' : 'INSERT OR IGNORE';
+echo $force
+    ? "[!] Modo --force: se sobrescribirán los datos existentes con los de team.json\n"
+    : "[*] Modo seguro: solo se agregan datos que no existan (usa --force para sobrescribir)\n";
 
-if (!is_array($data)) {
-    echo "[-] JSON inválido en data/team.json.\n";
-    exit(1);
+$pdo = Database::init(); // respeta AGILEFORGE_DB_PATH (por defecto data/agileforge.sqlite)
+echo '[*] Base de datos SQLite: ' . Database::getDbPath() . "\n";
+
+if ($data === null) {
+    Database::normalizeImported($pdo);
+    echo "[+] Esquema y migraciones al día.\n";
+    exit(0);
 }
 
-echo "[*] Inicializando base de datos SQLite en: {$dbFile}\n";
-$pdo = Database::init($dbFile);
-
-Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
+Database::transaction(function (PDO $pdo) use ($data, $rootDir, $verb, $force) {
     // 1. Proyectos
     $ws = $data['active_workspace'] ?? $rootDir;
-    $pStmt = $pdo->prepare("INSERT OR REPLACE INTO projects (id, name, path, active) VALUES ('default', 'AgileForge Default', ?, 1)");
+    $pStmt = $pdo->prepare("{$verb} INTO projects (id, name, path, active) VALUES ('default', 'AgileForge Default', ?, 1)");
     $pStmt->execute([$ws]);
 
     // 2. Settings generales
-    $sStmt = $pdo->prepare("INSERT OR REPLACE INTO settings (key, value_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
+    $sStmt = $pdo->prepare("{$verb} INTO settings (key, value_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
     $settingsMap = [
         'org_name'              => $data['org_name'] ?? 'AgileForge Ecosystem',
         'active_workspace'      => $ws,
         'jurisdiction'          => $data['jurisdiction'] ?? [],
         'ai_engine'             => $data['ai_engine'] ?? [],
-        'available_skills_pool' => $data['available_skills_pool'] ?? [],
+        'available_skills_pool' => Database::mapSkillIds((array)($data['available_skills_pool'] ?? [])),
         'ui_preferences'        => $data['ui_preferences'] ?? ['theme' => 'obsidian', 'density' => 'compact', 'ux_score' => 94],
     ];
 
@@ -54,7 +75,7 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
     // 3. Sprint
     if (!empty($data['sprint'])) {
         $sp = $data['sprint'];
-        $spStmt = $pdo->prepare("INSERT OR REPLACE INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status) VALUES ('sprint-1', 'default', ?, ?, ?, ?, ?, 'active')");
+        $spStmt = $pdo->prepare("{$verb} INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status) VALUES ('sprint-1', 'default', ?, ?, ?, ?, ?, 'active')");
         $spStmt->execute([
             (int)($sp['number'] ?? 1),
             $sp['name'] ?? 'Sprint 1',
@@ -66,11 +87,11 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
 
     // 4. Roles
     if (!empty($data['roles']) && is_array($data['roles'])) {
-        $rStmt = $pdo->prepare("INSERT OR REPLACE INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $rStmt = $pdo->prepare("{$verb} INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $rsStmt = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES (?, ?)");
 
         foreach ($data['roles'] as $role) {
-            $assigned = $role['assigned_skills'] ?? [];
+            $assigned = Database::mapSkillIds((array)($role['assigned_skills'] ?? []));
             $rStmt->execute([
                 $role['id'],
                 $role['name'] ?? '',
@@ -91,14 +112,14 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
 
     // 5. Catálogo de Skills
     if (!empty($data['skills_catalog']) && is_array($data['skills_catalog'])) {
-        $skStmt = $pdo->prepare("INSERT OR REPLACE INTO skills (id, name, level, category, description, tags_json, is_custom) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $skStmt = $pdo->prepare("{$verb} INTO skills (id, name, level, category, description, tags_json, is_custom) VALUES (?, ?, ?, ?, ?, ?, ?)");
         foreach ($data['skills_catalog'] as $sk) {
             $skStmt->execute([
                 $sk['id'],
                 $sk['name'] ?? $sk['id'],
                 $sk['level'] ?? 'Principal',
                 $sk['category'] ?? 'General',
-                $sk['desc'] ?? '',
+                $sk['desc'] ?? $sk['description'] ?? '',
                 json_encode($sk['tags'] ?? [], JSON_UNESCAPED_UNICODE),
                 !empty($sk['is_custom']) ? 1 : 0
             ]);
@@ -107,7 +128,7 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
 
     // 6. Tareas (Tasks)
     if (!empty($data['tasks']) && is_array($data['tasks'])) {
-        $tStmt = $pdo->prepare("INSERT OR REPLACE INTO tasks (id, project_id, title, story_points, assigned_to, ai_provider, ai_model, priority, status, user_story, dod, description, skills_json, prompt_template, created_at) VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $tStmt = $pdo->prepare("{$verb} INTO tasks (id, project_id, title, story_points, assigned_to, ai_provider, ai_model, priority, status, user_story, dod, description, skills_json, prompt_template, created_at) VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         foreach ($data['tasks'] as $t) {
             $tStmt->execute([
                 $t['id'],
@@ -121,7 +142,7 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
                 $t['user_story'] ?? '',
                 $t['dod'] ?? '',
                 $t['description'] ?? '',
-                json_encode($t['skills'] ?? [], JSON_UNESCAPED_UNICODE),
+                json_encode(Database::mapSkillIds((array)($t['skills'] ?? [])), JSON_UNESCAPED_UNICODE),
                 $t['prompt_template'] ?? '',
                 $t['created_at'] ?? date('Y-m-d H:i:s')
             ]);
@@ -130,7 +151,7 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
 
     // 7. Reuniones y Turnos
     if (!empty($data['meetings']) && is_array($data['meetings'])) {
-        $mStmt = $pdo->prepare("INSERT OR REPLACE INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted, created_at) VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $mStmt = $pdo->prepare("{$verb} INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted, created_at) VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $turnStmt = $pdo->prepare("INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         foreach ($data['meetings'] as $m) {
@@ -147,10 +168,13 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
                 $m['created_at'] ?? date('Y-m-d H:i:s')
             ]);
 
-            // Limpiar turnos existentes para evitar duplicados en re-ejecución
-            $pdo->prepare("DELETE FROM meeting_turns WHERE meeting_id = ?")->execute([$m['id']]);
+            $inserted = $mStmt->rowCount() > 0;
+            if ($inserted || $force) {
+                // Limpiar turnos existentes para evitar duplicados en re-ejecución
+                $pdo->prepare("DELETE FROM meeting_turns WHERE meeting_id = ?")->execute([$m['id']]);
+            }
 
-            if (!empty($m['turns']) && is_array($m['turns'])) {
+            if (($inserted || $force) && !empty($m['turns']) && is_array($m['turns'])) {
                 foreach ($m['turns'] as $idx => $trn) {
                     $turnStmt->execute([
                         $m['id'],
@@ -170,7 +194,7 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
 
     // 8. Mensajes de Chat
     if (!empty($data['chat_messages']) && is_array($data['chat_messages'])) {
-        $cStmt = $pdo->prepare("INSERT OR REPLACE INTO chat_messages (id, sender_role, sender_name, avatar, timestamp, text) VALUES (?, ?, ?, ?, ?, ?)");
+        $cStmt = $pdo->prepare("{$verb} INTO chat_messages (id, sender_role, sender_name, avatar, timestamp, text) VALUES (?, ?, ?, ?, ?, ?)");
         foreach ($data['chat_messages'] as $msg) {
             $cStmt->execute([
                 $msg['id'] ?? ('MSG-' . uniqid()),
@@ -183,6 +207,9 @@ Database::transaction(function (PDO $pdo) use ($data, $rootDir) {
         }
     }
 });
+
+// Datos antiguos (modelos retirados, IDs de skills de antes de ADR-005): idempotente
+Database::normalizeImported($pdo);
 
 echo "[+] Migración completada con éxito. Tablas pobladas y listas.\n";
 

@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace AgileForge;
 
 require_once __DIR__ . '/services/LlmService.php';
+require_once __DIR__ . '/services/EngineService.php';
 
+use AgileForge\Services\EngineService;
 use AgileForge\Services\LlmService;
 use PDO;
 
@@ -38,6 +40,7 @@ class Repository
     {
         $stmt = $this->db->query("SELECT * FROM projects WHERE active = 1 LIMIT 1");
         $proj = $stmt->fetch();
+        $stmt->closeCursor();
         if ($proj) {
             return $proj;
         }
@@ -78,9 +81,11 @@ class Repository
         $aiEngine['provider_name'] = $aiEngine['provider_name'] ?? 'Anthropic Claude';
         $aiEngine['icon'] = $aiEngine['icon'] ?? '🟣';
         $aiEngine['execution_mode'] = $aiEngine['execution_mode'] ?? 'cli';
-        $aiEngine['role_routing_enabled'] = !empty($aiEngine['role_routing_enabled']);
+        $aiEngine['role_routing_enabled'] = !array_key_exists('role_routing_enabled', $aiEngine) || !empty($aiEngine['role_routing_enabled']);
         // Cargar proveedores dinámicos desde config/models.json con estado real de api_key_configured
         $aiEngine['available_providers'] = $this->llm->getProviders();
+        $aiEngine['api_key_configured'] = $this->llm->isProviderConfigured((string)$aiEngine['active_provider']);
+        $localAi = $this->getLocalAiState($settings);
 
         // Resumen contable de costos y tokens
         $costSummary = $this->llm->getUsageSummary();
@@ -95,10 +100,12 @@ class Repository
         $sprintStmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
         $sprintStmt->execute([$activeProjectId]);
         $sprintRow = $sprintStmt->fetch();
+        $sprintStmt->closeCursor();
 
         if (!$sprintRow) {
             $stmt = $this->db->query("SELECT * FROM sprints WHERE status = 'active' ORDER BY number DESC LIMIT 1");
             $sprintRow = $stmt->fetch();
+            $stmt->closeCursor();
         }
 
         if ($sprintRow) {
@@ -120,10 +127,11 @@ class Repository
         }
 
         // Roles
-        $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY id ASC");
+        $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY CASE id WHEN 'director' THEN 0 ELSE 1 END, id ASC");
         $roles = [];
         while ($row = $rolesStmt->fetch()) {
             $roles[] = [
+                'engine'          => EngineService::describe($row, $aiEngine, $aiEngine['available_providers'], $localAi),
                 'id'              => $row['id'],
                 'name'            => $row['name'],
                 'alias'           => $row['alias'],
@@ -190,7 +198,7 @@ class Repository
         }
 
         // Meetings del proyecto activo
-        $meetingsStmt = $this->db->prepare("SELECT * FROM meetings WHERE project_id = ? OR project_id = 'default' ORDER BY created_at DESC");
+        $meetingsStmt = $this->db->prepare("SELECT * FROM meetings WHERE project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 30");
         $meetingsStmt->execute([$activeProjectId]);
         $meetings = [];
         while ($mRow = $meetingsStmt->fetch()) {
@@ -239,7 +247,8 @@ class Repository
                 'timestamp'   => $cRow['timestamp'],
                 'text'        => $cRow['text'],
                 'ai_model'    => $cRow['ai_model'] ?? null,
-                'ai_provider' => $cRow['ai_provider'] ?? null
+                'ai_provider' => $cRow['ai_provider'] ?? null,
+                'meta'        => !empty($cRow['meta_json']) ? json_decode($cRow['meta_json'], true) : null,
             ];
         }
 
@@ -266,7 +275,8 @@ class Repository
             'current_project'       => $currentProject,
             'jurisdiction'          => $jurisdiction,
             'ai_engine'             => $aiEngine,
-            'local_ai'              => $this->getLocalAiState($settings),
+            'local_ai'              => $localAi,
+            'decisions'             => $this->getRecentDecisions($activeProjectId),
             'sprint'                => $sprint,
             'available_skills_pool' => $skillsPool,
             'skills_catalog'        => $skillsCatalog,
@@ -279,6 +289,13 @@ class Repository
             'recent_events'         => $recentEvents,
             'costs_summary'         => $costSummary,
         ];
+    }
+
+    private function getRecentDecisions(string $projectId): array
+    {
+        $stmt = $this->db->prepare("SELECT id, title, context, decision, consequences, status, created_at FROM decisions WHERE project_id = ? OR project_id = 'default' ORDER BY created_at DESC LIMIT 20");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll() ?: [];
     }
 
     /** Estado guardado de la IA local (sin consultar Ollama: la web lo refresca con detect_local_ai). */
@@ -302,6 +319,7 @@ class Repository
         $stmt = $this->db->prepare("SELECT value_json FROM settings WHERE key = ?");
         $stmt->execute([$key]);
         $row = $stmt->fetch();
+        $stmt->closeCursor();
         if (!$row) {
             return $default;
         }
@@ -332,54 +350,9 @@ class Repository
      */
     public function getSkillsCatalog(): array
     {
-        $skillsDir = dirname(__DIR__) . '/plugin/agileforge/skills';
-        $skillFiles = glob($skillsDir . '/*/SKILL.md');
-
-        if (!empty($skillFiles)) {
-            $catalog = [];
-            foreach ($skillFiles as $file) {
-                $content = (string)file_get_contents($file);
-                $id = basename(dirname($file));
-                $name = $id;
-                $category = 'general';
-                $level = 'Principal';
-                $tags = [$category];
-                $status = 'active';
-                $desc = '';
-
-                if (preg_match('/^---\s*\n(.*?)\n---\s*\n(.*)$/s', $content, $matches)) {
-                    $frontmatter = $matches[1];
-                    $body = trim($matches[2]);
-
-                    if (preg_match('/name:\s*([^\n]+)/', $frontmatter, $m)) $id = trim($m[1], " \"'");
-                    if (preg_match('/title:\s*([^\n]+)/', $frontmatter, $m)) $name = trim($m[1], " \"'");
-                    if (preg_match('/category:\s*([^\n]+)/', $frontmatter, $m)) $category = trim($m[1], " \"'");
-                    if (preg_match('/level:\s*([^\n]+)/', $frontmatter, $m)) $level = trim($m[1], " \"'");
-                    if (preg_match('/status:\s*([^\n]+)/', $frontmatter, $m)) $status = trim($m[1], " \"'");
-                    if (preg_match('/tags:\s*(\[[^\]]+\])/', $frontmatter, $m)) {
-                        $parsedTags = json_decode($m[1], true);
-                        if (is_array($parsedTags)) $tags = $parsedTags;
-                    }
-
-                    if (preg_match('/>[^\n]+\n\n([^\n#]+)/', $body, $m)) {
-                        $desc = trim($m[1]);
-                    }
-                }
-
-                $catalog[] = [
-                    'id'        => $id,
-                    'name'      => $name,
-                    'level'     => $level,
-                    'category'  => $category,
-                    'desc'      => $desc ?: "Skill {$name}",
-                    'tags'      => $tags,
-                    'status'    => $status,
-                    'is_custom' => ($status === 'draft')
-                ];
-            }
-
-            usort($catalog, fn($a, $b) => strcmp($a['name'], $b['name']));
-            return $catalog;
+        $fromFiles = self::skillsFromFiles();
+        if ($fromFiles) {
+            return $fromFiles;
         }
 
         $skillsStmt = $this->db->query("SELECT * FROM skills ORDER BY name ASC");
@@ -389,6 +362,73 @@ class Repository
             $skills[] = $row;
         }
         return $skills;
+    }
+
+    /**
+     * Lee los SKILL.md de plugin/agileforge/skills/*: una entrada por skill (id, name, level, category, desc, tags, status, is_custom).
+     * Devuelve [] si no hay ninguno. También lo usa Database::syncSkillCatalog() para sincronizar la tabla skills.
+     */
+    public static function skillsFromFiles(): array
+    {
+        $skillsDir = dirname(__DIR__) . '/plugin/agileforge/skills';
+        $skillFiles = glob($skillsDir . '/*/SKILL.md') ?: [];
+        if (!$skillFiles) {
+            return [];
+        }
+        $catalog = [];
+        foreach ($skillFiles as $file) {
+            $content = str_replace("\r\n", "\n", (string)file_get_contents($file));
+            $id = basename(dirname($file));
+            $name = $id;
+            $category = 'general';
+            $level = 'Principal';
+            $tags = [$category];
+            $status = 'active';
+            $desc = '';
+
+            if (preg_match('/^---[ \t]*\n(.*?)\n---[ \t]*\n(.*)$/s', $content, $matches)) {
+                $frontmatter = $matches[1];
+                $body = trim($matches[2]);
+
+                // Claves ancladas al inicio de línea: "description: … name: …" no se confunde con la clave name:
+                $field = static function (string $key) use ($frontmatter): ?string {
+                    if (preg_match('/^' . $key . ':[ \t]*(.+)$/m', $frontmatter, $m)) {
+                        $v = trim($m[1], " \t\"'");
+                        return $v === '' ? null : $v;
+                    }
+                    return null;
+                };
+
+                $id = $field('name') ?? $id;
+                $name = $field('title') ?? $name;
+                $category = $field('category') ?? $category;
+                $level = $field('level') ?? $level;
+                $status = $field('status') ?? $status;
+                $desc = $field('description') ?? '';
+                if (preg_match('/^tags:[ \t]*(\[[^\]]*\])[ \t]*$/m', $frontmatter, $m)) {
+                    $parsedTags = json_decode($m[1], true);
+                    if (is_array($parsedTags)) $tags = $parsedTags;
+                }
+
+                if ($desc === '' && preg_match('/>[^\n]+\n\n([^\n#]+)/', $body, $m)) {
+                    $desc = trim($m[1]);
+                }
+            }
+
+            $catalog[] = [
+                'id'        => $id,
+                'name'      => $name,
+                'level'     => $level,
+                'category'  => $category,
+                'desc'      => $desc ?: "Skill {$name}",
+                'tags'      => $tags,
+                'status'    => $status,
+                'is_custom' => ($status === 'draft')
+            ];
+        }
+
+        usort($catalog, fn($a, $b) => strcmp($a['name'], $b['name']));
+        return $catalog;
     }
 
     // --- Métodos de Tareas ---
@@ -429,6 +469,7 @@ class Repository
         $stmt = $this->db->prepare("SELECT * FROM tasks WHERE id = ?");
         $stmt->execute([$id]);
         $row = $stmt->fetch();
+        $stmt->closeCursor();
         if (!$row) {
             return null;
         }
@@ -448,7 +489,7 @@ class Repository
         return $row;
     }
 
-    public function updateTaskStatus(string $id, string $status, ?string $note = null, ?string $roleKey = null, ?string $client = 'web'): bool
+    public function updateTaskStatus(string $id, string $status, ?string $note = null, ?string $roleKey = null, ?string $client = 'api'): bool
     {
         $validStatuses = ['backlog', 'en_progreso', 'revision', 'completada'];
         if (!in_array($status, $validStatuses, true)) {
@@ -456,7 +497,9 @@ class Repository
         }
 
         return Database::transaction(function (PDO $pdo) use ($id, $status, $note, $roleKey, $client) {
-            $stmt = $pdo->prepare("UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            // ADR-004: el lock se libera al pasar a completada o backlog
+            $release = in_array($status, ['completada', 'backlog'], true) ? ', locked_by = NULL, locked_at = NULL' : '';
+            $stmt = $pdo->prepare("UPDATE tasks SET status = ?{$release}, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$status, $id]);
 
             // Registrar evento en historial
@@ -486,9 +529,15 @@ class Repository
             $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?");
             $stmt->execute([$id]);
             $task = $stmt->fetch();
+            $stmt->closeCursor();
 
             if (!$task) {
                 return ['success' => false, 'error' => 'Tarea no encontrada', 'code' => 404];
+            }
+
+            // Una historia completada no se reabre tomándola (H6): hace falta que un humano la mueva desde el tablero
+            if (($task['status'] ?? '') === 'completada') {
+                return ['success' => false, 'error' => "La historia {$id} ya está completada: no se puede tomar (si hay que reabrirla, que un humano la mueva desde el tablero).", 'code' => 409];
             }
 
             // Verificar lock existente
@@ -515,7 +564,7 @@ class Repository
         });
     }
 
-    public function recordEvent(string $taskId, ?string $roleKey, string $eventType, array $payload, string $client = 'web'): void
+    public function recordEvent(string $taskId, ?string $roleKey, string $eventType, array $payload, string $client = 'api'): void
     {
         $stmt = $this->db->prepare("INSERT INTO task_events (task_id, role_key, client, event_type, payload_json) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$taskId, $roleKey, $client, $eventType, json_encode($payload, JSON_UNESCAPED_UNICODE)]);
@@ -529,16 +578,447 @@ class Repository
         return $id;
     }
 
-    public function recordDecision(string $id, string $title, string $context, string $decision, string $consequences, string $status = 'accepted'): void
+    public function recordDecision(string $id, string $title, string $context, string $decision, string $consequences, string $status = 'accepted', ?string $projectId = null): void
     {
+        $projectId = ($projectId !== null && trim($projectId) !== '') ? trim($projectId) : (string)($this->getActiveProject()['id'] ?? 'default');
         $stmt = $this->db->prepare(
-            "INSERT INTO decisions (id, code, title, context, decision, consequences, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?)
+            "INSERT INTO decisions (id, project_id, code, title, context, decision, consequences, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, context = excluded.context, decision = excluded.decision,
                 consequences = excluded.consequences, status = excluded.status"
         );
-        $stmt->execute([$id, $id, $title, $context, $decision, $consequences, $status]);
+        $stmt->execute([$id, $projectId, $id, $title, $context, $decision, $consequences, $status]);
+    }
+
+    public function projectExists(string $id): bool
+    {
+        if ($id === 'default') {
+            return true; // proyecto implícito aunque la tabla esté vacía
+        }
+        $stmt = $this->db->prepare("SELECT 1 FROM projects WHERE id = ?");
+        $stmt->execute([$id]);
+        $found = (bool)$stmt->fetchColumn();
+        $stmt->closeCursor();
+        return $found;
+    }
+
+    /**
+     * Roles que tienen o tuvieron el lock de una historia (lock actual + quienes la tomaron o la entregaron).
+     * Sirve para la regla ADR-004 "el revisor no es quien la tomó".
+     */
+    public function getLockRoles(string $taskId): array
+    {
+        $roles = [];
+        $stmt = $this->db->prepare("SELECT locked_by FROM tasks WHERE id = ?");
+        $stmt->execute([$taskId]);
+        $lock = (string)($stmt->fetchColumn() ?: '');
+        $stmt->closeCursor();
+        if ($lock !== '') {
+            $roles[] = $lock;
+        }
+        $ev = $this->db->prepare("SELECT DISTINCT role_key FROM task_events WHERE task_id = ? AND event_type IN ('claimed', 'submitted_for_review') AND role_key IS NOT NULL AND role_key != ''");
+        $ev->execute([$taskId]);
+        foreach ($ev->fetchAll(PDO::FETCH_COLUMN) as $r) {
+            $roles[] = (string)$r;
+        }
+        return array_values(array_unique($roles));
+    }
+
+    // ------------------------------------------------------------------
+    // Vistas ligeras de solo lectura (overview, eventos, reuniones, decisiones, historias compactas)
+    // ------------------------------------------------------------------
+
+    private static function clip(?string $text, int $max): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', (string)$text) ?? '');
+        return mb_strlen($text) > $max ? rtrim(mb_substr($text, 0, $max - 1)) . '…' : $text;
+    }
+
+    private static function iso(?string $sqlDate): ?string
+    {
+        if ($sqlDate === null || $sqlDate === '') {
+            return null;
+        }
+        $ts = strtotime($sqlDate . (preg_match('/[zZ]|[+-]\d\d:?\d\d$/', $sqlDate) ? '' : ' UTC'));
+        return $ts === false ? $sqlDate : gmdate('Y-m-d\TH:i:s\Z', $ts);
+    }
+
+    /** Proyecto por id, o el activo. Lanza InvalidArgumentException si el id no existe. */
+    public function resolveProject(?string $projectId): array
+    {
+        if ($projectId === null || trim($projectId) === '') {
+            return $this->getActiveProject();
+        }
+        $stmt = $this->db->prepare("SELECT * FROM projects WHERE id = ?");
+        $stmt->execute([trim($projectId)]);
+        $row = $stmt->fetch();
+        $stmt->closeCursor();
+        if (!$row) {
+            if (trim($projectId) === 'default') {
+                return $this->getActiveProject(); // base vacía: proyecto 'default' implícito
+            }
+            throw new \InvalidArgumentException("El proyecto '{$projectId}' no existe");
+        }
+        return $row;
+    }
+
+    /** Fragmento SQL + parámetros para filtrar por proyecto (el proyecto 'default' incluye filas sin project_id). */
+    private function projectClause(string $col, string $projectId): array
+    {
+        if ($projectId === 'default') {
+            return ["({$col} = ? OR {$col} IS NULL OR {$col} = '')", [$projectId]];
+        }
+        return ["{$col} = ?", [$projectId]];
+    }
+
+    /** Historias en forma compacta (overview.tasks). Filtros opcionales: status, role, priority. */
+    public function getCompactTasks(?string $projectId = null, array $filters = [], int $limit = 200, bool $recentFirst = false): array
+    {
+        $pid = (string)($this->resolveProject($projectId)['id'] ?? 'default');
+        [$cl, $params] = $this->projectClause('t.project_id', $pid);
+        $sql = "SELECT t.id, t.title, t.status, t.assigned_to, r.name AS role_name, r.avatar, t.story_points, t.priority,
+                       t.locked_by, t.locked_at, t.updated_at
+                FROM tasks t LEFT JOIN roles r ON r.id = t.assigned_to WHERE {$cl}";
+        foreach (['status' => 't.status', 'role' => 't.assigned_to', 'priority' => 't.priority'] as $f => $col) {
+            if (!empty($filters[$f]) && is_string($filters[$f])) {
+                $sql .= " AND {$col} = ?";
+                $params[] = $filters[$f];
+            }
+        }
+        $sql .= $recentFirst ? " ORDER BY t.updated_at DESC, t.rowid DESC LIMIT " . max(1, min(200, $limit)) : " ORDER BY CASE t.status WHEN 'en_progreso' THEN 0 WHEN 'revision' THEN 1 WHEN 'backlog' THEN 2 ELSE 3 END,
+                  CASE t.priority WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, t.created_at DESC, t.rowid DESC
+                  LIMIT " . max(1, min(200, $limit));
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $out = [];
+        foreach ($stmt->fetchAll() as $r) {
+            $out[] = [
+                'id'           => $r['id'],
+                'title'        => self::clip($r['title'], 160),
+                'status'       => $r['status'],
+                'assigned_to'  => $r['assigned_to'],
+                'role_name'    => $r['role_name'] ?? $r['assigned_to'],
+                'avatar'       => $r['avatar'] ?? '🤖',
+                'story_points' => (int)$r['story_points'],
+                'priority'     => $r['priority'],
+                'locked_by'    => ($r['locked_by'] ?? '') !== '' ? $r['locked_by'] : null,
+                'locked_at'    => self::iso($r['locked_at'] ?? null),
+                'updated_at'   => self::iso($r['updated_at'] ?? null),
+            ];
+        }
+        return $out;
+    }
+
+    /** Reuniones en forma compacta (overview.meetings): sin turnos completos, con los 3 últimos. */
+    public function getCompactMeetings(?string $projectId = null, int $limit = 5, int $lastTurns = 3, int $clip = 280): array
+    {
+        $pid = (string)($this->resolveProject($projectId)['id'] ?? 'default');
+        [$cl, $params] = $this->projectClause('project_id', $pid);
+        $stmt = $this->db->prepare(
+            "SELECT m.id, m.title, m.type, m.resolution, m.created_at, m.updated_at,
+                    (SELECT COUNT(*) FROM meeting_turns mt WHERE mt.meeting_id = m.id) AS turns_count
+             FROM meetings m WHERE {$cl} ORDER BY m.created_at DESC, m.rowid DESC LIMIT " . max(1, min(50, $limit))
+        );
+        $stmt->execute($params);
+        $turnStmt = $this->db->prepare(
+            "SELECT role_id, name, avatar, statement, timestamp FROM meeting_turns WHERE meeting_id = ? ORDER BY turn_index DESC LIMIT " . max(0, min(10, $lastTurns))
+        );
+        $out = [];
+        foreach ($stmt->fetchAll() as $m) {
+            $turnStmt->execute([$m['id']]);
+            $turns = [];
+            foreach (array_reverse($turnStmt->fetchAll()) as $t) {
+                $turns[] = [
+                    'role_id'   => $t['role_id'],
+                    'name'      => $t['name'] ?: $t['role_id'],
+                    'avatar'    => $t['avatar'] ?: '🤖',
+                    'statement' => self::clip($t['statement'], $clip),
+                    'timestamp' => $t['timestamp'],
+                ];
+            }
+            $out[] = [
+                'id'          => $m['id'],
+                'title'       => self::clip($m['title'], 160),
+                'type'        => $m['type'],
+                'resolution'  => self::clip($m['resolution'], $clip),
+                'turns_count' => (int)$m['turns_count'],
+                'created_at'  => self::iso($m['created_at']),
+                'updated_at'  => self::iso($m['updated_at']),
+                'last_turns'  => $turns,
+            ];
+        }
+        return $out;
+    }
+
+    /** Decisiones (ADR) en forma compacta. Incluye las del proyecto y las globales ('default'). */
+    public function getCompactDecisions(?string $projectId = null, int $limit = 10, int $clip = 280): array
+    {
+        $pid = (string)($this->resolveProject($projectId)['id'] ?? 'default');
+        $stmt = $this->db->prepare(
+            "SELECT id, title, decision, status, created_at FROM decisions
+             WHERE project_id = ? OR project_id = 'default' OR project_id IS NULL ORDER BY created_at DESC, rowid DESC LIMIT " . max(1, min(200, $limit))
+        );
+        $stmt->execute([$pid]);
+        $out = [];
+        foreach ($stmt->fetchAll() as $d) {
+            $out[] = [
+                'id'         => $d['id'],
+                'title'      => self::clip($d['title'], 160),
+                'decision'   => self::clip($d['decision'], $clip),
+                'status'     => $d['status'],
+                'created_at' => self::iso($d['created_at']),
+            ];
+        }
+        return $out;
+    }
+
+    private static function eventMessage(array $e, array $payload): string
+    {
+        $task = (string)$e['task_id'];
+        $title = $e['task_title'] ? ' (' . self::clip($e['task_title'], 70) . ')' : '';
+        switch ($e['event_type']) {
+            case 'task_created':
+                $msg = "{$task} creada{$title}";
+                break;
+            case 'claimed':
+                $msg = "{$task} tomada por " . ($payload['role'] ?? $e['role_key'] ?? 'un rol') . $title;
+                break;
+            case 'status_change':
+                $msg = "{$task} pasó a " . ($payload['status'] ?? '?') . $title;
+                break;
+            case 'submitted_for_review':
+                $msg = "{$task} entregada a revisión{$title}";
+                break;
+            case 'task_reviewed':
+                $msg = "{$task} revisada: " . ($payload['decision'] ?? '?') . $title;
+                break;
+            case 'comment_added':
+                $msg = "{$task}: nuevo comentario{$title}";
+                break;
+            case 'task_updated':
+                $msg = "{$task} actualizada{$title}";
+                break;
+            default:
+                $msg = "{$task}: {$e['event_type']}{$title}";
+        }
+        return self::clip($msg, 200);
+    }
+
+    /** Eventos recientes (misma tabla que alimenta recent_events: task_events) en forma ligera y saneada. */
+    public function getEvents(int $limit = 30, ?string $projectId = null): array
+    {
+        $pid = (string)($this->resolveProject($projectId)['id'] ?? 'default');
+        [$cl, $params] = $this->projectClause('t.project_id', $pid);
+        $stmt = $this->db->prepare(
+            "SELECT e.id, e.task_id, e.role_key, e.client, e.event_type, e.payload_json, e.created_at, t.title AS task_title
+             FROM task_events e JOIN tasks t ON t.id = e.task_id
+             WHERE {$cl} ORDER BY e.created_at DESC, e.id DESC LIMIT " . max(1, min(100, $limit))
+        );
+        $stmt->execute($params);
+        $out = [];
+        foreach ($stmt->fetchAll() as $e) {
+            $payload = json_decode((string)($e['payload_json'] ?? ''), true);
+            $payload = is_array($payload) ? $payload : [];
+            $out[] = [
+                'id'         => (int)$e['id'],
+                'type'       => $e['event_type'],
+                'message'    => self::eventMessage($e, $payload),
+                'actor'      => ($e['role_key'] ?? '') !== '' ? $e['role_key'] : ($e['client'] ?: 'system'),
+                'task_id'    => $e['task_id'],
+                'created_at' => self::iso($e['created_at']),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Crea un sprint activo nuevo (número = último + 1) y cierra el activo anterior del proyecto.
+     * Lanza InvalidArgumentException si el proyecto no existe.
+     */
+    public function startSprint(?string $projectId, string $name, string $goal = '', ?int $days = null, ?int $velocity = null): array
+    {
+        $project = $this->resolveProject($projectId);
+        $pid = (string)($project['id'] ?? 'default');
+        $name = trim($name);
+        if (mb_strlen($name) > 200) {
+            throw new \InvalidArgumentException('El nombre del sprint no puede superar 200 caracteres');
+        }
+        $result = [];
+        Database::transaction(function (\PDO $pdo) use ($pid, $name, $goal, $days, $velocity, &$result) {
+            $q = $pdo->prepare("SELECT COALESCE(MAX(number), 0) FROM sprints WHERE project_id = ?");
+            $q->execute([$pid]);
+            $number = (int)$q->fetchColumn() + 1;
+            $closed = $pdo->prepare("SELECT number FROM sprints WHERE project_id = ? AND status = 'active'");
+            $closed->execute([$pid]);
+            $closedNumbers = array_map('intval', $closed->fetchAll(\PDO::FETCH_COLUMN));
+            $pdo->prepare("UPDATE sprints SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE project_id = ? AND status = 'active'")->execute([$pid]);
+            $id = sprintf('SPRINT-%s-%02d', $pid, $number);
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM sprints WHERE id = ?");
+            $chk->execute([$id]);
+            if ((int)$chk->fetchColumn() > 0) {
+                $id .= '-' . bin2hex(random_bytes(2));
+            }
+            $name = $name !== '' ? $name : "Sprint {$number}";
+            $goal = trim($goal);
+            $days = max(0, min(60, $days ?? 10));
+            $velocity = max(1, min(500, $velocity ?? 20));
+            $pdo->prepare("INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')")
+                ->execute([$id, $pid, $number, $name, $goal, $days, $velocity]);
+            $result = [
+                'id' => $id, 'project_id' => $pid, 'number' => $number, 'name' => $name, 'goal' => $goal,
+                'days_remaining' => $days, 'velocity_points' => $velocity, 'status' => 'active',
+                'closed_sprints' => $closedNumbers,
+            ];
+        });
+        return $result;
+    }
+
+    /**
+     * Resumen ligero del tablero para vistas de solo lectura (contrato API ↔ MCP ↔ Vista).
+     * Sin claves, rutas de disco, settings ni chat. Lanza InvalidArgumentException si el proyecto no existe.
+     */
+    public function getOverview(?string $projectId = null): array
+    {
+        $project = $this->resolveProject($projectId);
+        $pid = (string)($project['id'] ?? 'default');
+
+        // Sprint activo del proyecto (o el primero activo, como en getFullState)
+        $sp = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
+        $sp->execute([$pid]);
+        $sprintRow = $sp->fetch();
+        $sp->closeCursor();
+
+        // Columnas (sobre todas las historias del proyecto, no solo las 200 listadas)
+        [$cl, $cp] = $this->projectClause('project_id', $pid);
+        $cs = $this->db->prepare("SELECT status, COUNT(*) AS n, COALESCE(SUM(story_points), 0) AS pts FROM tasks WHERE {$cl} GROUP BY status");
+        $cs->execute($cp);
+        $columns = [
+            'backlog'     => ['count' => 0, 'points' => 0],
+            'en_progreso' => ['count' => 0, 'points' => 0],
+            'revision'    => ['count' => 0, 'points' => 0],
+            'completada'  => ['count' => 0, 'points' => 0],
+        ];
+        $total = 0;
+        foreach ($cs->fetchAll() as $r) {
+            if (isset($columns[$r['status']])) {
+                $columns[$r['status']] = ['count' => (int)$r['n'], 'points' => (int)$r['pts']];
+            }
+            $total += (int)$r['pts'];
+        }
+        $done = $columns['completada']['points'];
+
+        // Sin sprint activo en el proyecto → null (la Vista muestra «Sin sprint activo»)
+        $sprint = $sprintRow ? [
+            'number'          => (int)$sprintRow['number'],
+            'name'            => $sprintRow['name'],
+            'goal'            => self::clip($sprintRow['goal'] ?? '', 280),
+            'days_remaining'  => (int)$sprintRow['days_remaining'],
+            'velocity_points' => (int)$sprintRow['velocity_points'],
+            'points_done'     => $done,
+            'points_total'    => $total,
+            'progress_pct'    => $total > 0 ? (int)round($done * 100 / $total) : 0,
+        ] : null;
+
+        // Tamaño acotado: todas las no completadas + las 10 completadas más recientes (las columnas cuentan todo)
+        $tasks = array_merge(
+            $this->getCompactTasks($pid, ['status' => 'en_progreso'], 200),
+            $this->getCompactTasks($pid, ['status' => 'revision'], 200),
+            $this->getCompactTasks($pid, ['status' => 'backlog'], 200),
+            $this->getCompactTasks($pid, ['status' => 'completada'], 10, true)
+        );
+        // Forma mínima por historia (el lock solo cuando existe; sin updated_at; título ≤ 64; rol abreviado)
+        $tasks = array_map(static function (array $t): array {
+            $t['title'] = self::clip($t['title'], 64);
+            $t['role_name'] = trim(preg_split('/\s*[&,\/]\s*/u', (string)$t['role_name'])[0]);
+            unset($t['updated_at']);
+            foreach (['locked_by', 'locked_at'] as $k) {
+                if ($t[$k] === null) {
+                    unset($t[$k]);
+                }
+            }
+            return $t;
+        }, $tasks);
+
+        // Quién trabaja ahora: historias en progreso con lock vigente
+        $roleStmt = $this->db->query("SELECT id, name, avatar FROM roles");
+        $roleMap = [];
+        foreach ($roleStmt->fetchAll() as $r) {
+            $roleMap[$r['id']] = $r;
+        }
+        $working = [];
+        foreach ($tasks as $t) {
+            if ($t['status'] === 'en_progreso' && !empty($t['locked_by'])) {
+                $r = $roleMap[$t['locked_by']] ?? null;
+                $working[] = [
+                    'role_id'    => $t['locked_by'],
+                    'name'       => $r['name'] ?? $t['locked_by'],
+                    'avatar'     => $r['avatar'] ?? '🤖',
+                    'task_id'    => $t['id'],
+                    'task_title' => $t['title'],
+                    'since'      => $t['locked_at'],
+                ];
+            }
+        }
+
+        // Cuentas de las últimas 24 h
+        $since = gmdate('Y-m-d H:i:s', time() - 86400);
+        $count = function (string $sql, array $params) {
+            $st = $this->db->prepare($sql);
+            $st->execute($params);
+            return (int)$st->fetchColumn();
+        };
+        [$dcl, $dcp] = $this->projectClause('project_id', $pid);
+        $sinceYesterday = [
+            'completed'  => $count("SELECT COUNT(*) FROM tasks WHERE {$dcl} AND status = 'completada' AND updated_at >= ?", array_merge($dcp, [$since])),
+            'to_review'  => $count("SELECT COUNT(*) FROM tasks WHERE {$dcl} AND status = 'revision' AND updated_at >= ?", array_merge($dcp, [$since])),
+            'decisions'  => $count("SELECT COUNT(*) FROM decisions WHERE ({$dcl} OR project_id = 'default') AND created_at >= ?", array_merge($dcp, [$since])),
+            'meetings'   => $count("SELECT COUNT(*) FROM meetings WHERE {$dcl} AND created_at >= ?", array_merge($dcp, [$since])),
+        ];
+
+        // Motor: modo plugin = ningún rol con motor listo y la IA local apagada
+        $settings = $this->getAllSettings();
+        $aiEngine = is_array($settings['ai_engine'] ?? null) ? $settings['ai_engine'] : [];
+        $localAi = $this->getLocalAiState($settings);
+        $providers = $this->llm->getProviders();
+        $anyReady = false;
+        foreach ($this->db->query("SELECT * FROM roles")->fetchAll() as $row) {
+            if (!empty(EngineService::describe($row, $aiEngine, $providers, $localAi)['ready'])) {
+                $anyReady = true;
+                break;
+            }
+        }
+        $localOn = !empty($localAi['enabled']);
+
+        // Reuniones: forma mínima (sin created_at, título ≤ 70, nombre de rol abreviado, sin hora del turno)
+        $meetings = array_map(static function (array $m): array {
+            $m['title'] = self::clip($m['title'], 70);
+            unset($m['created_at']);
+            foreach ($m['last_turns'] as &$t) {
+                $t['name'] = trim(preg_split('/\s*[&,\/]\s*/u', (string)$t['name'])[0]);
+                unset($t['timestamp']);
+            }
+            unset($t);
+            return $m;
+        }, $this->getCompactMeetings($pid, 2, 1, 100));
+
+        return [
+            'success'         => true,
+            'generated_at'    => gmdate('Y-m-d\TH:i:s\Z'),
+            'project'         => ['id' => $pid, 'name' => $project['name'] ?? $pid],
+            'projects'        => array_map(
+                static fn(array $p): array => ['id' => (string)$p['id'], 'name' => (string)$p['name'], 'active' => (int)($p['active'] ?? 0) === 1],
+                $this->getProjects()
+            ),
+            'sprint'          => $sprint,
+            'columns'         => $columns,
+            'tasks'           => $tasks,
+            'working'         => $working,
+            'meetings'        => $meetings,
+            'decisions'       => $this->getCompactDecisions($pid, 5, 160),
+            'events'          => $this->getEvents(15, $pid),
+            'since_yesterday' => $sinceYesterday,
+            'engine'          => ['plugin_mode' => !$anyReady && !$localOn, 'local_ai_enabled' => $localOn],
+        ];
     }
 }
-
