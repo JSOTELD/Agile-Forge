@@ -461,7 +461,8 @@ export async function toggleRoleRoutingImmediate(enabled) {
                 active_provider: ai.active_provider || 'anthropic',
                 active_model: ai.active_model || 'claude-sonnet-5-5',
                 execution_mode: ai.execution_mode || 'api',
-                role_routing_enabled: enabled
+                role_routing_enabled: enabled,
+                endpoint: ai.endpoint || ''
             })
         });
         const data = await res.json();

@@ -170,22 +170,39 @@ class BoardService
         }
         $prompt = trim((string)($in['prompt_template'] ?? ''));
         $projectId = !empty($in['project_id']) ? (string)$in['project_id'] : $this->activeProjectId();
+        if (!$this->repo->projectExists($projectId)) {
+            throw new InvalidArgumentException("El proyecto '{$projectId}' no existe");
+        }
 
         $givenId = !empty($in['id']) && preg_match('/^[A-Za-z0-9_-]{2,40}$/', (string)$in['id']) ? (string)$in['id'] : null;
         $id = '';
 
         // El ID se calcula DENTRO de la transacción BEGIN IMMEDIATE (H4): lectura del máximo + INSERT atómicos
         Database::transaction(function (PDO $pdo) use (&$id, $givenId, &$prompt, $projectId, $title, $points, $matched, $priority, $status, $userStory, $dod, $description, $skills, $client, $actor) {
+            if ($givenId !== null) {
+                $check = $pdo->prepare("SELECT 1 FROM tasks WHERE id = ?");
+                $check->execute([$givenId]);
+                if ($check->fetch()) {
+                    throw new RuntimeException("La historia '{$givenId}' ya existe", 409);
+                }
+            }
             $id = $givenId ?? self::nextId($pdo, 'tasks', 'US-');
             if ($prompt === '') {
                 $prompt = $this->missionPrompt($id, $title, $matched, $userStory, $dod, $description, $skills);
             }
-            $stmt = $pdo->prepare(
-                "INSERT INTO tasks (id, project_id, title, story_points, assigned_to, priority, status, user_story, dod, description, skills_json, prompt_template)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-            $stmt->execute([$id, $projectId, $title, $points, $matched, $priority, $status, $userStory, $dod, $description,
-                json_encode($skills, JSON_UNESCAPED_UNICODE), $prompt]);
+            try {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO tasks (id, project_id, title, story_points, assigned_to, priority, status, user_story, dod, description, skills_json, prompt_template)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([$id, $projectId, $title, $points, $matched, $priority, $status, $userStory, $dod, $description,
+                    json_encode($skills, JSON_UNESCAPED_UNICODE), $prompt]);
+            } catch (\PDOException $pe) {
+                if ($pe->getCode() === '23000' || str_contains($pe->getMessage(), 'UNIQUE')) {
+                    throw new RuntimeException("La historia '{$id}' ya existe", 409);
+                }
+                throw $pe;
+            }
 
             $e = $pdo->prepare("INSERT INTO task_events (task_id, role_key, client, event_type, payload_json) VALUES (?, ?, ?, 'task_created', ?)");
             $e->execute([$id, $actor ?? $matched, $client, json_encode(['title' => $title, 'status' => $status, 'by' => $actor], JSON_UNESCAPED_UNICODE)]);

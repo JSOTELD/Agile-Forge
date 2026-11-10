@@ -132,14 +132,6 @@ if ($method === 'POST') {
             $settingCtrl->saveUiPreferences($input);
             break;
 
-        case 'audit_ux_design':
-            $settingCtrl->auditUxDesign();
-            break;
-
-        case 'apply_ux_enhancements':
-            $settingCtrl->applyUxEnhancements();
-            break;
-
         case 'audit_workspace_legal':
             $settingCtrl->auditWorkspaceLegal();
             break;

@@ -56,7 +56,10 @@ class TaskController
             $client = (string)($input['client'] ?? '') !== '' ? (string)$input['client'] : 'api';
             $task = $this->board->createTask($input, $client, isset($input['created_by']) ? (string)$input['created_by'] : null);
         } catch (\InvalidArgumentException $e) {
-            Bootstrap::jsonResponse(['success' => false, 'error' => $e->getMessage()], 422);
+            Bootstrap::fail($e->getMessage(), 422);
+        } catch (\RuntimeException $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() < 600 ? $e->getCode() : 409;
+            Bootstrap::fail($e->getMessage(), $code);
         }
         Bootstrap::jsonResponse(['success' => true, 'task' => $task], 201);
     }

@@ -34,8 +34,8 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <!-- Favicon Oficial AgileForge -->
     <link rel="icon" type="image/png" href="assets/brand/favicon.png">
     <link rel="apple-touch-icon" href="assets/brand/favicon.png">
-    <!-- Tailwind CSS CDN para renderizado dinámico -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Estilos compilados de Tailwind CSS (local, cero dependencia CDN) -->
+    <link rel="stylesheet" href="assets/css/app.css?v=<?= filemtime(__DIR__ . '/assets/css/app.css') ?>">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {

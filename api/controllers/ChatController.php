@@ -131,7 +131,9 @@ class ChatController
             'ai_provider' => $provider,
             'meta'        => $meta,
         ];
-        $this->insert($agentMsg, $model, $provider);
+        if (empty($meta['error'])) {
+            $this->insert($agentMsg, $model, $provider);
+        }
 
         Bootstrap::jsonResponse([
             'success'  => empty($meta['error']),
