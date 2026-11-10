@@ -65,7 +65,7 @@ class Database
         if ($val === '' || str_contains($val, "\0")) {
             return $root . '/data/agileforge.sqlite';
         }
-        $isAbs = str_starts_with($val, '/') || str_starts_with($val, '\\') || (bool)preg_match('#^[A-Za-z]:[\\/]#', $val);
+        $isAbs = str_starts_with($val, '/') || str_starts_with($val, '\\') || (bool)preg_match('#^[A-Za-z]:[\\\\/]#', $val);
         return $isAbs ? $val : $root . '/' . $val;
     }
 
