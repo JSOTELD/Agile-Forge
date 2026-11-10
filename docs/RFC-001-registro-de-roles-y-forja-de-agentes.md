@@ -149,7 +149,8 @@ git grep -n -E "director|lead_architect|backend_architect|frontend_master|qa_sec
 
 | Archivo | Función / Ubicación Exacta | Rol / ID Hardcodeado | Refactorización con Capacidades |
 |---|---|---|---|
-| `api/Database.php` | `seedRoles()` | Inserta los 8 roles por defecto (`director`, `lead_architect`, etc.) | Cargar roles desde `plugin/agileforge/packs/core/`. |
+| `api/Database.php` | `seedDirectorRole()` | Inserta el rol `director` por defecto si falta en SQLite | Cargar desde `plugin/agileforge/packs/core/director.md`. |
+| `bin/migrate.php` | Paso 4 (sección roles) | Siembra los otros 7 roles del escuadrón importando desde `data/team.json` | Reemplazar por importación canónica de `plugin/agileforge/packs/core/`. |
 | `api/Database.php` | `repairBoardData()` | `LEGACY_ROLE_IDS` (`qa_security` → `qa_security_guard`, `frontend` → `frontend_master`, etc.) | Preservar mapeo de migración histórica. |
 | `api/controllers/TaskController.php` | `review()` | `'qa_security_guard'` (valida dos veces que el revisor sea QA) | Verificar `roleHasCapability($reviewerRole, 'can_review_tasks')`. |
 | `api/controllers/TaskController.php` | `updateStatus()` | Regla de negocio: mover a `completada` solo permitido con `client === 'web'` o dictamen de QA | Evaluar `roleHasCapability($role, 'can_approve_dod')` o `client === 'web'`. |
@@ -238,7 +239,7 @@ Se ejecuta de forma inmediata en milisegundos sin llamadas a LLM:
 > 1. Se levanta una instancia temporal de la API en un puerto efímero libre mediante PHP CLI:  
 >    `php -S 127.0.0.1:<puerto-efimero> router.php` con la variable de entorno `AGILEFORGE_DB_PATH=data/sandbox-<uuid>.sqlite`.
 > 2. Se lanza un proceso temporal del servidor MCP (denominado `board-sandbox`) con `AGILEFORGE_API_URL=http://127.0.0.1:<puerto-efimero>/api`.
-> 3. El subagente de prueba se genera configurando **únicamente las herramientas del prefijo de sandbox**: `mcp__board_sandbox__*`. **NUNCA** se le otorga acceso al prefijo `mcp__plugin_agileforge_board__*`.
+> 3. El subagente de prueba se genera configurando **únicamente las herramientas del prefijo de sandbox**: `mcp__board-sandbox__*` (Claude Code conserva el guion del nombre del servidor). **NUNCA** se le otorga acceso al prefijo `mcp__plugin_agileforge_board__*`.
 > 4. Claude Code ejecuta el subagente contra esa instancia de prueba. El agente reclama la tarea sintética, genera evidencia y la somete a revisión.
 > 5. Al concluir la verificación, se mata el proceso de PHP efímero, se detiene el MCP de sandbox y se eliminan la base `data/sandbox-<uuid>.sqlite` y el directorio temporal `.agileforge/sandbox/<uuid>/`.
 > 6. *En el Núcleo Node v3 (RFC-002):* El servidor MCP de sandbox abre directamente la base temporal en disco sin necesidad de levantar procesos HTTP intermedios.
