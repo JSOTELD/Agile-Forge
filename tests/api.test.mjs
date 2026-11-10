@@ -557,9 +557,8 @@ test('bug 3 (REUNIONES): rechaza roles inexistentes (422) y convertToTasks reasi
 
 test('bug 4 (ACTA): save_meeting_to_workspace guarda en el workspace del proyecto de la reunión', async () => {
   const fs = await import('node:fs');
-  const os = await import('node:os');
   const projName = 'Proyecto Workspace ' + Date.now();
-  const projWs = path.join(os.tmpdir(), 'af-ws-test-' + Date.now());
+  const projWs = path.join(ROOT, 'workspace-test-' + Date.now());
   fs.mkdirSync(projWs, { recursive: true });
   try {
     const newProj = await action('create_project', { name: projName, path: projWs, client: 'web' });
