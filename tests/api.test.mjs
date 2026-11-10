@@ -681,3 +681,13 @@ test('bug 8 (TIPOGRAFÍA): index.php no contiene peticiones externas y usa pila 
   assert.ok(!indexContent.includes('fonts.gstatic.com'), 'index.php no debe hacer peticiones a gstatic');
   assert.ok(indexContent.includes('-apple-system'), 'index.php debe usar pila de fuentes del sistema');
 });
+
+test('firma humana: enabled nulo o vacío se rechaza y no apaga el interruptor', async () => {
+  await action('update_human_signoff', { enabled: true, client: 'web' });
+  for (const value of [null, '']) {
+    const r = await action('update_human_signoff', { enabled: value, client: 'web' });
+    assert.equal(r.status, 422, `enabled=${JSON.stringify(value)} → ${r.status}`);
+  }
+  const state = await api('GET', 'index.php/state');
+  assert.equal(state.json.human_signoff?.settings?.default, true);
+});

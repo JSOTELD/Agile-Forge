@@ -6,6 +6,7 @@
 import { appData, apiFetch, escapeHtml } from './state.js';
 import { showToast, switchMainTab } from './ui.js';
 import { getLanguage, t } from './i18n.js';
+import { avatarFor } from './roles.js';
 
 const TOOL_ICONS = {
     crear_historia: '📋', actualizar_historia: '✏️', comentar_historia: '💬', consultar_agente: '🗣️',
@@ -68,7 +69,28 @@ export function renderDirectorPanel() {
             if (form && form.parentNode) form.parentNode.insertBefore(note, form);
         }
         note.textContent = t('director_plugin_note');
-    } else if (note) {
+    }
+    // En modo plugin el panel web no puede ejecutar instrucciones: los controles se ven deshabilitados
+    const pluginNow = isPluginMode();
+    panel.querySelectorAll('#director-input, #director-send-btn, .director-body button[onclick^="quickDirector"]').forEach(el => {
+        // Solo se toca lo que deshabilitó el modo plugin (el botón también se deshabilita mientras envía)
+        if (pluginNow) { el.disabled = true; el.dataset.pluginDisabled = '1'; }
+        else if (el.dataset.pluginDisabled) { el.disabled = false; delete el.dataset.pluginDisabled; }
+    });
+    const slot = document.getElementById('director-avatar-slot');
+    if (slot && !slot.dataset.ready) {
+        slot.innerHTML = avatarFor(d, 28);
+        slot.dataset.ready = '1';
+    }
+    // Plegado por defecto; se recuerda si la persona lo dejó abierto
+    if (!panel.dataset.stateBound) {
+        panel.dataset.stateBound = '1';
+        try { panel.open = localStorage.getItem('af_director_open') === '1'; } catch (_) { /* almacenamiento no disponible */ }
+        panel.addEventListener('toggle', () => {
+            try { localStorage.setItem('af_director_open', panel.open ? '1' : '0'); } catch (_) { /* sin almacenamiento */ }
+        });
+    }
+    if (!isPluginMode() && note) {
         note.remove();
     }
 

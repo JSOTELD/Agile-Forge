@@ -7,6 +7,7 @@ import { appData, apiFetch, escapeHtml } from './state.js';
 import { showToast } from './ui.js';
 import { richText, actionChips, isPluginMode } from './director.js';
 import { t } from './i18n.js';
+import { roleLabel } from './roles.js';
 
 export function toggleChatDrawer() {
     const drawer = document.getElementById('chat-drawer');
@@ -42,7 +43,7 @@ export function renderChat() {
                 <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
                     <span>${escapeHtml(m.avatar || (isUser ? '👤' : '🤖'))}</span>
                     <span class="font-bold ${isUser ? 'text-indigo-400' : 'text-slate-300'}">${escapeHtml(m.sender_name)}</span>
-                    ${target ? `<span class="text-slate-500">→ ${escapeHtml(target.avatar)} ${escapeHtml(target.name.split(' ')[0])}</span>` : ''}
+                    ${target ? `<span class="text-slate-500">→ ${escapeHtml(roleLabel(target))}</span>` : ''}
                     ${aiModelTag}
                     <span class="text-slate-500 font-mono">${escapeHtml(m.timestamp || '')}</span>
                 </div>

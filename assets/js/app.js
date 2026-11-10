@@ -130,6 +130,7 @@ import {
 } from './bindings.js';
 
 import { renderDirectorPanel, isPluginMode } from './director.js';
+import { avatarFor, roleLabel, statusLabel } from './roles.js';
 
 export function renderPluginNotice() {
     const el = document.getElementById('plugin-notice');
@@ -222,11 +223,14 @@ export function renderSprintBanner() {
 
     if (costUsdEl) {
         const totalCost = parseFloat(costs.total_cost_usd || 0);
-        costUsdEl.textContent = `$${totalCost.toFixed(4)}`;
-    }
-    if (tokensEl) {
         const totalTok = parseInt(costs.total_tokens || 0);
-        tokensEl.textContent = totalTok > 1000 ? `${(totalTok / 1000).toFixed(1)}k` : totalTok;
+        const tokWrap = document.getElementById('sprint-total-tokens-wrap');
+        // En modo plugin el cerebro es Claude Code: un "$0.00" sugeriría que el trabajo es gratis o que no se midió
+        const notApplicable = isPluginMode() && totalCost === 0 && totalTok === 0;
+        costUsdEl.textContent = notApplicable ? t('cost_plugin_na', 'No aplica') : `$${totalCost.toFixed(2)}`;
+        costUsdEl.title = notApplicable ? t('cost_plugin_tip', '') : `$${totalCost.toFixed(4)}`;
+        if (tokWrap) tokWrap.classList.toggle('hidden', notApplicable);
+        if (tokensEl) tokensEl.textContent = totalTok > 1000 ? `${(totalTok / 1000).toFixed(1)}k` : totalTok;
     }
 }
 
@@ -310,7 +314,7 @@ export function openCostsModal() {
                 return `
                     <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800/80">
                         <div class="flex items-center gap-2">
-                            <span class="text-xl">${escapeHtml(roleObj.avatar || '🤖')}</span>
+                            <span class="text-xl inline-flex">${avatarFor(roleObj.id ? roleObj : a.agent_role, 24)}</span>
                             <div>
                                 <span class="font-bold text-white text-xs block">${escapeHtml(roleObj.name || a.agent_role)}</span>
                                 <span class="text-[10px] text-slate-400 font-mono">${a.calls} interacciones</span>
@@ -666,7 +670,7 @@ export function renderRoles() {
                 <div class="space-y-3">
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2.5">
-                            <span class="text-3xl p-2 rounded-2xl bg-slate-900 border border-slate-800">${escapeHtml(r.avatar)}</span>
+                            <span class="text-3xl p-1.5 rounded-2xl bg-slate-900 border border-slate-800 inline-flex">${avatarFor(r, 40)}</span>
                             <div>
                                 <h4 class="font-extrabold text-white text-sm">${escapeHtml(r.name)}</h4>
                                 <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(r.alias)}</span>
@@ -977,7 +981,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (action === 'request-task-review') showReviewPrompt(taskId);
         else if (action === 'sign-and-complete') {
             updateTaskStatus(taskId, 'completada').then(ok => {
-                if (ok) showToast('Firma Humana Registrada', 'Historia completada con éxito', 'success', 2500);
+                if (ok) {
+                    showToast(t('signed_title', 'Firma registrada'), t('signed_msg', 'Historia completada'), 'success', 2500);
+                    // Si se firmó desde el detalle de la historia, el detalle se cierra
+                    if (btn.closest('#task-detail-modal') && window.closeTaskDetail) window.closeTaskDetail();
+                }
             });
         }
     });

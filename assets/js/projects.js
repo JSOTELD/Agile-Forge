@@ -172,6 +172,7 @@ export function closeProjectSettingsModal() {
 }
 
 export async function toggleProjectHumanSignoff(enabled) {
+    if (typeof enabled !== 'boolean') return; // solo el interruptor (true/false) cambia este ajuste
     const current = appData.current_project || {};
     try {
         const res = await apiFetch('api/tasks.php', {

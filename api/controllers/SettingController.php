@@ -507,7 +507,8 @@ HTML;
             Bootstrap::fail('Modificar el ajuste de firma humana requiere acceso desde el panel web (client: "web").', 403);
         }
 
-        if (!array_key_exists('enabled', $input)) {
+        // null y cadena vacía no son un valor: filter_var los convertiría en false y apagaría la firma sin querer
+        if (!array_key_exists('enabled', $input) || $input['enabled'] === null || $input['enabled'] === '') {
             Bootstrap::fail('El campo "enabled" es obligatorio.', 422);
         }
 
