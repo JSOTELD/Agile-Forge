@@ -6,7 +6,7 @@
 import { appData, apiFetch, escapeHtml, jsArg, localTime } from './state.js';
 import { showToast } from './ui.js';
 import { t as tr } from './i18n.js';
-import { roleLabel, avatarFor, statusLabel, priorityLabel } from './roles.js';
+import { roleLabel, avatarFor, statusLabel, priorityLabel, normalizePriority } from './roles.js';
 
 const STATUS_ORDER = ['backlog', 'en_progreso', 'revision', 'completada'];
 
@@ -78,7 +78,7 @@ export function renderKanban() {
     tasks.forEach(t => {
         // Filtros combinables
         if (roleFilter !== 'all' && t.assigned_to !== roleFilter) return;
-        if (prioFilter !== 'all' && t.priority !== prioFilter) return;
+        if (prioFilter !== 'all' && normalizePriority(t.priority) !== prioFilter) return;
         if (skillFilter !== 'all') {
             const hasSkill = (t.skills || []).includes(skillFilter);
             if (!hasSkill) return;
@@ -126,8 +126,8 @@ export function renderKanban() {
                             <span aria-hidden="true">🔒</span> ${escapeHtml(roleLabel(t.locked_by))}
                         </span>
                     ` : ''}
-                    <span class="${priorityBadge[t.priority] || priorityBadge.media}" title="${escapeHtml(tr('priority_lbl', 'Prioridad'))}: ${escapeHtml(priorityLabel(t.priority))}">
-                        <span aria-hidden="true">${priorityIcon[t.priority] || priorityIcon.media}</span> ${escapeHtml(priorityLabel(t.priority))}
+                    <span class="${priorityBadge[normalizePriority(t.priority)]}" title="${escapeHtml(tr('priority_lbl', 'Prioridad'))}: ${escapeHtml(priorityLabel(t.priority))}">
+                        <span aria-hidden="true">${priorityIcon[normalizePriority(t.priority)]}</span> ${escapeHtml(priorityLabel(t.priority))}
                     </span>
                 </div>
             </div>

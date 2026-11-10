@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+### Español
+
+#### Corregido
+- Historias antiguas con la prioridad en inglés (`high`, `medium`, `critical`, `low`) se veían en inglés, con el color de «Media», y el filtro de prioridad no las encontraba. Al abrir la base se pasan a `alta`, `media`, `critica` y `baja`; el panel también las normaliza.
+
+### English
+
+#### Fixed
+- Older stories with an English priority (`high`, `medium`, `critical`, `low`) showed in English with the "Medium" colour, and the priority filter missed them. They are migrated to `alta`, `media`, `critica` and `baja` when the database opens; the panel normalizes them too.
+
 ## [2.4.0] - 2026-11-10
 
 ### Español

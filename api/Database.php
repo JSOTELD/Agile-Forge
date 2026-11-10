@@ -851,12 +851,19 @@ SQL;
      * Reparaciones idempotentes del tablero (solo escriben si encuentran algo que arreglar):
      *  - ADR-004: una historia completada no conserva el lock (había completadas con 🔒 de importaciones antiguas).
      *  - Historias asignadas a IDs de rol que ya no existen (se veían como «🤖 Agente»): se pasan al rol vigente.
+     *  - Prioridades antiguas en inglés (critical/high/medium/low) se pasan a las vigentes en español:
+     *    el tablero las mostraba en inglés, con el color equivocado, y el filtro de prioridad no las encontraba.
      */
     private static function repairBoardData(PDO $pdo): void
     {
         try {
             if ($pdo->query("SELECT 1 FROM tasks WHERE status = 'completada' AND COALESCE(locked_by, '') != '' LIMIT 1")->fetchColumn()) {
                 $pdo->exec("UPDATE tasks SET locked_by = NULL, locked_at = NULL WHERE status = 'completada' AND COALESCE(locked_by, '') != ''");
+            }
+            if ($pdo->query("SELECT 1 FROM tasks WHERE priority IN ('critical','high','medium','low') LIMIT 1")->fetchColumn()) {
+                $pdo->exec("UPDATE tasks SET priority = CASE priority WHEN 'critical' THEN 'critica' WHEN 'high' THEN 'alta'
+                                WHEN 'medium' THEN 'media' ELSE 'baja' END
+                            WHERE priority IN ('critical','high','medium','low')");
             }
             $legacy = array_keys(self::LEGACY_ROLE_IDS);
             $in = implode(',', array_fill(0, count($legacy), '?'));
