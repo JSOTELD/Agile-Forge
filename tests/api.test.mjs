@@ -573,9 +573,9 @@ test('bug 4 (ACTA): save_meeting_to_workspace guarda en el workspace del proyect
     const save = await action('save_meeting_to_workspace', { meeting_id: meetId });
     assert.equal(save.status, 200);
     assert.ok(save.json.file_path, 'debe devolver file_path');
-    const normalizedSaved = path.normalize(save.json.file_path).toLowerCase();
-    const normalizedWs = path.normalize(projWs).toLowerCase();
-    assert.ok(normalizedSaved.startsWith(normalizedWs), `El acta ${save.json.file_path} no se guardó en el workspace ${projWs}`);
+    const normalizedSaved = fs.realpathSync(path.dirname(save.json.file_path)).toLowerCase();
+    const normalizedWs = fs.realpathSync(projWs).toLowerCase();
+    assert.equal(normalizedSaved, normalizedWs, `El acta ${save.json.file_path} no se guardó en el workspace ${projWs}`);
   } finally {
     fs.rmSync(projWs, { recursive: true, force: true });
   }
