@@ -38,6 +38,7 @@ scratch/
 test-*.json
 *.tmp
 *.temp
+acta_*.md
 
 # Archivos de sistema operativo
 .DS_Store

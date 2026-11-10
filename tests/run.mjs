@@ -18,7 +18,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agileforge-test-'));
 const dbPath = path.join(tmp, 'contract.sqlite');
 // TMPDIR/TMP/TEMP propios: el límite de peticiones por minuto de la API se cuenta en la carpeta temporal,
 // así las pruebas no comparten contador con el tablero real ni con una corrida anterior.
-const env = { ...process.env, AGILEFORGE_DB_PATH: dbPath, AGILEFORGE_MIN_REVIEW_SECONDS: '2', TMPDIR: tmp, TMP: tmp, TEMP: tmp };
+const env = { ...process.env, AGILEFORGE_DB_PATH: dbPath, AGILEFORGE_RATE_LIMIT: '1000', AGILEFORGE_MIN_REVIEW_SECONDS: '2', TMPDIR: tmp, TMP: tmp, TEMP: tmp };
 
 function fail(msg) {
   console.error(`\n[tests] ${msg}`);
