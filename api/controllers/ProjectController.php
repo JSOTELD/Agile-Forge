@@ -44,6 +44,19 @@ class ProjectController
             Bootstrap::jsonResponse(['error' => 'El nombre del proyecto es obligatorio'], 422);
         }
 
+        if (mb_strlen($name) > 120) {
+            Bootstrap::fail('El nombre del proyecto no puede superar los 120 caracteres', 422);
+        }
+
+        $pdo = Database::getPdo();
+
+        // Verificar duplicados exactos por nombre (409)
+        $dupStmt = $pdo->prepare("SELECT COUNT(*) FROM projects WHERE name = ?");
+        $dupStmt->execute([$name]);
+        if ((int)$dupStmt->fetchColumn() > 0) {
+            Bootstrap::fail("Ya existe un proyecto con el nombre '{$name}'", 409);
+        }
+
         try {
             $cleanPath = Bootstrap::validateWorkspacePath($rawPath !== '' ? $rawPath : dirname(__DIR__, 2));
         } catch (\InvalidArgumentException $e) {
@@ -55,8 +68,6 @@ class ProjectController
         if ($id === '' || $id === '-') {
             $id = 'proj-' . time();
         }
-
-        $pdo = Database::getPdo();
 
         // Verificar colisión de ID
         $chk = $pdo->prepare("SELECT COUNT(*) FROM projects WHERE id = ?");

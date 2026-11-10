@@ -612,8 +612,19 @@ class Repository
         });
     }
 
+    public function roleExists(string $roleId): bool
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM roles WHERE id = ?");
+        $stmt->execute([$roleId]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
     public function claimTask(string $id, string $roleKey, string $client = 'mcp'): array
     {
+        if (!$this->roleExists($roleKey)) {
+            return ['success' => false, 'error' => "El rol '{$roleKey}' no existe", 'code' => 422];
+        }
+
         return Database::transaction(function (PDO $pdo) use ($id, $roleKey, $client) {
             $stmt = $pdo->prepare("SELECT * FROM tasks WHERE id = ?");
             $stmt->execute([$id]);
@@ -1261,9 +1272,7 @@ class Repository
         $roleId = trim((string)($data['role_id'] ?? 'all'));
         if ($roleId === '') $roleId = 'all';
         if ($roleId !== 'all') {
-            $stmtRole = $this->db->prepare("SELECT COUNT(*) FROM roles WHERE id = ?");
-            $stmtRole->execute([$roleId]);
-            if ((int)$stmtRole->fetchColumn() === 0) {
+            if (!$this->roleExists($roleId)) {
                 throw new \InvalidArgumentException("El rol '{$roleId}' no existe");
             }
         }

@@ -50,6 +50,9 @@ class SkillController
         $level = trim((string)($input['level'] ?? 'Principal'));
         $category = trim((string)($input['category'] ?? 'Custom'));
         $desc = trim((string)($input['desc'] ?? $input['description'] ?? ''));
+        if (mb_strlen($desc) > 1000) {
+            Bootstrap::fail('La descripción de la habilidad no puede superar los 1000 caracteres', 422);
+        }
         $tags = is_array($input['tags'] ?? null) ? $input['tags'] : ['Custom', 'Agent'];
 
         $pdo = Database::getPdo();

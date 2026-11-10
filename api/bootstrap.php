@@ -165,6 +165,10 @@ class Bootstrap
             return;
         }
 
+        if (getenv('AGILEFORGE_RATE_LIMIT') && is_numeric(getenv('AGILEFORGE_RATE_LIMIT'))) {
+            $maxPerMinute = (int)getenv('AGILEFORGE_RATE_LIMIT');
+        }
+
         $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
         $now = time();
         $minute = (int)($now / 60);
