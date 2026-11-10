@@ -629,6 +629,18 @@ class Repository
                 return ['success' => false, 'error' => "La historia {$id} ya está completada: no se puede tomar (si hay que reabrirla, que un humano la mueva desde el tablero).", 'code' => 409];
             }
 
+            // Mientras una historia esté en "revision" con qa_approved, los clientes que no sean web NO pueden tomarla (claim_task)
+            $evidence = json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: [];
+            if (($task['status'] ?? '') === 'revision' && !empty($evidence['qa_approved'])) {
+                if ($client !== 'web') {
+                    return [
+                        'success' => false,
+                        'error'   => 'Aprobada por QA: espera la firma humana en el panel',
+                        'code'    => 409
+                    ];
+                }
+            }
+
             // Verificar lock existente
             if (!empty($task['locked_by']) && $task['locked_by'] !== $roleKey) {
                 // locked_at es CURRENT_TIMESTAMP de SQLite (UTC): se interpreta como UTC, no con la zona horaria de PHP
@@ -658,6 +670,13 @@ class Repository
     {
         $stmt = $this->db->prepare("INSERT INTO task_events (task_id, role_key, client, event_type, payload_json) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$taskId, $roleKey, $client, $eventType, json_encode($payload, JSON_UNESCAPED_UNICODE)]);
+    }
+
+    public function updateReviewEvidence(string $taskId, ?array $evidence): void
+    {
+        $json = $evidence !== null ? json_encode($evidence, JSON_UNESCAPED_UNICODE) : null;
+        $stmt = $this->db->prepare("UPDATE tasks SET review_evidence_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$json, $taskId]);
     }
 
     public function addComment(string $taskId, string $authorRole, string $authorName, string $avatar, string $content): string

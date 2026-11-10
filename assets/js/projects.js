@@ -180,7 +180,8 @@ export async function toggleProjectHumanSignoff(enabled) {
             body: JSON.stringify({
                 action: 'update_human_signoff',
                 project_id: current.id || null,
-                enabled: Boolean(enabled)
+                enabled: Boolean(enabled),
+                client: 'web'
             })
         });
         const data = await res.json();

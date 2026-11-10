@@ -118,9 +118,11 @@ test('MCP de control: crea y lee una historia contra el tablero', async () => {
     assert.equal(rev.isError, false, rev.text);
     assert.ok(rev.text.includes('"revision"'));
 
-    // Con firma humana activa, el MCP sigue sin poder completarla directamente
+    // Con firma humana activa, el MCP no puede completarla ni moverla
     const doneAfterQa = await mcp.call('update_task_status', { task_id: t.id, status: 'completada' });
     assert.equal(doneAfterQa.isError, true, 'el MCP completó una historia directamente con firma humana activa');
+    const moveAfterQa = await mcp.call('update_task_status', { task_id: t.id, status: 'backlog' });
+    assert.equal(moveAfterQa.isError, true, 'el MCP movió una historia con qa_approved');
   } finally {
     mcp.close();
   }

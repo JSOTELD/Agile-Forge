@@ -32,6 +32,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   - Esquema de `submit_for_review` y `review_task` actualizado en el servidor MCP con tipado estricto en Zod.
   - Actualización de instrucciones y prompts para `qa-security` y `director`.
 
+#### Corregido
+- **Invalidación y protección de la marca `qa_approved`:**
+  - Bloqueo de operaciones de modificación (`claim_task`, `update_task_status`, `update_task`) por clientes externos (no web) sobre historias con `qa_approved` activo esperando firma humana (HTTP 409).
+  - Revocación automática de `qa_approved` y registro del evento `qa_approval_revoked` ante solicitudes de cambio (`request_changes`) o cuando el panel web mueve la historia a un estado distinto de `completada`.
+  - Prevención de aprobaciones dobles: `review_task approve` sobre historias ya aprobadas devuelve HTTP 409 sin duplicar eventos ni comentarios.
+- **Seguridad y validación del interruptor de firma humana:**
+  - Exigencia estricta de `client=web` para modificar `human_signoff` (HTTP 403 para otros clientes).
+  - Validación booleana estricta con `FILTER_VALIDATE_BOOLEAN` y comprobación de existencia del `project_id` (HTTP 404).
+  - Validación de tipos en `verification.commands_run` aceptando únicamente cadenas de texto no vacías (HTTP 422) previniendo advertencias de PHP.
+
 ### English
 
 #### Added
@@ -53,6 +63,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - **MCP Server & Agents:**
   - Updated Zod input schemas for `submit_for_review` and `review_task` in MCP server.
   - Prompt updates for `qa-security` and `director` agents.
+
+#### Fixed
+- **Invalidation and protection of `qa_approved` mark:**
+  - Blocked non-web operations (`claim_task`, `update_task_status`, `update_task`) on tasks in `revision` with active `qa_approved` awaiting human signoff (HTTP 409).
+  - Automatic revocation of `qa_approved` and dispatch of `qa_approval_revoked` event when QA requests changes (`request_changes`) or web moves story to any non-completed state.
+  - Double approval guard: `review_task approve` on already approved stories returns HTTP 409 without duplicating events or comments.
+- **Security & validation for human signoff toggle:**
+  - Enforced `client=web` requirement for `human_signoff` mutations (HTTP 403).
+  - Strict boolean validation using `FILTER_VALIDATE_BOOLEAN` and project existence verification (HTTP 404).
+  - Type-safe validation in `verification.commands_run` accepting only non-empty strings (HTTP 422), avoiding PHP array-to-string notices.
 
 ---
 

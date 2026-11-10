@@ -33,7 +33,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => post('tasks', { ...a, client: dflt }));
 
   server.registerTool('claim_task', {
-    description: 'Toma una historia: la asigna al rol, la pasa a en_progreso y la bloquea (lock).',
+    description: 'Toma una historia: la asigna al rol, la pasa a en_progreso y la bloquea (lock). Historias aprobadas por QA no se pueden tomar mientras esperan firma humana.',
     inputSchema: {
       task_id: z.string(),
       role_key: z.string().describe('Rol que la toma'),
@@ -43,7 +43,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }, (a) => post(`tasks/${enc(a.task_id)}/claim`, { role_key: a.role_key, client: a.client || dflt }));
 
   server.registerTool('update_task_status', {
-    description: 'Mueve una historia a backlog, en_progreso o revision con una nota. No completa: eso lo hace review_task (QA) o el humano en la web.',
+    description: 'Mueve una historia a backlog, en_progreso o revision con una nota. Historias aprobadas por QA no se pueden mover por clientes externos; completar exige client=web.',
     inputSchema: {
       task_id: z.string(),
       status: z.enum(['backlog', 'en_progreso', 'revision']),
@@ -82,7 +82,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
   }));
 
   server.registerTool('review_task', {
-    description: 'Dictamina una historia en revisión. approve exige que el revisor sea QA (qa_security_guard), distinto de quien la tomó, evidencia previa, tiempo mínimo transcurrido y verification. Con firma humana activa la historia permanece en revisión hasta la firma en el panel web.',
+    description: 'Dictamina una historia en revisión. approve exige que el revisor sea QA (qa_security_guard), distinto de quien la tomó, evidencia previa, tiempo mínimo transcurrido y verification (commands_run como cadenas y notes). Con firma humana activa la historia permanece en revisión hasta la firma en el panel web. No se puede aprobar dos veces.',
     inputSchema: {
       task_id: z.string(),
       decision: z.enum(['approve', 'request_changes']),
