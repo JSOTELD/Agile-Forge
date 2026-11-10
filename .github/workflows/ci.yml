@@ -65,8 +65,50 @@ jobs:
       - name: Pruebas de contrato (API, MCP y repositorio)
         run: node tests/run.mjs
 
-      - name: Diagnóstico de salud del entorno (Doctor)
+  install:
+    name: Instalación en limpio (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_sqlite, mbstring, curl
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: npm run setup
+        run: npm run setup
+
+      - name: npm run doctor
         run: npm run doctor
+
+      - name: npm test
+        run: npm test
+
+      - name: npm run setup (segunda vez: idempotencia)
+        run: npm run setup
+
+      - name: Verificar git status limpio
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::git status no está limpio tras setup:"
+            git status --porcelain
+            exit 1
+          fi
 
   plugin-validate:
     name: Validación del plugin (Claude Code)
