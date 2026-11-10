@@ -11,7 +11,8 @@ import {
     activeConfigRoleId,
     setActiveConfigRoleId,
     escapeHtml,
-    apiFetch
+    apiFetch,
+    jsArg
 } from './state.js';
 
 import {
@@ -327,7 +328,7 @@ export function renderRoles() {
                     <label class="block text-[10px] uppercase text-slate-400 font-bold tracking-wider">Motor de IA de este rol</label>
                     ${!roleRouting ? `<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20" title="Actívalo en Motor IA → Enrutamiento Especializado por Rol">Global activo</span>` : ''}
                 </div>
-                <select onchange="changeRoleEngine('${escapeHtml(r.id)}', this.value)" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-[11px] font-mono outline-none focus:border-purple-500 ${!roleRouting ? 'opacity-70' : ''}">
+                <select onchange="changeRoleEngine(${jsArg(r.id)}, this.value)" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-[11px] font-mono outline-none focus:border-purple-500 ${!roleRouting ? 'opacity-70' : ''}">
                     <option value="" ${currentVal === '' ? 'selected' : ''}>Heredar (motor global o IA local)</option>
                     <option value="local::" ${currentVal === 'local::' ? 'selected' : ''}>🏠 IA local activa (Ollama / Colibri)</option>
                     ${providers.map(p => `
@@ -363,11 +364,11 @@ export function renderRoles() {
                     <div class="space-y-1.5">
                         <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                             <span>Skills Activas (${assignedSkills.length})</span>
-                            <button onclick="openSkillsConfig('${escapeHtml(r.id)}')" class="text-indigo-400 hover:text-indigo-300 lowercase text-[10px] underline">editar</button>
+                            <button onclick="openSkillsConfig(${jsArg(r.id)})" class="text-indigo-400 hover:text-indigo-300 lowercase text-[10px] underline">editar</button>
                         </div>
                         <div class="flex flex-wrap gap-1">
                             ${assignedSkills.map(s => `
-                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1 cursor-pointer hover:border-indigo-500/40" onclick="openSkillDetail('${escapeHtml(s)}')">
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-slate-300 flex items-center gap-1 cursor-pointer hover:border-indigo-500/40" onclick="openSkillDetail(${jsArg(s)})">
                                     <span>⚡</span> <span>${escapeHtml(s)}</span>
                                 </span>
                             `).join('')}
@@ -376,10 +377,10 @@ export function renderRoles() {
                 </div>
 
                 <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                    <button onclick="quickConsultAgent('${escapeHtml(r.id)}')" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
+                    <button onclick="quickConsultAgent(${jsArg(r.id)})" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
                         <span>💬</span> Consultar en Chat
                     </button>
-                    <button onclick="openSkillsConfig('${escapeHtml(r.id)}')" class="text-xs px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium transition">
+                    <button onclick="openSkillsConfig(${jsArg(r.id)})" class="text-xs px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium transition">
                         ⚙️ Configurar Skills
                     </button>
                 </div>
@@ -401,7 +402,7 @@ export function renderWorkspace() {
     const wsDisplay = document.getElementById('active-workspace-display');
     const ws = appData.current_project?.path || appData.active_workspace;
     if (wsDisplay) {
-        wsDisplay.textContent = ws || 'D:\\xampp\\htdocs\\canil perruno';
+        wsDisplay.textContent = ws || '—';
     }
 }
 
@@ -472,9 +473,12 @@ export async function toggleRoleRoutingImmediate(enabled) {
                 3000
             );
             await fetchTeamData();
+        } else {
+            showToast('No se guardó', data.error || 'No se pudo cambiar el enrutamiento por rol', 'error');
         }
     } catch (err) {
         console.error('Error toggling role routing:', err);
+        showToast('Error', 'No se pudo cambiar el enrutamiento por rol', 'error');
     }
 }
 

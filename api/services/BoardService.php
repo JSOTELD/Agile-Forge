@@ -62,6 +62,28 @@ class BoardService
         return $candidate;
     }
 
+    /** Story points: el valor Fibonacci más cercano (4 → 3, 6 → 5, 10 → 8, 20 → 13); vacío o inválido → 3. */
+    public static function fibonacci($value): int
+    {
+        if (!is_numeric($value)) {
+            return 3;
+        }
+        $v = (float)$value;
+        if ($v <= 0) {
+            return 3;
+        }
+        $best = 3;
+        $bestDiff = PHP_FLOAT_MAX;
+        foreach (self::FIBONACCI as $f) {
+            $d = abs($f - $v);
+            if ($d < $bestDiff) {
+                $best = $f;
+                $bestDiff = $d;
+            }
+        }
+        return $best;
+    }
+
     public function roleIds(): array
     {
         return $this->pdo->query("SELECT id FROM roles ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) ?: [];
@@ -132,10 +154,7 @@ class BoardService
         if ($matched === null) {
             throw new InvalidArgumentException("El rol '{$assigned}' no existe");
         }
-        $points = (int)($in['story_points'] ?? 3);
-        if (!in_array($points, self::FIBONACCI, true)) {
-            $points = 3;
-        }
+        $points = self::fibonacci($in['story_points'] ?? 3);
         $priority = in_array($in['priority'] ?? '', self::PRIORITIES, true) ? $in['priority'] : 'media';
         $status = in_array($in['status'] ?? '', ['backlog', 'en_progreso', 'revision'], true) ? $in['status'] : 'backlog';
         $userStory = trim((string)($in['user_story'] ?? ''));
@@ -144,7 +163,7 @@ class BoardService
             $dod = 'Criterios de aceptación verificados, sin errores y revisado por QA.';
         }
         $description = trim((string)($in['description'] ?? ''));
-        $skills = array_values(array_filter(array_map('strval', is_array($in['skills'] ?? null) ? $in['skills'] : [])));
+        $skills = $this->repo->cleanSkillIds(is_array($in['skills'] ?? null) ? $in['skills'] : []);
         if (!$skills) {
             $role = $this->role($matched);
             $skills = array_slice(json_decode((string)($role['assigned_skills_json'] ?? '[]'), true) ?: [], 0, 3);
@@ -208,10 +227,10 @@ class BoardService
             $params[] = $fields['priority'];
             $changes['priority'] = $fields['priority'];
         }
-        if (isset($fields['story_points']) && in_array((int)$fields['story_points'], self::FIBONACCI, true)) {
+        if (isset($fields['story_points']) && is_numeric($fields['story_points']) && (float)$fields['story_points'] > 0) {
             $set[] = 'story_points = ?';
-            $params[] = (int)$fields['story_points'];
-            $changes['story_points'] = (int)$fields['story_points'];
+            $params[] = self::fibonacci($fields['story_points']);
+            $changes['story_points'] = $params[count($params) - 1];
         }
         foreach (['user_story', 'dod', 'description'] as $f) {
             if (isset($fields[$f]) && is_string($fields[$f])) {
@@ -349,8 +368,12 @@ class BoardService
             $params[] = trim((string)$fields['goal']);
         }
         if (isset($fields['days_remaining']) && is_numeric($fields['days_remaining'])) {
+            $days = max(0, min(60, (int)$fields['days_remaining']));
             $set[] = 'days_remaining = ?';
-            $params[] = max(0, min(60, (int)$fields['days_remaining']));
+            $params[] = $days;
+            // La fecha de cierre se recalcula desde hoy: así los días siguen bajando solos
+            $set[] = "ends_at = datetime('now', ?)";
+            $params[] = '+' . $days . ' days';
         }
         if (isset($fields['velocity_points']) && is_numeric($fields['velocity_points'])) {
             $set[] = 'velocity_points = ?';

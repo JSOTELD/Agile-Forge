@@ -101,27 +101,22 @@ class Repository
         $sprintStmt->execute([$activeProjectId]);
         $sprintRow = $sprintStmt->fetch();
         $sprintStmt->closeCursor();
-
-        if (!$sprintRow) {
-            $stmt = $this->db->query("SELECT * FROM sprints WHERE status = 'active' ORDER BY number DESC LIMIT 1");
-            $sprintRow = $stmt->fetch();
-            $stmt->closeCursor();
-        }
+        // Sin sprint activo en ESTE proyecto no se toma prestado el de otro proyecto: se muestra uno genérico
 
         if ($sprintRow) {
             $sprint = [
                 'number'          => (int)$sprintRow['number'],
                 'name'            => $sprintRow['name'],
                 'goal'            => $sprintRow['goal'],
-                'days_remaining'  => (int)$sprintRow['days_remaining'],
+                'days_remaining'  => self::sprintDaysLeft($sprintRow),
                 'velocity_points' => (int)$sprintRow['velocity_points'],
             ];
         } else {
             $sprint = [
                 'number'          => 1,
                 'name'            => 'Sprint 1',
-                'goal'            => 'Objetivo inicial del sprint',
-                'days_remaining'  => 5,
+                'goal'            => 'Sin sprint activo: inicia uno desde Claude Code (/sprint) o con el Director.',
+                'days_remaining'  => 0,
                 'velocity_points' => 20,
             ];
         }
@@ -253,12 +248,15 @@ class Repository
         }
 
         // Trazabilidad de eventos recientes (Audit Feed para MCP & Web)
-        $eventsStmt = $this->db->query(
-            "SELECT e.*, t.title AS task_title 
-             FROM task_events e 
-             LEFT JOIN tasks t ON e.task_id = t.id 
-             ORDER BY e.created_at DESC LIMIT 30"
+        // Solo los eventos de historias del proyecto activo (antes se mezclaban los de todos los proyectos)
+        $eventsStmt = $this->db->prepare(
+            "SELECT e.*, t.title AS task_title
+             FROM task_events e
+             JOIN tasks t ON e.task_id = t.id
+             WHERE t.project_id = ?" . ($activeProjectId === 'default' ? " OR t.project_id IS NULL OR t.project_id = ''" : '') . "
+             ORDER BY e.created_at DESC, e.id DESC LIMIT 30"
         );
+        $eventsStmt->execute([$activeProjectId]);
         $recentEvents = [];
         while ($eRow = $eventsStmt->fetch()) {
             $eRow['payload'] = json_decode($eRow['payload_json'] ?? '{}', true);
@@ -352,6 +350,25 @@ class Repository
     {
         $fromFiles = self::skillsFromFiles();
         if ($fromFiles) {
+            // + las skills personalizadas creadas desde la interfaz (is_custom = 1), que no tienen SKILL.md:
+            // antes se guardaban pero nunca aparecían en el catálogo
+            $known = array_flip(array_column($fromFiles, 'id'));
+            $customStmt = $this->db->query("SELECT * FROM skills WHERE is_custom = 1 ORDER BY name ASC");
+            while ($row = $customStmt->fetch()) {
+                if (isset($known[$row['id']])) {
+                    continue;
+                }
+                $fromFiles[] = [
+                    'id'        => $row['id'],
+                    'name'      => $row['name'],
+                    'level'     => $row['level'] ?? 'Principal',
+                    'category'  => $row['category'] ?? 'Custom',
+                    'desc'      => $row['description'] ?? '',
+                    'tags'      => json_decode($row['tags_json'] ?? '[]', true) ?: [],
+                    'status'    => 'active',
+                    'is_custom' => true,
+                ];
+            }
             return $fromFiles;
         }
 
@@ -362,6 +379,23 @@ class Repository
             $skills[] = $row;
         }
         return $skills;
+    }
+
+    /**
+     * Normaliza una lista de skills: solo IDs con forma de slug que existan en el catálogo (archivos + personalizadas),
+     * sin repetidos. Evita IDs inventados (ADR-005) y texto arbitrario que luego se pinta en la interfaz.
+     */
+    public function cleanSkillIds(array $skills): array
+    {
+        $valid = array_flip(array_column($this->getSkillsCatalog(), 'id'));
+        $out = [];
+        foreach ($skills as $s) {
+            $s = trim((string)$s);
+            if ($s !== '' && preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/i', $s) && isset($valid[$s]) && !in_array($s, $out, true)) {
+                $out[] = $s;
+            }
+        }
+        return $out;
     }
 
     /**
@@ -542,7 +576,8 @@ class Repository
 
             // Verificar lock existente
             if (!empty($task['locked_by']) && $task['locked_by'] !== $roleKey) {
-                $lockedAt = strtotime($task['locked_at'] ?? 'now');
+                // locked_at es CURRENT_TIMESTAMP de SQLite (UTC): se interpreta como UTC, no con la zona horaria de PHP
+                $lockedAt = self::utcTimestamp($task['locked_at'] ?? null) ?? time();
                 // Lock expira en 30 minutos si no se renueva
                 if ((time() - $lockedAt) < 1800) {
                     return [
@@ -640,8 +675,31 @@ class Repository
         if ($sqlDate === null || $sqlDate === '') {
             return null;
         }
+        $ts = self::utcTimestamp($sqlDate);
+        return $ts === null ? $sqlDate : gmdate('Y-m-d\TH:i:s\Z', $ts);
+    }
+
+    /** Timestamp Unix de una fecha de SQLite (CURRENT_TIMESTAMP guarda UTC sin zona). */
+    public static function utcTimestamp(?string $sqlDate): ?int
+    {
+        if ($sqlDate === null || trim($sqlDate) === '') {
+            return null;
+        }
         $ts = strtotime($sqlDate . (preg_match('/[zZ]|[+-]\d\d:?\d\d$/', $sqlDate) ? '' : ' UTC'));
-        return $ts === false ? $sqlDate : gmdate('Y-m-d\TH:i:s\Z', $ts);
+        return $ts === false ? null : $ts;
+    }
+
+    /**
+     * Días que le quedan a un sprint. Con ends_at (fecha de cierre en UTC) se calculan con el reloj;
+     * sin ella (bases antiguas) se usa el número guardado.
+     */
+    public static function sprintDaysLeft(array $sprintRow): int
+    {
+        $end = self::utcTimestamp($sprintRow['ends_at'] ?? null);
+        if ($end === null) {
+            return max(0, (int)($sprintRow['days_remaining'] ?? 0));
+        }
+        return max(0, (int)ceil(($end - time()) / 86400));
     }
 
     /** Proyecto por id, o el activo. Lanza InvalidArgumentException si el id no existe. */
@@ -863,8 +921,10 @@ class Repository
             $goal = trim($goal);
             $days = max(0, min(60, $days ?? 10));
             $velocity = max(1, min(500, $velocity ?? 20));
-            $pdo->prepare("INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')")
-                ->execute([$id, $pid, $number, $name, $goal, $days, $velocity]);
+            // ends_at: fecha de cierre (UTC) para que los días restantes bajen solos con el calendario
+            $pdo->prepare("INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status, ends_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', datetime('now', ?))")
+                ->execute([$id, $pid, $number, $name, $goal, $days, $velocity, '+' . $days . ' days']);
             $result = [
                 'id' => $id, 'project_id' => $pid, 'number' => $number, 'name' => $name, 'goal' => $goal,
                 'days_remaining' => $days, 'velocity_points' => $velocity, 'status' => 'active',
@@ -913,7 +973,7 @@ class Repository
             'number'          => (int)$sprintRow['number'],
             'name'            => $sprintRow['name'],
             'goal'            => self::clip($sprintRow['goal'] ?? '', 280),
-            'days_remaining'  => (int)$sprintRow['days_remaining'],
+            'days_remaining'  => self::sprintDaysLeft($sprintRow),
             'velocity_points' => (int)$sprintRow['velocity_points'],
             'points_done'     => $done,
             'points_total'    => $total,

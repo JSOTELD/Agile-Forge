@@ -14,7 +14,8 @@ export function showToast(title, message, type = 'info', duration = 3500) {
     const isLight = (currentTheme === 'light' || currentTheme === 'paper');
 
     const toast = document.createElement('div');
-    const toastId = 'toast-' + Date.now();
+    // Sufijo aleatorio: dos avisos en el mismo milisegundo no deben compartir id (el botón ✕ cierra por id)
+    const toastId = 'toast-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
     toast.id = toastId;
 
     const colorsDark = {

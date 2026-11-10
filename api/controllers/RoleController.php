@@ -63,7 +63,8 @@ class RoleController
             Bootstrap::jsonResponse(['error' => 'Rol no encontrado'], 404);
         }
 
-        $cleanSkills = array_values(array_unique(array_filter(array_map('trim', $skills))));
+        // Solo skills que existen en el catálogo (se descartan IDs inventados o mal escritos)
+        $cleanSkills = (new Repository())->cleanSkillIds($skills);
 
         Database::transaction(function (PDO $pdo) use ($roleId, $cleanSkills) {
             $uStmt = $pdo->prepare("UPDATE roles SET assigned_skills_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");

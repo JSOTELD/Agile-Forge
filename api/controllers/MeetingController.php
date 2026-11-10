@@ -204,14 +204,36 @@ class MeetingController
     public function begin(array $input): void
     {
         [$type, $topic, $participants] = $this->meetingParams($input);
+        $engines = $this->requireSomeEngine($participants);
         $meeting = $this->createMeeting($type, $topic, $participants);
 
         $plan = [];
-        foreach ($participants as $role) {
-            $eng = $this->engines->resolveForRole($role);
+        foreach ($participants as $i => $role) {
+            $eng = $engines[$i];
             $plan[] = ['role_id' => $role['id'], 'name' => $role['name'], 'avatar' => $role['avatar'], 'engine' => $eng['ready'] ? $eng['label'] : 'sin motor'];
         }
         Bootstrap::jsonResponse(['success' => true, 'meeting' => $meeting, 'plan' => $plan]);
+    }
+
+    /**
+     * Una reunión con IA en la web necesita que al menos un participante tenga motor. Si ninguno lo tiene
+     * (p. ej. modo plugin, donde el cerebro es Claude Code) no se crea una reunión vacía llena de avisos:
+     * se responde 409 con lo que hay que hacer. Devuelve el motor resuelto de cada participante.
+     */
+    private function requireSomeEngine(array $participants): array
+    {
+        $engines = [];
+        foreach ($participants as $role) {
+            $engines[] = $this->engines->resolveForRole($role);
+        }
+        if (!array_filter($engines, static fn(array $e) => !empty($e['ready']))) {
+            Bootstrap::fail(
+                'Ningún participante tiene motor de IA en la web, así que la reunión no se creó. '
+                . 'Convócala desde Claude Code con /reunion (plugin AgileForge Control), o agrega una clave en Motor IA / activa la IA local.',
+                409
+            );
+        }
+        return $engines;
     }
 
     /** Genera la intervención de un participante con su propio motor de IA. */
@@ -247,6 +269,7 @@ class MeetingController
     public function runAgentMeeting(array $input): void
     {
         [$type, $topic, $participants] = $this->meetingParams($input);
+        $this->requireSomeEngine($participants);
         @set_time_limit(1200);
         $meeting = $this->createMeeting($type, $topic, $participants);
         foreach ($participants as $role) {

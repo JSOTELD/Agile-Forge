@@ -297,6 +297,10 @@ SQL;
         self::addColumnIfMissing($pdo, 'chat_messages', 'meta_json', 'TEXT');
         // H7: una reunión cerrada (close_meeting / conclude) no admite más turnos
         self::addColumnIfMissing($pdo, 'meetings', 'closed_at', 'DATETIME');
+        // Fecha de cierre del sprint (UTC): los días restantes se calculan con el calendario en vez de quedar fijos
+        self::addColumnIfMissing($pdo, 'sprints', 'ends_at', 'DATETIME');
+        self::backfillSprintEnds($pdo);
+        self::repairBoardData($pdo);
 
         self::runDataMigrations($pdo);
     }
@@ -796,6 +800,63 @@ SQL;
                     $upd->execute([gmdate('Y-m-d H:i:s', $min - 3600 + (int)$m[1] * 60), $r['rid']]);
                 }
             }
+        }
+    }
+
+    /**
+     * Sprints sin ends_at (creados antes de la columna o importados): cierre = creación + días planificados.
+     * Solo escribe si hay alguno pendiente (una lectura barata en el caso normal).
+     */
+    private static function backfillSprintEnds(PDO $pdo): void
+    {
+        try {
+            $pending = $pdo->query("SELECT 1 FROM sprints WHERE ends_at IS NULL LIMIT 1")->fetchColumn();
+            if ($pending) {
+                $pdo->exec("UPDATE sprints SET ends_at = datetime(COALESCE(created_at, CURRENT_TIMESTAMP), '+' || MAX(0, COALESCE(days_remaining, 0)) || ' days')
+                            WHERE ends_at IS NULL");
+            }
+        } catch (\Throwable $e) {
+            error_log('AgileForge ends_at de sprints: ' . $e->getMessage());
+        }
+    }
+
+    /** IDs de rol antiguos (datos importados de versiones previas) → rol vigente. */
+    private const LEGACY_ROLE_IDS = [
+        'qa_security'      => 'qa_security_guard',
+        'frontend'         => 'frontend_master',
+        'backend'          => 'backend_architect',
+        'legal_compliance' => 'legal_counsel',
+        'chief_architect'  => 'lead_architect',
+    ];
+
+    /**
+     * Reparaciones idempotentes del tablero (solo escriben si encuentran algo que arreglar):
+     *  - ADR-004: una historia completada no conserva el lock (había completadas con 🔒 de importaciones antiguas).
+     *  - Historias asignadas a IDs de rol que ya no existen (se veían como «🤖 Agente»): se pasan al rol vigente.
+     */
+    private static function repairBoardData(PDO $pdo): void
+    {
+        try {
+            if ($pdo->query("SELECT 1 FROM tasks WHERE status = 'completada' AND COALESCE(locked_by, '') != '' LIMIT 1")->fetchColumn()) {
+                $pdo->exec("UPDATE tasks SET locked_by = NULL, locked_at = NULL WHERE status = 'completada' AND COALESCE(locked_by, '') != ''");
+            }
+            $legacy = array_keys(self::LEGACY_ROLE_IDS);
+            $in = implode(',', array_fill(0, count($legacy), '?'));
+            $q = $pdo->prepare("SELECT 1 FROM tasks WHERE assigned_to IN ({$in}) OR locked_by IN ({$in}) LIMIT 1");
+            $q->execute(array_merge($legacy, $legacy));
+            if ($q->fetchColumn()) {
+                $exists = $pdo->prepare("SELECT 1 FROM roles WHERE id = ?");
+                foreach (self::LEGACY_ROLE_IDS as $old => $new) {
+                    $exists->execute([$new]);
+                    if (!$exists->fetchColumn()) {
+                        continue;
+                    }
+                    $pdo->prepare("UPDATE tasks SET assigned_to = ? WHERE assigned_to = ?")->execute([$new, $old]);
+                    $pdo->prepare("UPDATE tasks SET locked_by = ? WHERE locked_by = ?")->execute([$new, $old]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('AgileForge reparación del tablero: ' . $e->getMessage());
         }
     }
 

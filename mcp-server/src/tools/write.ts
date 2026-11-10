@@ -6,6 +6,13 @@ import { WRITE, run } from './util.js';
 
 const enc = encodeURIComponent;
 
+/** Story points Fibonacci (el servidor acepta solo 1, 2, 3, 5, 8 y 13). */
+const FIB = [1, 2, 3, 5, 8, 13] as const;
+const storyPoints = z
+  .number()
+  .int()
+  .refine((n) => (FIB as readonly number[]).includes(n), { message: 'Usa un valor Fibonacci: 1, 2, 3, 5, 8 o 13' });
+
 export function registerWriteTools(server: McpServer, c: WriteClient): void {
   const dflt = c.cfg.client;
   const post = (route: string, body: unknown) => run(() => c.post(route, body), ['success']);
@@ -17,7 +24,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
       assigned_to: z.string().describe('Rol ejecutor, ej. backend_architect'),
       user_story: z.string().describe('"Como [rol], quiero [acción], para [beneficio]"'),
       dod: z.string().describe('Definition of Done verificable'),
-      story_points: z.number().int().min(1).max(13).default(2),
+      story_points: storyPoints.default(2).describe('Fibonacci: 1, 2, 3, 5, 8 o 13'),
       priority: z.enum(PRIORITIES).default('media'),
       description: z.string().optional(),
       skills: z.array(z.string()).optional().describe('Skills sugeridas'),
@@ -119,7 +126,7 @@ export function registerWriteTools(server: McpServer, c: WriteClient): void {
       action_items: z.array(z.object({
         title: z.string(),
         assigned_to: z.string(),
-        story_points: z.number().int().default(2),
+        story_points: storyPoints.default(2),
         priority: z.enum(PRIORITIES).default('media'),
         user_story: z.string().optional(),
         dod: z.string().optional(),

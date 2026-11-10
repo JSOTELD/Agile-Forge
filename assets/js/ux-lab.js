@@ -3,7 +3,7 @@
  * Auditoría real en el DOM, medición responsiva del viewport y evaluación heurística de Nielsen persistida en SQLite.
  */
 
-import { appData, apiFetch, escapeHtml } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg } from './state.js';
 import { showToast } from './ui.js';
 
 export function runDomAccessibilityScan() {
@@ -201,7 +201,7 @@ export function renderUxHonestView() {
                                 <p class="text-[11px] text-slate-400 leading-relaxed">${escapeHtml(h.desc)}</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                                <input type="checkbox" data-heuristic-id="${escapeHtml(h.id)}" ${h.compliant ? 'checked' : ''} onchange="toggleHeuristicItem('${escapeHtml(h.id)}', this.checked)" class="sr-only peer">
+                                <input type="checkbox" data-heuristic-id="${escapeHtml(h.id)}" ${h.compliant ? 'checked' : ''} onchange="toggleHeuristicItem(${jsArg(h.id)}, this.checked)" class="sr-only peer">
                                 <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-pink-600"></div>
                             </label>
                         </div>
@@ -264,6 +264,8 @@ export async function saveHeuristicEvaluation() {
         if (data.success) {
             showToast('Evaluación Guardada', `Puntaje actualizado en SQLite: ${score}%`, 'success');
             if (window.fetchTeamData) await window.fetchTeamData();
+        } else {
+            showToast('No se guardó', data.error || 'No se pudo guardar la evaluación', 'error');
         }
     } catch (err) {
         showToast('Error', 'No se pudo guardar la evaluación heurística', 'error');

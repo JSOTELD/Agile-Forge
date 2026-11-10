@@ -494,7 +494,7 @@ class DirectorService
             "CONTEXTO ACTUAL\n" .
             'Proyecto: ' . ($project['name'] ?? 'default') . ' — carpeta: ' . ($project['path'] ?? '') . "\n" .
             'Jurisdicción: ' . ($juris['country_name'] ?? 'Perú') . "\n" .
-            ($sprint ? "Sprint activo: {$sprint['name']} — objetivo: {$sprint['goal']} — quedan {$sprint['days_remaining']} días — velocidad {$sprint['velocity_points']} pts\n" : "Sin sprint activo.\n") .
+            ($sprint ? "Sprint activo: {$sprint['name']} — objetivo: {$sprint['goal']} — quedan " . Repository::sprintDaysLeft($sprint) . " días — velocidad {$sprint['velocity_points']} pts\n" : "Sin sprint activo.\n") .
             "Historias: backlog {$counts['backlog']}, en progreso {$counts['en_progreso']}, en revisión {$counts['revision']}, completadas {$counts['completada']}\n" .
             ($openLines ? "Historias abiertas:\n" . implode("\n", $openLines) . "\n" : '') .
             "Equipo (id: nombre — especialidad [motor]):\n" . implode("\n", $team) . "\n" .

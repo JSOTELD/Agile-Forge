@@ -158,6 +158,11 @@ class SettingController
         if (!$this->llm->providerConfig($provider)) {
             Bootstrap::jsonResponse(['success' => false, 'error' => "Proveedor desconocido: {$provider}"], 422);
         }
+        // Sin clave no hay nada que probar: es un dato que falta (422), no un fallo del proveedor (502)
+        if ($this->llm->envKeyFor($provider) !== '' && !$this->llm->isProviderConfigured($provider)) {
+            $name = $this->llm->providerConfig($provider)['name'] ?? $provider;
+            Bootstrap::jsonResponse(['success' => false, 'error' => "Falta la clave de API de {$name}. Agrégala en Motor IA → Claves de API."], 422);
+        }
         try {
             $res = $this->llm->testProvider($provider, isset($input['model']) ? (string)$input['model'] : null);
             Bootstrap::jsonResponse(['success' => true, 'result' => $res]);
@@ -470,92 +475,117 @@ class SettingController
     public function generateLegalDoc(array $input): void
     {
         $docType = (string)($input['doc_type'] ?? 'terminos');
-        $siteName = trim((string)($input['site_name'] ?? 'Canil Perruno · Hotel & Guardería'));
-        $ownerName = trim((string)($input['owner_name'] ?? 'Administración'));
-        $contactEmail = trim((string)($input['contact_email'] ?? 'contacto@ejemplo.com'));
+        $types = ['terminos' => 'terminos.php', 'privacidad' => 'privacidad.php', 'consentimiento' => 'consentimiento-snippet.html'];
+        if (!isset($types[$docType])) {
+            Bootstrap::fail("Tipo de documento desconocido: '{$docType}'. Usa terminos, privacidad o consentimiento.", 422);
+        }
+        $project = $this->repo->getActiveProject();
+        // Todo lo que escribe el usuario se escapa: el documento se puede guardar como .php en su proyecto
+        $e = static fn($v): string => htmlspecialchars(trim((string)$v), ENT_QUOTES, 'UTF-8');
+        $siteName = '';
+        foreach ([$input['site_name'] ?? '', $input['business_name'] ?? '', $project['name'] ?? '', 'Mi proyecto'] as $candidate) {
+            if (trim((string)$candidate) !== '') {
+                $siteName = $e($candidate);
+                break;
+            }
+        }
+        $contactEmail = $e(($input['contact_email'] ?? '') !== '' ? $input['contact_email'] : 'contacto@ejemplo.com');
         $saveToWorkspace = !empty($input['save_to_workspace']);
 
         $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú', 'flag' => '🇵🇪', 'country_code' => 'PE']);
-        $ws = $this->repo->getSetting('active_workspace', dirname(__DIR__, 2));
+        $country = $e($juris['country_name'] ?? 'Perú');
+        $flag = $e($juris['flag'] ?? '');
+        $regs = array_map($e, array_slice(is_array($juris['regulations'] ?? null) ? $juris['regulations'] : [], 0, 6));
+        $regsList = $regs ? implode('', array_map(static fn($r) => "\n            <li>{$r}</li>", $regs)) : "\n            <li>La normativa vigente de protección de datos y defensa del consumidor.</li>";
+        $ws = (string)($project['path'] ?? $this->repo->getSetting('active_workspace', dirname(__DIR__, 2)));
 
-        $filename = 'terminos.php';
-        $generated = '';
-
+        $filename = $types[$docType];
         if ($docType === 'terminos') {
-            $filename = 'terminos.php';
             $generated = <<<HTML
 <?php
 /**
- * Términos y Condiciones de Servicio y Hospedaje Canino
- * Jurisdicción: {$juris['country_name']} {$juris['flag']}
+ * Términos y Condiciones de Uso — {$siteName}
+ * Jurisdicción: {$country} {$flag}. Plantilla orientativa generada por AgileForge: revísala con un profesional.
  */
 declare(strict_types=1);
 ?>
 <main class="max-w-4xl mx-auto px-4 py-8 space-y-6 text-slate-800">
-    <h1 class="text-3xl font-extrabold text-slate-900">Términos y Condiciones de Servicio</h1>
-    <p class="text-sm text-slate-600">Última actualización: <?= date('d/m/Y') ?>. Aplicable en {$juris['country_name']}.</p>
+    <h1 class="text-3xl font-extrabold text-slate-900">Términos y Condiciones de Uso</h1>
+    <p class="text-sm text-slate-600">Última actualización: <?= date('d/m/Y') ?>. Aplicable en {$country}.</p>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">1. Objeto del Servicio</h2>
-        <p class="text-sm leading-relaxed">El presente contrato regula los servicios de hospedaje, cuidado y recreación brindados por {$siteName} para los huéspedes caninos registrados por sus respectivos dueños.</p>
+        <h2 class="text-xl font-bold text-slate-900">1. Objeto</h2>
+        <p class="text-sm leading-relaxed">Estos términos regulan el acceso y uso de los servicios y contenidos que ofrece {$siteName}. Al usarlos, aceptas estas condiciones.</p>
     </section>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">2. Requisitos Sanitarios y Admisión</h2>
-        <p class="text-sm leading-relaxed">Es requisito indispensable presentar cartilla de vacunación al día (óctuple/séxtuple, antirrábica y tos de perreras) y constancia de desparasitación interna y externa reciente.</p>
+        <h2 class="text-xl font-bold text-slate-900">2. Uso del servicio</h2>
+        <p class="text-sm leading-relaxed">Te comprometes a usar el servicio de forma lícita, a dar información veraz y a no realizar acciones que dañen su funcionamiento o los derechos de terceros.</p>
     </section>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">3. Exoneración de Responsabilidad y Emergencias de Salud</h2>
-        <p class="text-sm leading-relaxed">{$siteName} se compromete a brindar cuidado diligente. Sin embargo, no asume responsabilidad por condiciones médicas preexistentes no declaradas, casos fortuitos o fuerza mayor. Ante una emergencia veterinaria, se procederá a la atención de urgencia con cargo al titular.</p>
+        <h2 class="text-xl font-bold text-slate-900">3. Precios, pagos y comprobantes</h2>
+        <p class="text-sm leading-relaxed">Los precios se informan antes de contratar e incluyen los impuestos aplicables. Se emite el comprobante de pago que corresponda según la normativa de {$country}.</p>
     </section>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">4. Jurisdicción y Resolución de Disputas</h2>
-        <p class="text-sm leading-relaxed">Para cualquier controversia, las partes se someten a la legislación vigente en {$juris['country_name']} y a los canales del Libro de Reclamaciones conforme a ley.</p>
+        <h2 class="text-xl font-bold text-slate-900">4. Responsabilidad</h2>
+        <p class="text-sm leading-relaxed">{$siteName} presta el servicio con la diligencia debida y no responde por casos fortuitos, fuerza mayor o por el uso indebido que hagan los usuarios.</p>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-xl font-bold text-slate-900">5. Reclamos, ley aplicable y contacto</h2>
+        <p class="text-sm leading-relaxed">Estos términos se rigen por la legislación de {$country}. Puedes presentar quejas o reclamos por los canales que exige la ley (por ejemplo, el Libro de Reclamaciones cuando corresponda) o escribiendo a {$contactEmail}. Normativa de referencia:</p>
+        <ul class="text-sm list-disc pl-5">{$regsList}
+        </ul>
     </section>
 </main>
 HTML;
         } elseif ($docType === 'privacidad') {
-            $filename = 'privacidad.php';
             $generated = <<<HTML
 <?php
 /**
- * Política de Privacidad y Tratamiento de Datos Personales
- * Conforme a la legislación de {$juris['country_name']} {$juris['flag']}
+ * Política de Privacidad y Tratamiento de Datos Personales — {$siteName}
+ * Conforme a la legislación de {$country} {$flag}. Plantilla orientativa generada por AgileForge: revísala con un profesional.
  */
 declare(strict_types=1);
 ?>
 <main class="max-w-4xl mx-auto px-4 py-8 space-y-6 text-slate-800">
     <h1 class="text-3xl font-extrabold text-slate-900">Política de Privacidad y Protección de Datos</h1>
-    <p class="text-sm text-slate-600">Conforme a la normativa de protección de datos personales de {$juris['country_name']}.</p>
+    <p class="text-sm text-slate-600">Conforme a la normativa de protección de datos personales de {$country}.</p>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">1. Titular del Banco de Datos</h2>
-        <p class="text-sm leading-relaxed">El responsable del tratamiento de sus datos personales es {$siteName}, con contacto formal en {$contactEmail}.</p>
+        <h2 class="text-xl font-bold text-slate-900">1. Responsable del tratamiento</h2>
+        <p class="text-sm leading-relaxed">El responsable del tratamiento de tus datos personales es {$siteName}. Contacto: {$contactEmail}.</p>
     </section>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">2. Finalidad del Tratamiento</h2>
-        <p class="text-sm leading-relaxed">Los datos recopilados (nombres, teléfonos, dirección y datos de la mascota) se utilizan exclusivamente para la gestión de reservas, atención médica canina, coordinación de movilidad y envío de reportes de estadía.</p>
+        <h2 class="text-xl font-bold text-slate-900">2. Datos que tratamos y finalidad</h2>
+        <p class="text-sm leading-relaxed">Tratamos solo los datos que nos das (por ejemplo, nombre, correo, teléfono y los necesarios para prestar el servicio) para atender tus solicitudes, prestar y mejorar el servicio, emitir comprobantes y cumplir obligaciones legales. No vendemos tus datos.</p>
     </section>
 
     <section class="space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">3. Ejercicio de Derechos ARCO</h2>
-        <p class="text-sm leading-relaxed">El titular podrá ejercer en todo momento sus derechos de Acceso, Rectificación, Cancelación y Oposición remitiendo una solicitud a {$contactEmail}.</p>
+        <h2 class="text-xl font-bold text-slate-900">3. Conservación y seguridad</h2>
+        <p class="text-sm leading-relaxed">Conservamos los datos el tiempo necesario para la finalidad indicada o el que exija la ley, con medidas de seguridad técnicas y organizativas razonables.</p>
+    </section>
+
+    <section class="space-y-3">
+        <h2 class="text-xl font-bold text-slate-900">4. Tus derechos</h2>
+        <p class="text-sm leading-relaxed">Puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición (y los demás que reconozca la ley) escribiendo a {$contactEmail}. Normativa de referencia:</p>
+        <ul class="text-sm list-disc pl-5">{$regsList}
+        </ul>
     </section>
 </main>
 HTML;
-        } elseif ($docType === 'consentimiento') {
-            $filename = 'consentimiento-snippet.html';
+        } else {
             $generated = <<<HTML
-<!-- Snippet: Checkbox de Consentimiento Informado para Formularios -->
+<!-- Snippet: casilla de consentimiento informado para formularios — {$siteName} ({$country} {$flag}) -->
 <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700 space-y-2 text-xs">
     <label class="flex items-start gap-2.5 cursor-pointer text-slate-200">
         <input type="checkbox" name="legal_consent" required class="w-4 h-4 mt-0.5 accent-indigo-600 rounded">
         <span class="leading-relaxed">
-            He leído y acepto los <a href="terminos.php" target="_blank" class="text-indigo-400 underline font-semibold">Términos de Servicio</a> y la 
-            <a href="privacidad.php" target="_blank" class="text-indigo-400 underline font-semibold">Política de Privacidad</a> conforme a la ley de {$juris['country_name']} {$juris['flag']}. Autorizo el contacto vía WhatsApp para la coordinación del hospedaje.
+            He leído y acepto los <a href="terminos.php" target="_blank" rel="noopener" class="text-indigo-400 underline font-semibold">Términos y Condiciones</a> y la
+            <a href="privacidad.php" target="_blank" rel="noopener" class="text-indigo-400 underline font-semibold">Política de Privacidad</a>, y autorizo el tratamiento de mis datos para las finalidades indicadas, conforme a la ley de {$country}.
         </span>
     </label>
 </div>
@@ -563,19 +593,33 @@ HTML;
         }
 
         $saved = false;
-        if ($saveToWorkspace && is_dir($ws)) {
+        $savedPath = null;
+        if ($saveToWorkspace) {
+            if (!is_dir($ws) || !is_writable($ws)) {
+                Bootstrap::fail("No puedo escribir en la carpeta del proyecto: {$ws}", 422, ['content' => $generated, 'filename' => $filename]);
+            }
+            // Nunca se sobrescribe un archivo existente del proyecto: si ya existe, se guarda con otro nombre
             $destPath = rtrim($ws, '\\/') . DIRECTORY_SEPARATOR . $filename;
-            file_put_contents($destPath, $generated);
+            if (file_exists($destPath)) {
+                $info = pathinfo($filename);
+                $filename = $info['filename'] . '-' . date('Ymd-His') . '.' . $info['extension'];
+                $destPath = rtrim($ws, '\\/') . DIRECTORY_SEPARATOR . $filename;
+            }
+            if (@file_put_contents($destPath, $generated) === false) {
+                Bootstrap::fail("No se pudo guardar {$filename} en {$ws}", 500, ['content' => $generated]);
+            }
             $saved = true;
+            $savedPath = $destPath;
         }
 
         Bootstrap::jsonResponse([
-            'success'   => true,
-            'doc_type'  => $docType,
-            'filename'  => $filename,
-            'saved'     => $saved,
-            'workspace' => $ws,
-            'content'   => $generated
+            'success'    => true,
+            'doc_type'   => $docType,
+            'filename'   => $filename,
+            'saved'      => $saved,
+            'saved_path' => $savedPath,
+            'workspace'  => $ws,
+            'content'    => $generated
         ]);
     }
 }

@@ -74,8 +74,8 @@ class ProjectController
 
             // Crear Sprint 1 inicial para este proyecto
             $sprintStmt = $pdo->prepare(
-                "INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status)
-                 VALUES (?, ?, 1, ?, ?, 10, 20, 'active')"
+                "INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status, ends_at)
+                 VALUES (?, ?, 1, ?, ?, 10, 20, 'active', datetime('now', '+10 days'))"
             );
             $sprintId = "SPRINT-{$id}-01";
             $sprintStmt->execute([
@@ -116,6 +116,7 @@ class ProjectController
         });
 
         $this->repo->setSetting('active_workspace', $project['path']);
+        $project['active'] = 1; // la fila se leyó antes del cambio
 
         Bootstrap::jsonResponse([
             'success' => true,
@@ -244,8 +245,8 @@ class ProjectController
 
             // Crear Sprint 1
             $sprintStmt = $pdo->prepare(
-                "INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status)
-                 VALUES (?, ?, 1, ?, ?, 10, 20, 'active')"
+                "INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status, ends_at)
+                 VALUES (?, ?, 1, ?, ?, 10, 20, 'active', datetime('now', '+10 days'))"
             );
             $sprintId = "SPRINT-{$id}-01";
             $sprintStmt->execute([

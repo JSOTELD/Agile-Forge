@@ -5,7 +5,7 @@
  * jurisdicción, carpeta de trabajo, Motor IA y claves de API.
  */
 
-import { appData, apiFetch, escapeHtml } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg } from './state.js';
 import { showToast, switchMainTab } from './ui.js';
 import { getLanguage } from './i18n.js';
 
@@ -444,10 +444,10 @@ export function renderApiKeys() {
                 <input type="password" id="api-key-input-${escapeHtml(p.id)}" autocomplete="off" spellcheck="false"
                     placeholder="${p.api_key_configured ? (en ? 'Paste a new key to replace it' : 'Pega una clave nueva para reemplazarla') : (en ? 'Paste your key here (' : 'Pega aquí tu clave (') + escapeHtml(p.env_key) + ')'}"
                     class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-[11px] outline-none focus:border-purple-500">
-                <button type="button" onclick="saveApiKey('${escapeHtml(p.id)}')" class="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px]">${en ? 'Save' : 'Guardar'}</button>
+                <button type="button" onclick="saveApiKey(${jsArg(p.id)})" class="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px]">${en ? 'Save' : 'Guardar'}</button>
                 ${p.api_key_configured ? `
-                    <button type="button" onclick="testApiProvider('${escapeHtml(p.id)}')" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px]">${en ? 'Test' : 'Probar'}</button>
-                    <button type="button" onclick="removeApiKey('${escapeHtml(p.id)}')" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 text-[11px]" title="Quitar clave">✕</button>` : ''}
+                    <button type="button" onclick="testApiProvider(${jsArg(p.id)})" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px]">${en ? 'Test' : 'Probar'}</button>
+                    <button type="button" onclick="removeApiKey(${jsArg(p.id)})" class="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 text-[11px]" title="Quitar clave">✕</button>` : ''}
             </div>
             ${p.id === 'anthropic' ? `
                 <div class="flex gap-1.5 items-center">
