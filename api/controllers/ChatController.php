@@ -67,8 +67,17 @@ class ChatController
         $this->insert($userMsg, null, null);
 
         if (!empty($input['stream'])) {
-            $this->streamMessage($userMsg, $agent, $targetRole, $queryText);
-            return;
+            $canStream = true;
+            if ($targetRole === DirectorService::ROLE_ID) {
+                $dirEngine = $this->engines->resolveForRole($agent);
+                if (!$dirEngine['ready']) {
+                    $canStream = false;
+                }
+            }
+            if ($canStream) {
+                $this->streamMessage($userMsg, $agent, $targetRole, $queryText);
+                return;
+            }
         }
 
         $meta = [];
@@ -167,7 +176,7 @@ class ChatController
         header('Connection: keep-alive');
 
         while (@ob_end_flush());
-        @ob_implicit_flush(1);
+        @ob_implicit_flush(true);
 
         $sendEvent = static function (string $event, array $data): void {
             echo "event: {$event}\n";
@@ -227,11 +236,9 @@ class ChatController
             }
         }
 
-        // Emitir el texto en chunks vía SSE
-        $chunks = preg_split('/(?<=[ \n\.\,\!\?])/u', $replyText, -1, PREG_SPLIT_NO_EMPTY) ?: [$replyText];
-        foreach ($chunks as $chunk) {
-            $sendEvent('delta', ['text' => $chunk]);
-            usleep(15000);
+        // Emitir el texto vía SSE sin retardos artificiales
+        if ($replyText !== '') {
+            $sendEvent('delta', ['text' => $replyText]);
         }
 
         $agentMsg = [

@@ -96,7 +96,7 @@ export async function handleSendChat(e) {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-        const canStream = !!(engine.ready || targetRole === 'director');
+        const canStream = !!(engine.ready);
         const res = await apiFetch('api/tasks.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -120,6 +120,7 @@ export async function handleSendChat(e) {
             }
 
             let buffer = '';
+            let currentEvent = '';
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -128,13 +129,24 @@ export async function handleSendChat(e) {
                 buffer = lines.pop() || '';
 
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
+                    if (line.startsWith('event: ')) {
+                        currentEvent = line.slice(7).trim();
+                    } else if (line.startsWith('data: ')) {
                         try {
                             const payload = JSON.parse(line.slice(6));
                             if (payload.text) {
                                 accumulatedText += payload.text;
                                 if (bubbleEl) bubbleEl.textContent = accumulatedText;
                                 container.scrollTop = container.scrollHeight;
+                            }
+                            if (currentEvent === 'done' || payload.error !== undefined || payload.success === false) {
+                                if (payload.success === false || payload.error) {
+                                    if (isPluginMode()) {
+                                        showToast(t('plugin_mode_title'), t('plugin_mode_msg'), 'info', 7000);
+                                    } else {
+                                        showToast('El agente no pudo responder', payload.error || 'No se pudo enviar la consulta', 'error', 6000);
+                                    }
+                                }
                             }
                         } catch (e) {}
                     }
