@@ -89,7 +89,8 @@ class MeetingController
 
         $givenId = !empty($input['id']) && preg_match('/^[A-Za-z0-9_-]{2,40}$/', (string)$input['id']) ? trim((string)$input['id']) : null;
         $title = trim((string)($input['title'] ?? "Reunión: {$topic}"));
-        $participants = is_array($input['participants'] ?? null) ? $input['participants'] : ['project_manager', 'lead_architect'];
+        $participants = is_array($input['participants'] ?? null) ? $input['participants']
+            : array_values(array_unique(array_filter([$this->board->roleWith('can_facilitate_sprint', 'project_manager'), $this->board->roleWith('can_record_adr', 'lead_architect')])));
 
         $partIds = self::participantIds($participants);
         if (empty($partIds)) {
@@ -447,7 +448,8 @@ class MeetingController
     {
         $moderator = null;
         $engine = null;
-        foreach (['director', 'project_manager'] as $rid) {
+        // Modera quien orquesta; si no tiene motor, quien facilita el sprint
+        foreach (array_unique(array_filter([$this->board->orchestratorRole(), $this->board->roleWith('can_facilitate_sprint', 'project_manager')])) as $rid) {
             $r = $this->board->role($rid);
             if (!$r) {
                 continue;
@@ -471,7 +473,8 @@ class MeetingController
                 : 'No hay un motor de IA disponible para que el Director sintetice la reunión.';
             $resolution = 'Sin resolución: configura una clave de API en Motor IA o activa la IA local y vuelve a convocarla.';
         } else {
-            $roles = array_values(array_filter($this->board->roleIds(), fn($r) => $r !== 'director'));
+            // Los acuerdos solo se asignan a roles que pueden tomar historias
+            $roles = $this->board->registry()->allWith('can_claim_tasks', $this->board->roleIds()) ?: [$this->board->defaultAssignee()];
             $discussion = "TEMA: {$meeting['topic']}\n\n";
             foreach ($valid as $t) {
                 $discussion .= "— {$t['name']} ({$t['role_id']}): " . mb_substr((string)$t['statement'], 0, 1500) . "\n\n";
@@ -494,7 +497,7 @@ class MeetingController
                         }
                         $items[] = [
                             'title'        => $title,
-                            'assigned_to'  => $this->board->matchRoleId((string)($a['assigned_to'] ?? '')) ?? 'project_manager',
+                            'assigned_to'  => $this->board->matchRoleId((string)($a['assigned_to'] ?? '')) ?? $this->board->defaultAssignee(),
                             'story_points' => in_array((int)($a['story_points'] ?? 3), BoardService::FIBONACCI, true) ? (int)$a['story_points'] : 3,
                             'priority'     => in_array($a['priority'] ?? '', BoardService::PRIORITIES, true) ? $a['priority'] : 'media',
                             'user_story'   => trim((string)($a['user_story'] ?? '')),
@@ -573,18 +576,19 @@ class MeetingController
         $reassignedRoles = [];
         $projectId = !empty($meeting['project_id']) ? $meeting['project_id'] : $this->board->activeProjectId();
 
-        Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks, &$reassignedRoles) {
+        $fallbackRole = $this->board->defaultAssignee();
+        Database::transaction(function (PDO $pdo) use ($meeting, $projectId, $actionItems, &$createdTasks, &$reassignedRoles, $fallbackRole) {
             foreach ($actionItems as $idx => $item) {
                 $rawRole = trim((string)($item['assigned_to'] ?? ''));
                 $matched = $this->board->matchRoleId($rawRole);
-                $assignedTo = $matched ?? 'project_manager';
+                $assignedTo = $matched ?? $fallbackRole;
                 $wasReassigned = ($matched === null && $rawRole !== '');
                 if ($wasReassigned) {
                     $reassignedRoles[] = [
                         'index'         => $idx,
                         'original_role' => $rawRole,
-                        'assigned_to'   => 'project_manager',
-                        'note'          => "Rol '{$rawRole}' no válido en acuerdos históricos, reasignado a project_manager",
+                        'assigned_to'   => $fallbackRole,
+                        'note'          => "Rol '{$rawRole}' no válido en acuerdos históricos, reasignado a {$fallbackRole}",
                     ];
                 }
 
