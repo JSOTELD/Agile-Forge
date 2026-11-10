@@ -7,6 +7,7 @@
 
 | 📖 Guía | English | Español |
 |---|---|---|
+| Guía de instalación | [INSTALL.md](INSTALL.md) | [INSTALL.es.md](INSTALL.es.md) |
 | Manual para novatos | [BEGINNERS_GUIDE.md](BEGINNERS_GUIDE.md) | [MANUAL_NOVATOS.md](MANUAL_NOVATOS.md) |
 | Claves de API (Claude, Gemini, OpenAI, DeepSeek) | [docs/API_KEYS.md](docs/API_KEYS.md) | [docs/API_KEYS.es.md](docs/API_KEYS.es.md) |
 | Conectar Claude Code, Cursor, Codex, Gemini | [adapters/README.md](adapters/README.md) | [adapters/README.es.md](adapters/README.es.md) |
@@ -49,6 +50,12 @@ graph TD
 ---
 
 ## ⚡ Instalación
+
+### 🤖 Instalación Asistida por IA
+Copia y pega este mensaje en tu asistente (Claude Code, Cursor, Codex o Gemini):
+> "Configura el entorno de desarrollo de AgileForge siguiendo estrictamente la guía `INSTALL.md`. Ejecuta la instalación, corre el diagnóstico con `npm run doctor` y confírmame cuando el servidor y el MCP estén listos para operar."
+
+Consulta [INSTALL.es.md](INSTALL.es.md) (o [INSTALL.md](INSTALL.md)) para la guía canónica de instalación unificada.
 
 ### 1. Clona el repositorio
 ```bash

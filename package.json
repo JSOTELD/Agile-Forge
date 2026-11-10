@@ -1,0 +1,16 @@
+{
+  "name": "agileforge",
+  "version": "2.2.0",
+  "description": "Multi-agent engineering team workspace and Model Context Protocol (MCP) server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "setup": "node bin/setup.mjs",
+    "doctor": "node bin/doctor.mjs",
+    "test": "node tests/run.mjs",
+    "start": "node bin/start.mjs"
+  }
+}
