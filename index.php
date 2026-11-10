@@ -944,6 +944,10 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
             outline: 2px solid #818cf8;
             outline-offset: 2px;
         }
+            /* Modales: si el contenido es más alto que la ventana, se desplaza
+           (antes quedaba cortado arriba y abajo, sin forma de llegar a los botones). */
+        .fixed[id$="-modal"] { overflow-y: auto; overscroll-behavior: contain; }
+        .fixed[id$="-modal"].items-center > * { margin-top: auto; margin-bottom: auto; flex-shrink: 0; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
