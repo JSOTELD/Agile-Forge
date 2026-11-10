@@ -80,22 +80,21 @@ Access the panel in your browser at:
 
 AgileForge provides two official Claude Code plugins via its self-contained marketplace:
 
-### AgileForge Control (Full multi-agent team & MCP tools)
-```bash
-# From GitHub marketplace
-claude plugin install agileforge
-
-# Or for local development from the repository root:
-claude plugin dev ./plugin/agileforge
+### Inside Claude Code:
+Add the marketplace:
+```text
+/plugin marketplace add JSOTELD/agile-forge
+```
+Install either Control or View:
+```text
+/plugin install agileforge@agileforge          # Control (full team)
+/plugin install agileforge-vista@agileforge    # View (read-only observer, instead of Control)
 ```
 
-### AgileForge View (Read-only observer)
+### Local development (without installing):
+Launch Claude Code directly loading the plugin directory:
 ```bash
-# From GitHub marketplace
-claude plugin install agileforge-vista
-
-# Or for local development:
-claude plugin dev ./plugin/agileforge-vista
+claude --plugin-dir ./plugin/agileforge
 ```
 
 ---
@@ -142,3 +141,4 @@ AGILEFORGE_PORT=8085 npm start
 
 ### Database Permissions / SQLite Locks
 AgileForge operates in WAL mode with active busy timeouts. Ensure the `data/` folder and `data/agileforge.sqlite` have read and write permissions for the user running the process.
+

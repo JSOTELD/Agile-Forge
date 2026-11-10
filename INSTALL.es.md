@@ -76,26 +76,25 @@ Abre tu navegador en:
 
 ---
 
-## 5. Instalar el Plugin en Claude Code
+## 5. Instalar o Usar el Plugin en Claude Code
 
 AgileForge distribuye dos plugins oficiales a través de su marketplace integrado:
 
-### AgileForge Control (Equipo completo de agentes y herramientas MCP de control)
-```bash
-# Desde el marketplace oficial
-claude plugin install agileforge
-
-# O para desarrollo local desde la raíz del repositorio:
-claude plugin dev ./plugin/agileforge
+### Dentro de Claude Code:
+Agrega el marketplace:
+```text
+/plugin marketplace add JSOTELD/agile-forge
+```
+Instala el de Control o el de Vista:
+```text
+/plugin install agileforge@agileforge          # Control (equipo completo)
+/plugin install agileforge-vista@agileforge    # Vista (solo lectura, en lugar del de control)
 ```
 
-### AgileForge Vista (Observador de solo lectura)
+### Desarrollo local (sin instalar):
+Inicia Claude Code cargando directamente la carpeta del plugin:
 ```bash
-# Desde el marketplace oficial
-claude plugin install agileforge-vista
-
-# O para desarrollo local:
-claude plugin dev ./plugin/agileforge-vista
+claude --plugin-dir ./plugin/agileforge
 ```
 
 ---
@@ -142,3 +141,4 @@ AGILEFORGE_PORT=8085 npm start
 
 ### Permisos de SQLite o Bloqueos
 AgileForge opera bajo modo WAL con timeout de contención configurado. Asegúrate de que la carpeta `data/` y el archivo `data/agileforge.sqlite` cuenten con permisos de lectura y escritura para el usuario que ejecuta el proceso.
+

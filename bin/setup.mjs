@@ -161,30 +161,50 @@ for (const sub of ['data', 'data/backup', 'data/logs']) {
   }
 }
 
-// 5. Dependencias y compilación de mcp-server
+// 5. Dependencias y compilación de mcp-server (con validación de errores estricta)
 const mcpDir = path.join(ROOT, 'mcp-server');
 if (fs.existsSync(mcpDir)) {
   const nodeModulesDir = path.join(mcpDir, 'node_modules');
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  
+
+  function runNpm(args) {
+    let file = 'npm';
+    let cmdArgs = args;
+    if (process.platform === 'win32') {
+      file = 'cmd.exe';
+      cmdArgs = ['/d', '/s', '/c', 'npm', ...args];
+    }
+    const res = spawnSync(file, cmdArgs, { cwd: mcpDir, stdio: 'inherit' });
+    if (res.error) {
+      console.error(`✗ Error al ejecutar npm ${args.join(' ')} en mcp-server: ${res.error.message}`);
+      process.exit(1);
+    }
+    if (res.status !== 0) {
+      console.error(`✗ El comando 'npm ${args.join(' ')}' en mcp-server falló con código ${res.status}`);
+      process.exit(1);
+    }
+    return res;
+  }
+
   if (!fs.existsSync(nodeModulesDir)) {
-    console.log('[*] Instalando dependencias de mcp-server...');
-    const ci = spawnSync(npmCmd, ['ci'], { cwd: mcpDir, stdio: 'inherit' });
-    if (ci.status !== 0) {
-      // Fallback a npm install si npm ci falla
-      spawnSync(npmCmd, ['install'], { cwd: mcpDir, stdio: 'inherit' });
+    console.log('[*] Instalando dependencias en mcp-server...');
+    let file = 'npm';
+    let ciArgs = ['ci'];
+    if (process.platform === 'win32') {
+      file = 'cmd.exe';
+      ciArgs = ['/d', '/s', '/c', 'npm', 'ci'];
+    }
+    let res = spawnSync(file, ciArgs, { cwd: mcpDir, stdio: 'inherit' });
+    if (res.error || res.status !== 0) {
+      console.log('[*] npm ci falló, intentando npm install...');
+      runNpm(['install']);
     }
   }
 
-  // Verificar si los bundles existen; si faltan, construirlos
-  const bundle1 = path.join(ROOT, 'plugin', 'agileforge', 'server', 'agileforge-mcp.mjs');
-  const bundle2 = path.join(ROOT, 'plugin', 'agileforge-vista', 'server', 'agileforge-vista-mcp.mjs');
-  const dist = path.join(mcpDir, 'dist', 'index.js');
-  if (!fs.existsSync(bundle1) || !fs.existsSync(bundle2) || !fs.existsSync(dist)) {
-    console.log('[*] Compilando TypeScript y generando bundles de plugin...');
-    spawnSync(npmCmd, ['run', 'build'], { cwd: mcpDir, stdio: 'inherit' });
-    spawnSync(npmCmd, ['run', 'bundle'], { cwd: mcpDir, stdio: 'inherit' });
-  }
+  console.log('[*] Compilando TypeScript en mcp-server...');
+  runNpm(['run', 'build']);
+
+  console.log('[*] Generando bundles MCP de plugins...');
+  runNpm(['run', 'bundle']);
 }
 
 // 6. Inicializar esquema de SQLite (aditivo, nunca --force)
@@ -212,7 +232,12 @@ console.log('  2. Iniciar el panel web:');
 console.log('     npm start');
 console.log('     (Acceso local en http://127.0.0.1:8080)');
 console.log('');
-console.log('  3. Instalar el plugin en Claude Code:');
-console.log('     claude plugin install agileforge');
-console.log('     (O para desarrollo local: claude plugin dev ./plugin/agileforge)');
+console.log('  3. Instalar o usar el plugin en Claude Code:');
+console.log('     Dentro de Claude Code:');
+console.log('       /plugin marketplace add JSOTELD/agile-forge');
+console.log('       /plugin install agileforge@agileforge          (control)');
+console.log('       /plugin install agileforge-vista@agileforge    (solo lectura)');
+console.log('');
+console.log('     Desarrollo local, sin instalar:');
+console.log('       claude --plugin-dir ./plugin/agileforge');
 console.log('========================================================================\n');
