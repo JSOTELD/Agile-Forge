@@ -1,6 +1,7 @@
 ---
 name: ui-ux-pro-max
 title: "UI/UX Pro Max"
+description: "Aplica diseño mobile-first, tap targets >=44px y feedback visual inmediato. Úsala al construir interfaces profesionales, modales y flujos de usuario clave."
 category: design
 level: Principal
 status: active

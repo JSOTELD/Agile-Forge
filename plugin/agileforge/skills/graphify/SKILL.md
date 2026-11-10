@@ -1,6 +1,7 @@
 ---
 name: graphify
 title: "Graphify Dependency Mapper"
+description: "Mapea grafos de dependencias y previene referencias circulares. Úsala antes de modificar o desacoplar módulos para predecir el impacto del cambio."
 category: engineering
 level: Principal
 status: active

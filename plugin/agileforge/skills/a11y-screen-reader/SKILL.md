@@ -1,6 +1,7 @@
 ---
 name: a11y-screen-reader
 title: "Screen Reader & ARIA Specialist"
+description: "Optimiza atributos ARIA, navegación por voz y compatibilidad con lectores de pantalla. Úsala al construir o revisar modales, botones y formularios interactivos."
 category: design
 level: Principal
 status: draft

@@ -89,3 +89,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
   - Sprint budget numeric range validation (0 to 100,000 USD).
   - Fixed `apiFetch` call signatures using `postAction()` in memory and cost modals.
   - Fixed column mapping (`content_text` and `importance_score`) in `RoleController::getBrief`.
+

@@ -1,6 +1,7 @@
 ---
 name: hallmark
 title: "Hallmark Brand Experience"
+description: "Define tono de voz, microcopy e identidad visual de marca coherente. Úsala al redactar textos de sistema, mensajes de error y pulir la personalidad del producto."
 category: product
 level: Principal
 status: active

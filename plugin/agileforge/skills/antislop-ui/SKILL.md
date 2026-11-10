@@ -1,6 +1,7 @@
 ---
 name: antislop-ui
 title: "Anti-Slop UI Refiner"
+description: "Erradica divs redundantes, wrappers innecesarios y estilos sobrecargados. Úsala al limpiar el DOM y simplificar componentes visuales generados por IA."
 category: design
 level: Principal
 status: active

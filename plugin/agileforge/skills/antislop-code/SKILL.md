@@ -1,6 +1,7 @@
 ---
 name: antislop-code
 title: "Anti-Slop Clean Code Refiner"
+description: "Elimina código muerto, redundancias y refuerza tipado estricto. Úsala al refactorizar o limpiar código PHP y TypeScript antes de enviar a revisión."
 category: engineering
 level: Principal
 status: active
