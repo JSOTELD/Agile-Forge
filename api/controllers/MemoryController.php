@@ -26,6 +26,12 @@ class MemoryController
             ? (string)$query['project']
             : (isset($query['project_id']) && $query['project_id'] !== '' ? (string)$query['project_id'] : null);
 
+        // Sin project -> proyecto ACTIVO
+        if ($projectId === null || $projectId === '') {
+            $active = $this->repo->getActiveProject();
+            $projectId = (string)($active['id'] ?? 'default');
+        }
+
         $roleId = isset($query['role']) && $query['role'] !== ''
             ? (string)$query['role']
             : (isset($query['role_id']) && $query['role_id'] !== '' ? (string)$query['role_id'] : null);
@@ -75,7 +81,7 @@ class MemoryController
 
     public function toggle(string $id, array $input = []): void
     {
-        $active = array_key_exists('is_active', $input) ? (bool)$input['is_active'] : null;
+        $active = array_key_exists('is_active', $input) ? $input['is_active'] : null;
         $mem = $this->repo->toggleMemory($id, $active);
         if (!$mem) {
             Bootstrap::fail('Nodo de memoria no encontrado', 404);

@@ -1120,10 +1120,11 @@ class Repository
         $clauses = [];
         $params = [];
 
-        if ($projectId !== null && $projectId !== '') {
-            $clauses[] = 'project_id = ?';
-            $params[] = $projectId;
-        }
+        // Si no se especifica proyecto, usar siempre el proyecto activo
+        $pid = ($projectId !== null && $projectId !== '') ? $projectId : ($this->getActiveProject()['id'] ?? 'default');
+        $clauses[] = 'project_id = ?';
+        $params[] = $pid;
+
         if ($roleId !== null && $roleId !== '') {
             $clauses[] = '(role_id = ? OR role_id = \'all\')';
             $params[] = $roleId;
@@ -1166,11 +1167,28 @@ class Repository
             $id = 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
         }
 
-        $projectId = trim((string)($data['project_id'] ?? 'default'));
-        if ($projectId === '') $projectId = 'default';
+        // Sin project_id usa el proyecto activo
+        $projectId = trim((string)($data['project_id'] ?? ''));
+        if ($projectId === '') {
+            $active = $this->getActiveProject();
+            $projectId = (string)($active['id'] ?? 'default');
+        }
 
+        // Valida que el proyecto exista
+        if (!$this->projectExists($projectId)) {
+            throw new \InvalidArgumentException("El proyecto '{$projectId}' no existe");
+        }
+
+        // Valida que el rol exista o sea 'all'
         $roleId = trim((string)($data['role_id'] ?? 'all'));
         if ($roleId === '') $roleId = 'all';
+        if ($roleId !== 'all') {
+            $stmtRole = $this->db->prepare("SELECT COUNT(*) FROM roles WHERE id = ?");
+            $stmtRole->execute([$roleId]);
+            if ((int)$stmtRole->fetchColumn() === 0) {
+                throw new \InvalidArgumentException("El rol '{$roleId}' no existe");
+            }
+        }
 
         $validTypes = ['progress', 'decision', 'learning', 'scratchpad', 'domain'];
         $nodeType = trim((string)($data['node_type'] ?? 'progress'));
@@ -1178,18 +1196,31 @@ class Repository
             $nodeType = 'progress';
         }
 
+        // Límites: título ≤ 200 caracteres, contenido ≤ 4000
         $title = trim((string)($data['title'] ?? ''));
         if ($title === '') {
             throw new \InvalidArgumentException('El título de la memoria es obligatorio.');
+        }
+        if (mb_strlen($title) > 200) {
+            throw new \InvalidArgumentException('El título no puede superar los 200 caracteres.');
         }
 
         $contentText = trim((string)($data['content_text'] ?? $data['content'] ?? ''));
         if ($contentText === '') {
             throw new \InvalidArgumentException('El contenido de la memoria es obligatorio.');
         }
+        if (mb_strlen($contentText) > 4000) {
+            throw new \InvalidArgumentException('El contenido no puede superar los 4000 caracteres.');
+        }
 
         $importance = isset($data['importance_score']) ? max(1, min(10, (int)$data['importance_score'])) : (isset($data['importance']) ? max(1, min(10, (int)$data['importance'])) : 5);
-        $isActive = array_key_exists('is_active', $data) ? ($data['is_active'] ? 1 : 0) : 1;
+
+        // is_active con filter_var(FILTER_VALIDATE_BOOLEAN)
+        $isActive = 1;
+        if (array_key_exists('is_active', $data)) {
+            $b = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $isActive = ($b === null) ? (!empty($data['is_active']) ? 1 : 0) : ($b ? 1 : 0);
+        }
 
         $stmt = $this->db->prepare(
             "INSERT INTO agent_memories (id, project_id, role_id, node_type, title, content_text, importance_score, is_active, updated_at)
@@ -1209,13 +1240,18 @@ class Repository
         return $this->getMemory($id);
     }
 
-    public function toggleMemory(string $id, ?bool $active = null): ?array
+    public function toggleMemory(string $id, mixed $active = null): ?array
     {
         $existing = $this->getMemory($id);
         if (!$existing) {
             return null;
         }
-        $newActive = $active !== null ? ($active ? 1 : 0) : ($existing['is_active'] ? 0 : 1);
+        if ($active !== null) {
+            $b = filter_var($active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $newActive = ($b === null) ? (!empty($active) ? 1 : 0) : ($b ? 1 : 0);
+        } else {
+            $newActive = $existing['is_active'] ? 0 : 1;
+        }
         $stmt = $this->db->prepare("UPDATE agent_memories SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
         $stmt->execute([$newActive, $id]);
         return $this->getMemory($id);
