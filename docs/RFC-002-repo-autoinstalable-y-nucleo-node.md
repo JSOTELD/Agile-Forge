@@ -251,15 +251,12 @@ stateDiagram-v2
 
 ---
 
-## 6. Selección de Framework Web: Fastify vs `node:http`
+## 6. Selección de Servidor Web: `node:http`
 
-### Comparativa Técnica
-- **Fastify:** Proporciona un ecosistema maduro de plugins para servir estáticos (`@fastify/static`), validación de esquemas JSON ultra-rápida, manejo ergonómico de rutas y soporte nativo para Server-Sent Events (SSE). Su sobrecarga es de escasos kilobytes en `node_modules` y aporta tipado TypeScript de primer nivel.
-- **`node:http` Nativo:** Ventaja de cero dependencias externas y arranque mínimo. Desventajas: requiere implementar manualmente el enrutador REST, el parseo de URLs, el manejo de multipart/body, el MIME-type sniffing para estáticos y el control de streaming SSE, elevando la superficie de errores de bajo nivel.
-
-> [!NOTE]
-> **Pregunta Abierta para David:**
-> ¿Se aprueba la adopción de Fastify como dependencia mínima de producción para la capa HTTP/SSE del panel web local, o se prefiere la implementación artesanal con `node:http` nativo para mantener cero dependencias en runtime?
+> [!IMPORTANT]
+> **Decidido: `node:http` (David, 2026-11-10)**
+> Se adopta el módulo nativo `node:http` sin frameworks externos (sin Fastify).
+> **Motivo:** Cero dependencias en runtime, uso local y operación de un solo desarrollador. El servidor web ligero servirá los estáticos y los endpoints REST/SSE mediante módulos estándar de Node.js.
 
 ---
 
@@ -290,8 +287,8 @@ El flujo secuencial de desarrollo acordado para garantizar estabilidad continua 
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ 5. Núcleo Node.js v3 (Node 22.13+, node:sqlite, servidor HTTP          │
-│    (Fastify o node:http, según decida David), MCP directo)             │
+│ 5. Núcleo Node.js v3 (Node 22.13+, node:sqlite, servidor node:http,    │
+│    MCP directo a BD)                                                   │
 │    Port completo del backend con interruptor AGILEFORGE_BACKEND.       │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
