@@ -1,6 +1,6 @@
 # RFC-002: Repositorio Autoinstalable y Migración del Núcleo a Node.js
 
-- **Estado:** En revisión
+- **Estado:** Aprobado por David (2026-11-10)
 - **Fecha:** 2026-11-09
 - **Autores:** David & Equipo de Arquitectura AgileForge
 - **Referencia:** ADR-001, ADR-002, ADR-004, RFC-001

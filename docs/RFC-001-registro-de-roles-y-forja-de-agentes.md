@@ -1,6 +1,6 @@
 # RFC-001: Registro de Roles en Archivos y Forja de Agentes
 
-- **Estado:** En revisión
+- **Estado:** Aprobado por David (2026-11-10)
 - **Fecha:** 2026-11-09
 - **Autores:** David & Equipo de Arquitectura AgileForge
 - **Referencia:** ADR-003, ADR-004, ADR-005, RFC-002
