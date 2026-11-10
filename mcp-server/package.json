@@ -1,6 +1,6 @@
 {
   "name": "agileforge-mcp-server",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Servidor MCP oficial de AgileForge para Claude Code, Cursor, Codex y Gemini",
   "main": "dist/index.js",
   "type": "module",

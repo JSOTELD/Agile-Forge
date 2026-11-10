@@ -86,9 +86,41 @@ test('MCP de control: crea y lee una historia contra el tablero', async () => {
     const bad = await mcp.call('create_task', { title: 'Puntos inválidos', story_points: 4 });
     assert.equal(bad.isError, true);
 
-    // Un cliente MCP no puede dar por completada una historia
+    // Un cliente MCP no puede dar por completada una historia directamente
     const done = await mcp.call('update_task_status', { task_id: t.id, status: 'completada' });
     assert.equal(done.isError, true, 'el MCP completó una historia sin pasar por QA ni por la web');
+
+    // Flujo MCP: claim -> submit_for_review -> espera min review -> review_task approve con verification
+    await mcp.call('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+    const sub = await mcp.call('submit_for_review', {
+      task_id: t.id,
+      role_key: 'backend_architect',
+      files_changed: [path.join(ROOT, 'api', 'Repository.php')],
+      tests_run: ['npm test: 26 passed'],
+      summary: 'Entrega formal de la historia con pruebas de contrato ejecutadas',
+    });
+    assert.equal(sub.isError, false, sub.text);
+
+    // Esperar tiempo mínimo de revisión configurado en test (2s)
+    await new Promise((r) => setTimeout(r, 2100));
+
+    // QA aprueba vía MCP con bloque verification
+    const rev = await mcp.call('review_task', {
+      task_id: t.id,
+      decision: 'approve',
+      checklist: ['DoD verificada', 'Pruebas verdes'],
+      reviewer_role: 'qa_security_guard',
+      verification: {
+        commands_run: ['npm test'],
+        notes: 'Verificación técnica aprobada en el entorno de pruebas sin fallos.',
+      },
+    });
+    assert.equal(rev.isError, false, rev.text);
+    assert.ok(rev.text.includes('"revision"'));
+
+    // Con firma humana activa, el MCP sigue sin poder completarla directamente
+    const doneAfterQa = await mcp.call('update_task_status', { task_id: t.id, status: 'completada' });
+    assert.equal(doneAfterQa.isError, true, 'el MCP completó una historia directamente con firma humana activa');
   } finally {
     mcp.close();
   }

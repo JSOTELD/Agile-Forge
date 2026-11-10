@@ -8,7 +8,7 @@ import { envWantsView, loadConfig } from './config.js';
 import { registerEngineTools } from './tools/engine.js';
 import { registerReadResources, registerReadTools } from './tools/read.js';
 import { registerWriteTools } from './tools/write.js';
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 // AGILEFORGE_MODE=vista degrada este servidor a solo lectura (usa el token de vista).
 const cfg = loadConfig(envWantsView() ? 'vista' : 'control');
 if (process.argv.includes('--session-brief')) {

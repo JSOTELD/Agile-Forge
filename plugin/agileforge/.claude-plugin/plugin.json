@@ -1,7 +1,7 @@
 {
   "name": "agileforge",
   "displayName": "AgileForge Control",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Equipo ágil de agentes que maneja el tablero AgileForge desde Claude Code. / Agile agent team that runs the AgileForge board from Claude Code.",
   "author": {
     "name": "JSOTELD",

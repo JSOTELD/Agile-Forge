@@ -8,6 +8,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [2.3.0] - 2026-11-10
+
+### Español
+
+#### Añadido
+- **Revisión independiente y firma humana (`human_signoff`):**
+  - Ajuste configurable por proyecto (encendido por defecto) en la tabla `settings` (`{ "default": true, "projects": { "<project_id>": true|false } }`).
+  - Con firma activa, `review_task approve` de QA no pasa la historia a `completada`: permanece en `revision` con la marca `qa_approved` (revisor, fecha, checklist, verificación y duración) dentro de `review_evidence` y registra el evento `qa_approved`. Solo la interfaz web (`client=web`) mediante el botón de firma humana pasa la historia a `completada`.
+  - Con firma inactiva, `review_task approve` de QA completa la historia directamente.
+  - Consolidación de memoria `MEM-TASK` activada únicamente al alcanzar el estado `completada`.
+- **Barreras automáticas de entrega y revisión:**
+  - `submit_for_review`: valida obligatoriamente que `evidence.tests_run` contenga al menos 1 prueba ejecutada y que `summary` tenga un mínimo de 20 caracteres (HTTP 422).
+  - `review_task approve`: exige bloque `verification` con `commands_run` (mínimo 1 comando) y `notes` (mínimo 30 caracteres) (HTTP 422).
+  - Tiempo mínimo de revisión: `review_task approve` rechaza revisiones prematuras si han transcurrido menos de `AGILEFORGE_MIN_REVIEW_SECONDS` (por defecto 60 segundos; configurable vía entorno o `.env`) desde el último evento `submitted_for_review` (HTTP 422).
+  - Medición y registro de `review_duration_seconds` en eventos y evidencia.
+- **Panel Web y UI:**
+  - Insignia destacada "Aprobada por QA · falta tu firma" en las tarjetas de historias aprobadas técnicamente.
+  - Botón de acción rápida "Firmar y Completar" para que el usuario registre la firma humana desde el tablero Kanban.
+  - Insignia "Revisión rápida" si la revisión técnica duró menos de 300 segundos.
+  - Modal e interruptor de gobernanza en los ajustes del proyecto para activar/desactivar la firma humana por proyecto.
+- **Herramientas MCP y Agentes:**
+  - Esquema de `submit_for_review` y `review_task` actualizado en el servidor MCP con tipado estricto en Zod.
+  - Actualización de instrucciones y prompts para `qa-security` y `director`.
+
+### English
+
+#### Added
+- **Independent review & human signoff (`human_signoff`):**
+  - Per-project toggle in `settings` table (`{ "default": true, "projects": { "<project_id>": true|false } }`, enabled by default).
+  - When enabled, QA approval via `review_task approve` keeps the story in `revision` status, records `qa_approved` metadata and event, and awaits human signoff from the web UI (`client=web`).
+  - When disabled, QA approval transitions directly to `completada`.
+  - Task completion memory (`MEM-TASK`) only consolidates upon transition to `completada`.
+- **Automated gates for submission and review:**
+  - `submit_for_review` enforces non-empty `evidence.tests_run` and minimum 20-character `summary` (HTTP 422).
+  - `review_task approve` requires a `verification` block containing at least 1 command in `commands_run` and minimum 30-character `notes` (HTTP 422).
+  - Enforced minimum review duration via `AGILEFORGE_MIN_REVIEW_SECONDS` (default 60s) calculated against the last `submitted_for_review` event (HTTP 422).
+  - Measurement and storage of `review_duration_seconds`.
+- **Web Dashboard & UI:**
+  - Badge "Aprobada por QA · falta tu firma" on Kanban story cards.
+  - One-click "Firmar y Completar" button on QA-approved cards.
+  - "Revisión rápida" badge when technical review completed in under 300 seconds.
+  - Project settings modal with toggle switch for human signoff.
+- **MCP Server & Agents:**
+  - Updated Zod input schemas for `submit_for_review` and `review_task` in MCP server.
+  - Prompt updates for `qa-security` and `director` agents.
+
+---
+
 ## [2.2.0] - 2026-11-09
 
 ### Español

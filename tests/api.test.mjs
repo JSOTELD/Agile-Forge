@@ -8,6 +8,7 @@ const CORE_ROLES = ['director', 'lead_architect', 'backend_architect', 'frontend
 // Ruta ABSOLUTA: la evidencia vale sea cual sea el workspace del proyecto activo
 // (en la PC de un desarrollador la base temporal se siembra con su data/team.json y su propio workspace).
 const EVIDENCE = { files_changed: [path.join(ROOT, 'api', 'Repository.php')], tests_run: ['node tests/run.mjs'], summary: 'Entrega de la prueba de contrato' };
+const VERIFICATION = { commands_run: ['npm test', 'node tests/run.mjs'], notes: 'Verificación exhaustiva de DoD y ejecución de pruebas unitarias sin fallos.' };
 
 test('autenticación: sin token o con token inválido responde 401', async () => {
   assert.equal((await api('GET', 'index.php/state', undefined, null)).status, 401);
@@ -63,14 +64,24 @@ test('revisión: solo qa_security_guard aprueba, y al aprobar queda completada c
   const sub = await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
   assert.equal(sub.status, 200, sub.text.slice(0, 200));
 
-  const notQa = await action('review_task', { task_id: t.id, decision: 'approve', checklist: ['ok'], reviewer_role: 'backend_architect' });
+  const notQa = await action('review_task', { task_id: t.id, decision: 'approve', checklist: ['ok'], reviewer_role: 'backend_architect', verification: VERIFICATION });
   assert.ok(notQa.status >= 400 && notQa.status < 500, `un rol que no es QA aprobó (status ${notQa.status})`);
 
   const invalid = await action('review_task', { task_id: t.id, decision: 'quizas', checklist: [], reviewer_role: 'qa_security_guard' });
   assert.ok(invalid.status >= 400 && invalid.status < 500);
 
-  const ok = await action('review_task', { task_id: t.id, decision: 'approve', checklist: ['DoD verificada'], reviewer_role: 'qa_security_guard' });
+  // Esperar tiempo mínimo de revisión configurado en test (2s)
+  await new Promise((r) => setTimeout(r, 2100));
+
+  const ok = await action('review_task', { task_id: t.id, decision: 'approve', checklist: ['DoD verificada'], reviewer_role: 'qa_security_guard', verification: VERIFICATION });
   assert.equal(ok.status, 200, ok.text.slice(0, 200));
+
+  // Con firma humana por defecto, review_task deja la tarea en revision con qa_approved; el panel web la completa
+  assert.equal(ok.json.status, 'revision');
+  assert.equal(ok.json.qa_approved, true);
+
+  const webDone = await action('update_task_status', { task_id: t.id, status: 'completada', client: 'web' });
+  assert.equal(webDone.status, 200);
 
   const state = await api('GET', 'index.php/state');
   assert.equal(state.json.tasks.find((x) => x.id === t.id).status, 'completada');
@@ -95,7 +106,8 @@ test('revisión: un workspace relativo (".") se resuelve contra la raíz de la a
     const task = await newTask();
     await action('claim_task', { task_id: task.id, role_key: 'backend_architect' });
     await action('submit_for_review', { task_id: task.id, role_key: 'backend_architect', evidence: { ...EVIDENCE, files_changed: [file] } });
-    return action('review_task', { task_id: task.id, decision: 'approve', checklist: ['DoD verificada'], reviewer_role: 'qa_security_guard' });
+    await new Promise((r) => setTimeout(r, 2100));
+    return action('review_task', { task_id: task.id, decision: 'approve', checklist: ['DoD verificada'], reviewer_role: 'qa_security_guard', verification: VERIFICATION });
   };
   const ok = await deliver('api/Repository.php');
   assert.equal(ok.status, 200, ok.text.slice(0, 200));
@@ -169,4 +181,127 @@ test('token de vista: puede leer pero no escribir', async () => {
     await action('update_sprint_budget', { budget_usd: 1 }, VIEW_TOKEN),
   ];
   for (const r of writes) assert.equal(r.status, 403, `el token de vista escribió (status ${r.status})`);
+});
+
+test('barreras de entrega: submit_for_review sin tests_run responde 422', async () => {
+  const t = await newTask();
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  const res = await action('submit_for_review', {
+    task_id: t.id,
+    role_key: 'backend_architect',
+    evidence: { files_changed: EVIDENCE.files_changed, summary: 'Resumen válido de entrega con más de 20 caracteres', tests_run: [] }
+  });
+  assert.equal(res.status, 422);
+});
+
+test('barreras de entrega: submit_for_review con summary corto responde 422', async () => {
+  const t = await newTask();
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  const res = await action('submit_for_review', {
+    task_id: t.id,
+    role_key: 'backend_architect',
+    evidence: { files_changed: EVIDENCE.files_changed, tests_run: ['npm test'], summary: 'Corto' }
+  });
+  assert.equal(res.status, 422);
+});
+
+test('barreras de revisión: review_task approve sin verification responde 422', async () => {
+  const t = await newTask();
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
+  await new Promise((r) => setTimeout(r, 2100));
+  const res = await action('review_task', {
+    task_id: t.id,
+    decision: 'approve',
+    checklist: ['DoD verificada'],
+    reviewer_role: 'qa_security_guard'
+  });
+  assert.equal(res.status, 422);
+});
+
+test('barreras de revisión: review_task approve antes del tiempo mínimo responde 422', async () => {
+  const t = await newTask();
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
+  // Sin esperar el tiempo mínimo (2s en entorno de prueba):
+  const res = await action('review_task', {
+    task_id: t.id,
+    decision: 'approve',
+    checklist: ['DoD verificada'],
+    reviewer_role: 'qa_security_guard',
+    verification: VERIFICATION
+  });
+  assert.equal(res.status, 422);
+});
+
+test('firma humana encendida: review_task approve deja en revision con qa_approved y panel web completa', async () => {
+  const t = await newTask();
+  await action('update_human_signoff', { project_id: 'default', enabled: true });
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
+  await new Promise((r) => setTimeout(r, 2100));
+  const rev = await action('review_task', {
+    task_id: t.id,
+    decision: 'approve',
+    checklist: ['DoD verificada'],
+    reviewer_role: 'qa_security_guard',
+    verification: VERIFICATION
+  });
+  assert.equal(rev.status, 200);
+  assert.equal(rev.json.status, 'revision');
+  assert.equal(rev.json.qa_approved, true);
+
+  // La historia sigue en revision con marca qa_approved
+  const taskMid = (await api('GET', `index.php/tasks/${t.id}`)).json.task;
+  assert.equal(taskMid.status, 'revision');
+  assert.ok(taskMid.review_evidence?.qa_approved);
+  assert.equal(taskMid.review_evidence.qa_approved.reviewer, 'qa_security_guard');
+
+  // Solo client=web la pasa a completada
+  const webDone = await action('update_task_status', { task_id: t.id, status: 'completada', client: 'web' });
+  assert.equal(webDone.status, 200);
+  const taskFinal = (await api('GET', `index.php/tasks/${t.id}`)).json.task;
+  assert.equal(taskFinal.status, 'completada');
+});
+
+test('firma humana apagada: review_task approve pasa directo a completada', async () => {
+  const t = await newTask();
+  await action('update_human_signoff', { project_id: 'default', enabled: false });
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
+  await new Promise((r) => setTimeout(r, 2100));
+  const rev = await action('review_task', {
+    task_id: t.id,
+    decision: 'approve',
+    checklist: ['DoD verificada'],
+    reviewer_role: 'qa_security_guard',
+    verification: VERIFICATION
+  });
+  assert.equal(rev.status, 200);
+  assert.equal(rev.json.status, 'completada');
+
+  const taskFinal = (await api('GET', `index.php/tasks/${t.id}`)).json.task;
+  assert.equal(taskFinal.status, 'completada');
+
+  // Restaurar firma humana a true por defecto
+  await action('update_human_signoff', { project_id: 'default', enabled: true });
+});
+
+test('gobernanza: cliente MCP no puede pasar a completada directamente si firma encendida (403)', async () => {
+  const t = await newTask();
+  await action('update_human_signoff', { project_id: 'default', enabled: true });
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+  await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: EVIDENCE });
+  await new Promise((r) => setTimeout(r, 2100));
+  await action('review_task', {
+    task_id: t.id,
+    decision: 'approve',
+    checklist: ['DoD verificada'],
+    reviewer_role: 'qa_security_guard',
+    verification: VERIFICATION
+  });
+
+  // Intento de completar desde MCP vía action update_task_status
+  const res = await action('update_task_status', { task_id: t.id, status: 'completada', client: 'mcp' });
+  assert.equal(res.status, 403);
 });

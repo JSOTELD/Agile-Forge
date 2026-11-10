@@ -870,6 +870,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 </select>
                 <button onclick="openNewProjectModal()" class="text-xs px-2 py-0.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-bold transition" title="Crear nuevo proyecto">+</button>
                 <button onclick="openImportWorkspaceModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition" title="Importar workspace existente con git log">📥</button>
+                <button onclick="openProjectSettingsModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition" title="Ajustes del proyecto (Firma humana)">⚙️</button>
             </div>
             <span class="hidden md:inline text-slate-500">|</span>
             <div class="hidden lg:flex items-center gap-1.5 text-slate-400 text-[10px]">
@@ -2093,6 +2094,44 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
                 <span class="text-slate-500 text-[11px]">Tarifas basadas en <code class="text-purple-300">config/models.json</code> por millón de tokens.</span>
                 <button type="button" onclick="closeCostsModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ajustes del Proyecto (Firma Humana / Human Signoff) -->
+    <div id="project-settings-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">⚙️</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Ajustes del Proyecto</h3>
+                        <p id="project-settings-name" class="text-xs text-indigo-400 font-mono">AgileForge Default</p>
+                    </div>
+                </div>
+                <button onclick="closeProjectSettingsModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-200">Firma Humana (Human Signoff)</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="project-setting-human-signoff" onchange="toggleProjectHumanSignoff(this.checked)" class="sr-only peer">
+                            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Cuando está <strong>activada</strong> (por defecto), la aprobación de QA (<code>review_task approve</code>) marca la historia como <code class="text-emerald-400">Aprobada por QA</code> y la mantiene en revisión hasta que otorgues tu firma humana en el panel web.
+                    </p>
+                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                        Si la <strong>desactivas</strong>, la aprobación técnica de QA completará la historia de manera directa.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-3 border-t border-slate-800 text-xs">
+                <button type="button" onclick="closeProjectSettingsModal()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold">Listo</button>
             </div>
         </div>
     </div>

@@ -138,7 +138,8 @@ if ($res === 'tasks') {
                 $taskId,
                 (string)($input['decision'] ?? ''),
                 (array)($input['checklist'] ?? []),
-                (string)($input['reviewer_role'] ?? $input['reviewer'] ?? '')
+                (string)($input['reviewer_role'] ?? $input['reviewer'] ?? ''),
+                is_array($input['verification'] ?? null) ? $input['verification'] : null
             );
         } elseif ($subAction === 'comments' && $method === 'POST') {
             $input = Bootstrap::requireJsonBody();

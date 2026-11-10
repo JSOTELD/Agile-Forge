@@ -499,5 +499,21 @@ HTML;
             'content'    => $generated
         ]);
     }
+
+    public function updateHumanSignoff(array $input): void
+    {
+        $projectId = isset($input['project_id']) && trim((string)$input['project_id']) !== ''
+            ? trim((string)$input['project_id'])
+            : null;
+        $enabled = isset($input['enabled']) ? (bool)$input['enabled'] : true;
+        $this->repo->setHumanSignoff($projectId, $enabled);
+
+        Bootstrap::jsonResponse([
+            'success'    => true,
+            'project_id' => $projectId,
+            'enabled'    => $enabled,
+            'setting'    => $this->repo->getSetting('human_signoff')
+        ]);
+    }
 }
 
