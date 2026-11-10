@@ -130,7 +130,23 @@ import {
 } from './bindings.js';
 
 import { renderDirectorPanel, isPluginMode } from './director.js';
-import { avatarFor, roleLabel, statusLabel } from './roles.js';
+import { avatarFor, roleLabel, statusLabel, roleCan, capabilityLabel } from './roles.js';
+
+// RFC-001: chips con lo que el rol puede hacer en el tablero, y de dónde sale su definición
+function renderCapabilities(r) {
+    const caps = Array.isArray(r.capabilities) ? r.capabilities : [];
+    const src = { core: t('role_src_core', 'pack core'), project: t('role_src_project', 'rol del proyecto'), db: t('role_src_db', 'sin archivo de rol') }[r.role_source] || '';
+    const chips = caps.length
+        ? caps.map(c => `<span class="cap-chip" title="${escapeHtml(c)}">${escapeHtml(capabilityLabel(c))}</span>`).join('')
+        : `<span class="cap-chip cap-chip-none">${escapeHtml(t('caps_none', 'Solo lectura y comentarios'))}</span>`;
+    return `<div class="space-y-1">
+        <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+            <span>${escapeHtml(t('caps_title', 'Puede'))}</span>
+            ${src ? `<span class="normal-case font-mono font-normal text-slate-500">${escapeHtml(src)}</span>` : ''}
+        </div>
+        <div class="flex flex-wrap gap-1">${chips}</div>
+    </div>`;
+}
 
 export function renderPluginNotice() {
     const el = document.getElementById('plugin-notice');
@@ -628,7 +644,7 @@ export function renderRoles() {
 
     container.innerHTML = appData.roles.map(r => {
         const assignedSkills = r.assigned_skills || [];
-        const isLegal = r.id === 'legal_counsel';
+        const isLegal = roleCan(r, 'can_audit_compliance');
         const isUx = r.id === 'frontend_master';
         const isDesigner = r.id === 'creative_director';
 
@@ -662,7 +678,7 @@ export function renderRoles() {
                 ${!roleRouting ? `<p class="text-[10px] text-indigo-300">ℹ️ Enrutamiento desactivado: este rol usa el motor global <strong>${escapeHtml(appData.ai_engine?.provider_name || 'Global')}</strong>.</p>` : `
                 <p class="text-[10px] ${eng.ready || pluginMode ? 'text-slate-400' : 'text-amber-300'}">${eng.ready ? `Responde ahora: <span class="font-mono text-slate-200">${escapeHtml(eng.label)}</span> (${sourceText})` : (pluginMode ? escapeHtml(t('plugin_engine_hint')) : escapeHtml(eng.reason || 'Sin motor disponible'))}${eng.ready && eng.reason ? `<br><span class="text-amber-300/80">${escapeHtml(eng.reason)}</span>` : ''}</p>`}
             </div>`;
-        const isDirector = r.id === 'director';
+        const isDirector = roleCan(r, 'can_orchestrate');
         if (isDirector) badgeGlow = 'border-amber-500/50 bg-gradient-to-br from-amber-950/30 to-slate-950 md:col-span-2 lg:col-span-3';
 
         return `
@@ -680,6 +696,7 @@ export function renderRoles() {
                     </div>
 
                     <p class="text-xs text-slate-300">${escapeHtml(r.specialty)}</p>
+                    ${renderCapabilities(r)}
                     ${isDirector ? `<p class="text-[11px] text-amber-200/90">${escapeHtml(r.description || '')}</p>` : ''}
                     ${engineSelect}
 

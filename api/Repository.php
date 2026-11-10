@@ -11,6 +11,7 @@ namespace AgileForge;
 
 require_once __DIR__ . '/services/LlmService.php';
 require_once __DIR__ . '/services/EngineService.php';
+require_once __DIR__ . '/services/RoleRegistry.php';
 
 use AgileForge\Services\EngineService;
 use AgileForge\Services\LlmService;
@@ -127,10 +128,15 @@ class Repository
         $skillsPool = $settings['available_skills_pool'] ?? [];
 
         // Roles
-        $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY CASE id WHEN 'director' THEN 0 ELSE 1 END, id ASC");
+        // RFC-001: capacidades desde los archivos de rol; quien orquesta va primero
+        $registry = \AgileForge\Services\RoleRegistry::forProject($currentProject ?: null);
+        $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY id ASC");
         $roles = [];
         while ($row = $rolesStmt->fetch()) {
+            $def = $registry->get($row['id']);
             $roles[] = [
+                'capabilities'    => $registry->capabilities($row['id']),
+                'role_source'     => $def['source'] ?? 'db',
                 'engine'          => EngineService::describe($row, $aiEngine, $aiEngine['available_providers'], $localAi),
                 'id'              => $row['id'],
                 'name'            => $row['name'],
@@ -143,6 +149,8 @@ class Repository
                 'assigned_skills' => json_decode($row['assigned_skills_json'] ?? '[]', true) ?: []
             ];
         }
+        usort($roles, fn($a, $b) => [(int)!in_array('can_orchestrate', $a['capabilities'], true), $a['id']] <=> [(int)!in_array('can_orchestrate', $b['capabilities'], true), $b['id']]);
+        $roleProblems = array_map(fn($p) => ['file' => basename($p['file']), 'errors' => $p['errors']], $registry->problems());
 
         // Skills catalog (Única Fuente de Verdad: plugin/agileforge/skills/*/SKILL.md)
         $skillsCatalog = $this->getSkillsCatalog();
@@ -286,6 +294,7 @@ class Repository
             'available_skills_pool' => $skillsPool,
             'skills_catalog'        => $skillsCatalog,
             'roles'                 => $roles,
+            'role_registry'         => ['capabilities' => \AgileForge\Services\RoleRegistry::CAPABILITIES, 'problems' => $roleProblems],
             'tasks'                 => $tasks,
             'chat_messages'         => $chatMessages,
             'ui_preferences'        => $uiPreferences,

@@ -12,10 +12,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Español
 
+#### Añadido
+- **Roles en archivos (RFC-001, fase 1):** pack core en `plugin/agileforge/packs/core/` y roles propios del proyecto en `.agileforge/roles/`. El tablero decide por capacidades (lista cerrada de 9) en vez de IDs fijos: tomar, entregar, dictaminar, aprobar, prompt legal, historias sin asignar, moderación de reuniones e importación.
+- **`php bin/roles.php list | validate | agents`:** lista, valida y genera los subagentes de Claude Code (`.claude/agents/<id>.md`) de los roles del proyecto, siempre con lista explícita de herramientas.
+- **Capacidades visibles:** en la pestaña Equipo, en el estado de la API y en el brief de cada rol.
+
+#### Cambiado
+- El Director ya no toma ni entrega historias por MCP (orquesta, no ejecuta) y pedir cambios exige poder dictaminar, como aprobar.
+
 #### Corregido
 - Historias antiguas con la prioridad en inglés (`high`, `medium`, `critical`, `low`) se veían en inglés, con el color de «Media», y el filtro de prioridad no las encontraba. Al abrir la base se pasan a `alta`, `media`, `critica` y `baja`; el panel también las normaliza.
 
 ### English
+
+#### Added
+- **Roles in files (RFC-001, phase 1):** core pack in `plugin/agileforge/packs/core/` and project roles in `.agileforge/roles/`. The board decides by capabilities (closed list of 9) instead of fixed IDs: claim, submit, review, approve, legal prompt, unassigned stories, meeting moderation and import.
+- **`php bin/roles.php list | validate | agents`:** lists, validates and generates Claude Code subagents (`.claude/agents/<id>.md`) for project roles, always with an explicit tool list.
+- **Visible capabilities:** in the Team tab, in the API state and in each role's brief.
+
+#### Changed
+- The Director no longer claims or submits stories over MCP (it orchestrates, it does not execute), and requesting changes requires review capability, like approving.
 
 #### Fixed
 - Older stories with an English priority (`high`, `medium`, `critical`, `low`) showed in English with the "Medium" colour, and the priority filter missed them. They are migrated to `alta`, `media`, `critica` and `baja` when the database opens; the panel normalizes them too.
