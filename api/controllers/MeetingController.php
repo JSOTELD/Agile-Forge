@@ -623,7 +623,7 @@ class MeetingController
         if (!empty($actionItems)) {
             $md .= "## 🚀 Compromisos y Tareas (Action Items)\n\n";
             foreach ($actionItems as $i => $item) {
-                $md .= ($i + 1) . ". **{$item['title']}** (Asignado a: `{$item['assigned_to']}`, {$item['story_points']} pts)\n";
+                $md .= ($i + 1) . '. **' . ($item['title'] ?? 'Sin título') . '** (Asignado a: `' . ($item['assigned_to'] ?? 'sin asignar') . '`, ' . ($item['story_points'] ?? '?') . " pts)\n";
                 if (!empty($item['dod'])) {
                     $md .= "   - *DoD:* {$item['dod']}\n";
                 }

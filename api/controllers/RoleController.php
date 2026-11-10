@@ -155,8 +155,9 @@ class RoleController
                 'id'         => $m['id'],
                 'node_type'  => $m['node_type'],
                 'title'      => $m['title'],
-                'content'    => $m['content'],
-                'importance' => (int)$m['importance'],
+                // Columnas reales de agent_memories: content_text / importance_score (recortado para el brief)
+                'content'    => mb_strimwidth((string)($m['content_text'] ?? ''), 0, 400, '…'),
+                'importance' => (int)($m['importance_score'] ?? 0),
             ];
         }, $rawMemories);
 

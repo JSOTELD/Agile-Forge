@@ -40,7 +40,7 @@ class MemoryController
             ? (string)$query['type']
             : (isset($query['node_type']) && $query['node_type'] !== '' ? (string)$query['node_type'] : null);
 
-        $activeOnly = !empty($query['active_only']);
+        $activeOnly = filter_var($query['active_only'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $limit = isset($query['limit']) && is_numeric($query['limit']) ? max(1, min(200, (int)$query['limit'])) : 50;
 
         $memories = $this->repo->getMemories($projectId, $roleId, $nodeType, $activeOnly, $limit);

@@ -334,25 +334,39 @@ export function closeCostsModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+// POST de una acción a api/tasks.php; devuelve siempre un objeto JSON ({success:false,error} si falla)
+async function postAction(body) {
+    const res = await apiFetch('api/tasks.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    try {
+        return await res.json();
+    } catch (_) {
+        return { success: false, error: `El servidor respondió HTTP ${res.status}.` };
+    }
+}
+
 export async function saveSprintBudget() {
     const input = document.getElementById('modal-costs-budget-input');
     const val = parseFloat(input?.value || 0);
     const sprint = appData.active_sprint || appData.sprint || {};
     try {
-        const res = await apiFetch({
+        const res = await postAction({
             action: 'update_sprint_budget',
             sprint_id: sprint.id || '',
             budget_usd: val
         });
         if (res.success) {
-            showToast('success', `Presupuesto del sprint fijado en $${val.toFixed(2)} USD`);
+            showToast('Presupuesto guardado', val > 0 ? `Límite del sprint: $${val.toFixed(2)} USD` : 'Sprint sin límite de gasto', 'success');
             if (sprint) sprint.budget_usd = val;
             openCostsModal();
         } else {
-            showToast('error', res.error || 'No se pudo guardar el presupuesto');
+            showToast('Error', res.error || 'No se pudo guardar el presupuesto', 'error');
         }
     } catch (e) {
-        showToast('error', e.message);
+        showToast('Error', e.message, 'error');
     }
 }
 
@@ -409,13 +423,14 @@ export async function loadAgentMemories(roleId) {
 
     try {
         const projId = appData.current_project?.id || 'default';
-        const res = await apiFetch({
+        const res = await postAction({
             action: 'list_memories',
             project: projId,
             role: roleId,
             limit: 100
         });
 
+        if (res.success === false) throw new Error(res.error || 'No se pudieron cargar las memorias');
         currentLoadedMemories = res.memories || [];
         renderAgentMemoryItems();
     } catch (e) {
@@ -519,7 +534,7 @@ export async function saveNewAgentMemory() {
     const title = titleEl?.value.trim() || '';
     const content = contentEl?.value.trim() || '';
     if (!title || !content) {
-        showToast('error', 'El título y el contenido son obligatorios');
+        showToast('Faltan datos', 'El título y el contenido son obligatorios', 'error');
         return;
     }
 
@@ -529,7 +544,7 @@ export async function saveNewAgentMemory() {
     const importance = parseInt(impEl?.value || '5', 10);
 
     try {
-        const res = await apiFetch({
+        const res = await postAction({
             action: 'save_memory',
             project_id: projId,
             role_id: roleId,
@@ -541,48 +556,52 @@ export async function saveNewAgentMemory() {
         });
 
         if (res.success) {
-            showToast('success', 'Nodo de memoria guardado');
+            showToast('Memoria', 'Nodo de memoria guardado', 'success');
             if (titleEl) titleEl.value = '';
             if (contentEl) contentEl.value = '';
             toggleAddMemoryForm(false);
             await loadAgentMemories(currentMemoryRoleId);
         } else {
-            showToast('error', res.error || 'Error al guardar memoria');
+            showToast('Error', res.error || 'Error al guardar memoria', 'error');
         }
     } catch (e) {
-        showToast('error', e.message);
+        showToast('Error', e.message, 'error');
     }
 }
 
 export async function toggleAgentMemory(id, newState) {
     try {
-        const res = await apiFetch({
+        const res = await postAction({
             action: 'toggle_memory',
             memory_id: id,
             is_active: newState ? 1 : 0
         });
         if (res.success) {
-            showToast('success', newState ? 'Memoria activada' : 'Memoria desactivada');
+            showToast('Memoria', newState ? 'Memoria activada' : 'Memoria desactivada', 'success');
             await loadAgentMemories(currentMemoryRoleId);
+        } else {
+            showToast('Error', res.error || 'No se pudo cambiar la memoria', 'error');
         }
     } catch (e) {
-        showToast('error', e.message);
+        showToast('Error', e.message, 'error');
     }
 }
 
 export async function deleteAgentMemory(id) {
     if (!confirm('¿Eliminar permanentemente este nodo de memoria?')) return;
     try {
-        const res = await apiFetch({
+        const res = await postAction({
             action: 'delete_memory',
             memory_id: id
         });
         if (res.success) {
-            showToast('success', 'Nodo de memoria eliminado');
+            showToast('Memoria', 'Nodo de memoria eliminado', 'success');
             await loadAgentMemories(currentMemoryRoleId);
+        } else {
+            showToast('Error', res.error || 'No se pudo eliminar la memoria', 'error');
         }
     } catch (e) {
-        showToast('error', e.message);
+        showToast('Error', e.message, 'error');
     }
 }
 

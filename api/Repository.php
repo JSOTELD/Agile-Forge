@@ -1160,11 +1160,13 @@ class Repository
         return $row;
     }
 
-    public function saveMemory(array $data): ?array
+    public function saveMemory(array $data, bool $allowProjectMove = false): ?array
     {
         $id = trim((string)($data['id'] ?? ''));
         if ($id === '') {
             $id = 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        } elseif (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) {
+            throw new \InvalidArgumentException('El id de la memoria solo admite letras, números, guiones y guion bajo (máx. 80).');
         }
 
         // Sin project_id usa el proyecto activo
@@ -1177,6 +1179,12 @@ class Repository
         // Valida que el proyecto exista
         if (!$this->projectExists($projectId)) {
             throw new \InvalidArgumentException("El proyecto '{$projectId}' no existe");
+        }
+
+        // Un id existente solo se actualiza dentro de su propio proyecto (no se «mueve» la memoria de otro)
+        $existing = $this->getMemory($id);
+        if ($existing && !$allowProjectMove && (string)$existing['project_id'] !== $projectId) {
+            throw new \InvalidArgumentException("La memoria '{$id}' pertenece a otro proyecto.");
         }
 
         // Valida que el rol exista o sea 'all'

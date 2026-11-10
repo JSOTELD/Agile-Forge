@@ -307,7 +307,11 @@ if ($method === 'POST') {
         // Presupuesto de Sprint
         case 'update_sprint_budget':
             $sprintId = trim((string)($input['sprint_id'] ?? ''));
-            $budget = max(0.0, (float)($input['budget_usd'] ?? 0.0));
+            $rawBudget = $input['budget_usd'] ?? 0;
+            if (!is_numeric($rawBudget) || (float)$rawBudget < 0 || (float)$rawBudget > 100000) {
+                Bootstrap::fail('El presupuesto debe ser un número entre 0 y 100000 USD (0 = sin límite).', 422);
+            }
+            $budget = round((float)$rawBudget, 2);
             $sprint = $sprintId !== '' ? $repo->getSprint($sprintId) : $repo->getActiveSprint();
             if (!$sprint) {
                 Bootstrap::fail('Sprint no encontrado', 404);

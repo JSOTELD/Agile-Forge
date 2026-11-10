@@ -423,7 +423,7 @@ class TaskController
     {
         try {
             $projectId = (string)($task['project_id'] ?? 'default');
-            $roleId = (string)($task['assigned_to'] ?? 'developer');
+            $roleId = trim((string)($task['assigned_to'] ?? '')) ?: 'all';
             $evidence = is_array($task['review_evidence'] ?? null)
                 ? $task['review_evidence']
                 : (json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: []);
@@ -452,7 +452,7 @@ class TaskController
                 'content_text'     => $content,
                 'importance_score' => $importance,
                 'is_active'        => 1,
-            ]);
+            ], true); // nodo propio del sistema: sigue a la historia si cambió de proyecto
         } catch (\Throwable $e) {
             Bootstrap::log("Error consolidando memoria de tarea {$task['id']}: " . $e->getMessage());
         }
