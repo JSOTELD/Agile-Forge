@@ -1,6 +1,6 @@
 # RFC-001: Registro de Roles en Archivos y Forja de Agentes
 
-- **Estado:** Propuesta Aprobada (Diseño - Fase B)
+- **Estado:** En revisión
 - **Fecha:** 2026-11-09
 - **Autores:** David & Equipo de Arquitectura AgileForge
 - **Referencia:** ADR-003, ADR-004, ADR-005, RFC-002
@@ -9,9 +9,9 @@
 
 ## 1. Contexto y Motivación
 
-Actualmente, AgileForge cuenta con un escuadrón predeterminado de roles (`director`, `lead_architect`, `backend_architect`, `frontend_master`, `qa_security_guard`, `creative_director`, `legal_counsel`, `project_manager`). Aunque este equipo cubre el flujo Scrum inicial, adolece de dos limitaciones arquitectónicas:
+Actualmente, AgileForge cuenta con un escuadrón predeterminado de roles en el tablero (`director`, `lead_architect`, `backend_architect`, `frontend_master`, `qa_security_guard`, `creative_director`, `legal_counsel`, `project_manager`). Aunque este equipo cubre el flujo Scrum inicial, adolece de dos limitaciones arquitectónicas:
 
-1. **Acoplamiento a identificadores fijos en el código:** La lógica de negocio (`TaskController`, `DirectorService`, `BoardService`, reglas de revisión de la DoD) comprueba identificadores específicos como `qa_security_guard` o `director` en lugar de evaluar **capacidades funcionales declaradas**.
+1. **Acoplamiento a identificadores fijos en el código:** La lógica de negocio (`TaskController`, `DirectorService`, `BoardService`, `ProjectController`, reglas de revisión de la DoD) comprueba identificadores específicos como `qa_security_guard` o `director` en lugar de evaluar **capacidades funcionales declaradas**.
 2. **Inflexibilidad para dominios especializados:** Un proyecto de ciberseguridad requiere auditores PCI-DSS o ingenieros de pentesting; una fintech requiere oficiales de cumplimiento bancario; un proyecto de IA requiere ingenieros de evaluación de modelos o curadores de datasets.
 
 La **Forja de Agentes** introduce un ciclo riguroso de diseño, prueba y activación de agentes autónomos, fundamentado en un registro canónico de roles en archivos y un modelo de permisos desacoplado por capacidades.
@@ -21,6 +21,12 @@ La **Forja de Agentes** introduce un ciclo riguroso de diseño, prueba y activac
 ## 2. Registro Único de Roles en Archivos
 
 Antes de permitir la creación dinámica de agentes, la definición de roles debe desacoplarse del motor de base de datos y del lenguaje de backend (sea PHP o Node.js). La Única Fuente de Verdad reside en archivos Markdown con Frontmatter YAML versionados en Git.
+
+> [!IMPORTANT]
+> **Convención de Nomenclatura e IDs:**
+> Los identificadores del tablero en la base de datos SQLite y en el campo `assigned_to` de las historias utilizan `snake_case` canónico (`lead_architect`, `qa_security_guard`, `legal_counsel`).
+> Los archivos de definición de subagentes en plugins o workspaces suelen nombrarse en `kebab-case` (`chief-architect.md`, `qa-security.md`, `legal-compliance.md`).
+> El pack canónico `core` y el registro de roles en archivos **deben preservar obligatoriamente los IDs reales del tablero** (`lead_architect`, `qa_security_guard`, `legal_counsel`), de lo contrario se romperían todas las historias existentes asignadas a esos roles.
 
 ### 2.1 Definición Declarativa del Rol (`roles/<id>.md`)
 
@@ -34,8 +40,8 @@ alias: "The Vault Shield"
 avatar: "🛡️"
 description: "Especialista en seguridad de transacciones bancarias, tokenización y cumplimiento PCI-DSS v4.0."
 specialty: "Ciberseguridad bancaria, OWASP API Top 10, cifrado AES-256 y mitigación de fugas de datos."
-model: sonnet              # sonnet | opus | haiku
-effort: high               # low | medium | high
+model: sonnet              # sonnet | opus | haiku | inherit | ID completo
+effort: high               # low | medium | high | xhigh | max
 color: red                 # red | green | blue | purple | yellow | cyan | orange | pink
 capabilities:
   - can_claim_tasks
@@ -72,16 +78,21 @@ Auditar payloads, esquemas de bases de datos y flujos de pago para garantizar qu
 
 Cuando un rol se activa en un proyecto, AgileForge sintetiza automáticamente el subagente correspondiente en el workspace local (`.claude/agents/<id>.md`), aplicando las siguientes reglas de traducción deterministas:
 
-1. **Mapeo de Modelo (`model`):**
-   - `opus`: Tareas de alta complejidad arquitectónica, dirección ejecutiva o razonamiento profundo.
-   - `sonnet`: Desarrollo de software, auditoría de código, pentesting y revisión técnica.
-   - `haiku`: Facilitación ágil, categorización rápida, resumen de eventos o tareas ligeras.
-2. **Nivel de Esfuerzo (`effort`):** Se traslada directamente (`low`, `medium`, `high`) para gobernar el presupuesto de razonamiento (extended thinking) en Claude Code.
-3. **Lista Blanca de Herramientas (`tools`):**
-   - **Herramientas Nativas de Claude Code:** Solo se autorizan las explícitamente declaradas en la whitelist (`Read`, `Grep`, `Glob`, `Edit`, `Write`, `Bash`).
-   - **Herramientas MCP:** Solo herramientas con el prefijo `mcp__plugin_agileforge_board__*` declaradas en el rol.
-   - **Herramientas Excluidas (`disallowedTools`):** Cualquier herramienta restringida se inyecta en el bloque `disallowedTools` de Claude Code para forzar su denegación por el runtime.
-4. **Skills Asignadas:** Se contrastan contra el catálogo canónico (`plugin/agileforge/skills/`); solo las skills existentes y validadas se adjuntan en el frontmatter.
+1. **Declaración Explícita de Herramientas (`tools`):**
+   - **Regla Crítica de Claude Code:** Si el bloque `tools` se omite, Claude Code otorga al agente **TODAS** las herramientas disponibles, incluyendo `Bash` y herramientas del sistema. Por lo tanto, el generador escribe **SIEMPRE** una lista blanca explícita de `tools`. El bloque `disallowedTools` actúa como capa secundaria de defensa en profundidad.
+2. **Cálculo Dinámico del Prefijo MCP:**
+   - El prefijo de herramientas MCP depende del método de montaje:
+     - Instalado como plugin oficial de Claude Code: `mcp__plugin_agileforge_board__<tool>`.
+     - Configurado localmente desde `.mcp.json` en el proyecto: `mcp__<server-name>__<tool>`.
+   - El generador calcula el prefijo del entorno activo; nunca utiliza un prefijo hardcodeado.
+3. **Mapeo de Modelo (`model`):**
+   - Acepta alias (`sonnet`, `opus`, `haiku`), `inherit` (hereda el modelo del hilo principal), o identificadores canónicos completos (`claude-3-5-sonnet-latest`, `claude-3-7-sonnet-20250219`).
+4. **Nivel de Esfuerzo (`effort`):**
+   - Mapea a `low`, `medium`, `high`, `xhigh` o `max`, gobernando el presupuesto de razonamiento (extended thinking) según soporte del modelo.
+5. **Soporte de `permissionMode` y `hooks`:**
+   - En subagentes generados en `.claude/agents/<id>.md` del proyecto, Claude Code respeta configuraciones como `permissionMode: plan` o `permissionMode: default`, así como `hooks` de ciclo de vida. (En agentes empaquetados dentro de un plugin distribuido, Claude Code ignora estos campos por diseño de seguridad).
+6. **Skills Validadas contra Catálogo Combinado:**
+   - Se validan contra el catálogo unificado: skills empaquetadas en el plugin (`plugin/agileforge/skills/*/SKILL.md`) más las skills personalizadas creadas en la base de datos (`skills WHERE is_custom = 1`).
 
 ---
 
@@ -90,62 +101,77 @@ Cuando un rol se activa en un proyecto, AgileForge sintetiza automáticamente el
 La importación o forja de packs de agentes expone el entorno de desarrollo a riesgos de inyección de prompts y ejecución no autorizada. Se establecen tres salvaguardas estructurales innegociables:
 
 1. **Sin Bash ni Escritura por Defecto:**
-   - Por defecto, ningún agente nuevo recibe permisos de ejecución de comandos (`Bash`) ni de modificación de disco (`Edit`, `Write`).
+   - Por defecto, ningún agente forjado recibe permisos de ejecución de comandos (`Bash`) ni de modificación de disco (`Edit`, `Write`).
    - Los roles nacen con perfil de solo lectura (`Read`, `Grep`, `Glob` y herramientas MCP de consulta).
-   - La inclusión de `Bash`, `Edit` o `Write` requiere declaración explícita en sus capacidades (`can_execute_scripts`, `can_modify_code`) y advertencia visible.
+   - Otorgar `Bash`, `Edit` o `Write` requiere declaración explícita en su manifiesto y emite una advertencia de riesgo visible en la UI.
 2. **Lista Blanca Estricta y Validación de Herramientas:**
    - El sistema rechaza cualquier herramienta desconocida o que intente eludir el namespace de AgileForge.
    - Toda herramienta declarada debe existir en el manifiesto del servidor MCP o en el estándar nativo de Claude Code.
 3. **Aviso Obligatorio para Packs de Terceros:**
-   - Al importar un pack desde un repositorio externo o aleación no certificada, el panel web y el comando CLI muestran un diálogo de advertencia de seguridad con el inventario de herramientas solicitadas (especialmente si incluye `Bash` o acceso a red).
+   - Al importar un pack desde un repositorio externo o aleación no certificada, el panel web y el CLI muestran un desglose detallado de las herramientas solicitadas (alertando si incluye `Bash` o acceso a red).
    - Requiere confirmación humana explícita antes de escribir los archivos de rol en el proyecto.
 
 ---
 
-## 4. Desacoplamiento por Capacidades (Capabilities)
+## 4. Matriz Cerrada de Capacidades (Capabilities)
 
-Se reemplaza el acoplamiento a nombres fijos (`role_id === 'director'`) por la evaluación de capacidades funcionales:
+Se reemplaza el acoplamiento a nombres fijos (`role_id === 'director'`) por una **lista cerrada y canónica** de 9 capacidades. Ninguna otra capacidad es reconocida por el sistema:
 
-| Capacidad | Descripción | Roles del pack Core |
+| Capacidad | Descripción | Roles del pack Core que la poseen |
 |---|---|---|
-| `can_claim_tasks` | Capacidad de reclamar historias (`claim_task`) y establecer lock de trabajo. | `backend_architect`, `frontend_master`, `chief_architect` |
-| `can_submit_evidence` | Capacidad de enviar entregas técnicas a revisión con comandos y archivos. | `backend_architect`, `frontend_master`, `chief_architect` |
-| `can_review_tasks` | Capacidad de auditar y dictaminar historias en estado `revision`. | `qa_security` (único con voto técnico en core) |
-| `can_approve_dod` | Autoridad para declarar cumplida la DoD y transicionar a `completada`. | `qa_security`, Humano (web) |
-| `can_record_adr` | Capacidad de asentar decisiones arquitectónicas en el libro de actas. | `director`, `chief_architect` |
-| `can_facilitate_sprint` | Capacidad de iniciar sprints, controlar cadencia y facilitar dailies. | `director`, `project_manager` |
-| `can_forge_agents` | Capacidad de forjar, templar y dar de alta agentes en la Armería. | `director`, `chief_architect` |
+| `can_claim_tasks` | Reclamar historias (`claim_task`) y establecer lock de trabajo de 30 min. | `lead_architect`, `backend_architect`, `frontend_master` |
+| `can_submit_evidence` | Enviar entregas técnicas a revisión con comandos y archivos. | `lead_architect`, `backend_architect`, `frontend_master` |
+| `can_review_tasks` | Auditar y dictaminar historias en estado `revision` (`approve` o `request_changes`). | `qa_security_guard` |
+| `can_approve_dod` | Autoridad para declarar cumplida la DoD y transicionar historias a `completada`. | `qa_security_guard`, Humano (web) |
+| `can_record_adr` | Asentar decisiones arquitectónicas formales (ADR) en el sistema. | `director`, `lead_architect` |
+| `can_facilitate_sprint` | Iniciar sprints, controlar cadencia, gestionar backlog y facilitar dailies. | `director`, `project_manager` |
+| `can_forge_agents` | Forjar, templar y dar de alta agentes en la Armería. | `director`, `lead_architect` |
+| `can_audit_compliance` | Emitir dictámenes de privacidad, términos legales y compliance normativo. | `legal_counsel` |
+| `can_orchestrate` | Descomponer requerimientos de negocio, coordinar roles y delegar trabajo en el tablero. | `director` |
 
 ---
 
 ## 5. Inventario de Código Acoplado a IDs Fijos y Plan de Migración
 
-### 5.1 Inventario de Puntos Actuales
+### 5.1 Comando de Auditoría
+El siguiente comando de búsqueda exhaustiva permite auditar todos los puntos del código acoplados a identificadores de roles vigentes:
 
-| Archivo | Función / Método | ID Hardcodeado | Refactorización requerida |
+```bash
+git grep -n -E "director|lead_architect|backend_architect|frontend_master|qa_security_guard|creative_director|legal_counsel|project_manager" api/ assets/js/ mcp-server/ plugin/
+```
+
+### 5.2 Inventario de Puntos Acoplados
+
+| Archivo | Función / Ubicación | Rol / ID Hardcodeado | Refactorización con Capacidades |
 |---|---|---|---|
-| `api/controllers/TaskController.php` | `review()` | `'qa_security'`, `'qa_security_guard'` | Reemplazar por verificación: `roleHasCapability($roleId, 'can_review_tasks')`. |
-| `api/controllers/TaskController.php` | `updateStatus()` | `'qa_security'` para mover a `completada` | Reemplazar por verificación: `roleHasCapability($roleId, 'can_approve_dod')`. |
-| `api/controllers/TaskController.php` | `consolidateTaskCompletionMemory()` | Tarea completada | Desacoplado: ya usa `MEM-TASK-<id>` y el `assigned_to` de la tarea. |
-| `api/services/BoardService.php` | `claimTask()` | Comprobación de asignación | Permitir cualquier rol con `can_claim_tasks`. |
-| `api/services/DirectorService.php` | `const ROLE_ID = 'director'` | `'director'` | Mantener como fallback del rol ejecutivo principal, respaldado por `can_orchestrate`. |
-| `api/controllers/MeetingController.php` | `beginMeeting()`, `runMeeting()` | Roles hardcodeados de asistentes | Invitar por capacidades (`can_contribute_architecture`, `can_audit_compliance`). |
-| `api/Database.php` | `repairBoardData()` | Migración de IDs antiguos | Preservar mapeo histórico en la migración de datos. |
-| `assets/js/chat.js` | `handleSendChat()` | `targetRole === 'director'` | Comprobar flag de capacidades en `role.capabilities.includes('orchestrator')`. |
-| `assets/js/app.js` | Modales y badges de rol | `'director'`, `'qa_security'` | Consultar capacidades dinámicas en `appData.roles`. |
+| `api/controllers/TaskController.php` | `review()` | `'qa_security_guard'` | Verificar `roleHasCapability($reviewerRole, 'can_review_tasks')`. |
+| `api/controllers/TaskController.php` | `updateStatus()` | `'qa_security_guard'` para mover a `completada` | Verificar `roleHasCapability($role, 'can_approve_dod')` o `client === 'web'`. |
+| `api/controllers/TaskController.php` | `addComment()` | `'project_manager'` por defecto si falta rol | Usar primer rol disponible con `can_facilitate_sprint`. |
+| `api/controllers/TaskController.php` | `consolidateTaskCompletionMemory()` | fallback a `'all'` | Desacoplado: usa `'all'` o el rol asignado en la historia. |
+| `api/controllers/ProjectController.php` | `importGitProject()` | `['backend_architect', 'frontend_master', 'lead_architect', 'qa_security_guard']` | Asignar según capacidades de desarrollo del proyecto activo. |
+| `api/controllers/MeetingController.php` | `beginMeeting()` | Participantes por defecto: `['project_manager', 'lead_architect']` | Seleccionar roles con `can_facilitate_sprint` y `can_record_adr`. |
+| `api/controllers/MeetingController.php` | `runMeeting()` / `generateTurns()` | Filtra `'director'`, asigna a `'project_manager'` por defecto | Utilizar rol con `can_orchestrate` o `can_facilitate_sprint`. |
+| `api/services/BoardService.php` | `createTask()` | Asignación por defecto: `'project_manager'` | Asignar a rol con `can_facilitate_sprint` o dejar sin asignar. |
+| `api/services/DirectorService.php` | `const ROLE_ID = 'director'` | `'director'` | Rol ejecutivo default, respaldado por `can_orchestrate`. |
+| `api/Repository.php` | `getFullState()` | `ORDER BY CASE id WHEN 'director' THEN 0 ELSE 1 END` | Priorizar roles con capacidad `can_orchestrate`. |
+| `api/tasks.php` | acción `'generate_legal'` | Autor: `'legal_counsel'` | Resolver dinámicamente rol con `can_audit_compliance`. |
+| `assets/js/chat.js` | `handleSendChat()` | `targetRole === 'director'` | Evaluar si el rol destino posee capacidad `can_orchestrate`. |
+| `assets/js/meetings.js` | Generación de participantes | `'project_manager'`, `'lead_architect'` | Consultar capacidades activas en `appData.roles`. |
+| `assets/js/director.js` | Verificación de líder | `'director'` | Reemplazar por chequeo de `can_orchestrate`. |
+| `assets/js/kanban.js` | Filtros y avatares | IDs fijos del escuadrón | Iterar dinámicamente sobre la lista de roles del proyecto. |
+| `mcp-server/src/tools/write.ts` | Herramienta `remember` | Documentación `backend_architect, lead_architect` | Texto de ayuda ilustrativo; no acopla lógica dura. |
+| `plugin/agileforge/commands/*.md` | `equipo.md`, `tomar.md`, `reunion.md` | IDs de roles en ejemplos | Ejemplos de uso del pack core. |
 
-### 5.2 Migración del Escuadrón Actual al Pack "Core"
+### 5.3 Migración del Escuadrón Actual al Pack "Core"
 
-Para garantizar compatibilidad hacia atrás con las historias y auditorías existentes:
-1. Se crea el pack canónico `plugin/agileforge/packs/core/` con los 8 roles vigentes (`director`, `chief_architect`, `backend_architect`, `frontend_master`, `qa_security`, `creative_director`, `legal_compliance`, `project_manager`).
-2. Cada archivo de rol declara sus capacidades exactas.
-3. Las tareas históricas mantienen su campo `assigned_to = 'backend_architect'`. El sistema resuelve las capacidades leyendo el archivo de rol correspondiente. Si una historia referencia un ID sin prefijo de pack, el resolver busca por defecto en el pack `core`.
+Para garantizar compatibilidad retroactiva absoluta con las historias y auditorías existentes:
+1. Se crea el pack canónico `plugin/agileforge/packs/core/` con los 8 roles vigentes preservando exactamente sus IDs de base de datos: `director`, `lead_architect`, `backend_architect`, `frontend_master`, `qa_security_guard`, `creative_director`, `legal_counsel`, `project_manager`.
+2. Las tareas existentes en la base de datos mantienen su campo `assigned_to` sin modificaciones.
+3. El motor de resolución resuelve primero roles locales del proyecto y, ante IDs sin prefijo de pack, resuelve sobre el pack `core`.
 
 ---
 
 ## 6. El Ciclo de la Forja de Agentes
-
-El ciclo de vida de un agente consta de cuatro etapas estrictas:
 
 ```mermaid
 flowchart TD
@@ -156,7 +182,7 @@ flowchart TD
     subgraph F2["2. Templar (Sandbox Aislado)"]
       B["Nivel 1: Validación Fija Obligatoria<br/>(Esquema, herramientas, skills, secretos)"]
       B -->|Pasa| C{"¿Ejecutar Práctica con IA?<br/>(Nivel 2 - Opcional)"}
-      C -->|Sí (Acepta costo tokens)| D["Prueba en Sandbox Aislado<br/>(data/sandbox.sqlite + workspace efímero)"]
+      C -->|Sí (Acepta costo tokens)| D["Prueba en Sandbox Aislado<br/>(data/sandbox-&lt;uuid&gt;.sqlite + workspace efímero)"]
       C -->|No / Bypass Humano| E["Insignia: Sin Templar ⚠️<br/>(Registra evento de auditoría)"]
       D -->|Supera DoD sintética| F["Certificado de Temple ✓"]
     end
@@ -173,34 +199,31 @@ flowchart TD
 
 ### 6.1 Fase 1: Forjar (Creación)
 - **Modo Plugin (Claude Code / MCP):** Comando `/forjar <descripción>` o herramienta MCP `forge_agent`.
-- **Modo Web:** Formulario visual con autocompletado de skills, selección de modelo y checkboxes de capacidades.
+- **Modo Web:** Formulario interactivo con autocompletado de skills, selección de modelo y asignación de capacidades.
 
-### 6.2 Fase 2: Templar en Dos Niveles (Sandbox Aislado)
+### 6.2 Fase 2: Templar en Dos Niveles (Sandbox Aislado con UUID)
 
 > [!IMPORTANT]
-> **Decisión de Arquitectura (David):**
-> El templado se ejecuta **en disco pero estrictamente aislado**, utilizando un proyecto temporal y una base de datos efímera (`data/sandbox.sqlite` + directorio efímero ignorado por Git). **Se rechazan los mocks en memoria** para asegurar que el agente interactúa con SQLite y el sistema de archivos real sin contaminar el tablero de producción.
-
-El proceso de templado se divide en dos niveles claros:
+> **Aislamiento Multiproceso por UUID:**
+> Para evitar colisiones y bloqueos si dos agentes se forjan simultáneamente, cada ejecución de templado utiliza una base de datos efímera única: `data/sandbox-<uuid>.sqlite` y un directorio de trabajo temporal `.agileforge/sandbox/<uuid>/` (ignorado en Git). Al concluir, ambos artefactos se destruyen automáticamente.
 
 #### Nivel 1: Validación Fija Obligatoria (Determinista y Gratuita)
 Se ejecuta de forma inmediata en milisegundos sin llamadas a LLM:
 - [x] **Formato y Esquema:** YAML frontmatter válido, campos requeridos presentes (`id`, `name`, `model`, `capabilities`, `tools`).
-- [x] **Modelo Válido:** El modelo declarado pertenece a los proveedores soportados en `config/models.json`.
-- [x] **Herramientas en Whitelist:** Todas las herramientas declaradas existen en la lista blanca y no violan restricciones de seguridad.
-- [x] **Skills en Catálogo:** Toda skill referenciada existe en `plugin/agileforge/skills/`.
-- [x] **Detección de Secretos:** Escaneo estático de texto para prevenir claves de API, tokens o credenciales incrustadas en el prompt.
+- [x] **Herramientas en Whitelist:** Lista blanca obligatoria explícita; ninguna herramienta desconocida ni violaciones de menor privilegio.
+- [x] **Capacidades Válidas:** Solo capacidades pertenecientes a la lista cerrada de 9 capacidades canónicas.
+- [x] **Skills en Catálogo:** Toda skill referenciada existe en el catálogo unificado (plugin + `is_custom=1`).
+- [x] **Modelo Soportado:** Pertenece a `config/models.json` o es un alias válido (`sonnet`, `opus`, `haiku`, `inherit`).
+- [x] **Escaneo Anti-Secretos:** Análisis estático para impedir claves de API o tokens hardcodeados en el prompt.
 
 #### Nivel 2: Práctica con IA (Opcional, con Aviso de Costo)
 Permite someter al agente a una historia de prueba sintética antes de permitirle operar en el proyecto:
 - **Aviso de Tokens:** La interfaz advierte el costo estimado en tokens (ej. `~3,500 tokens / ~$0.015 USD`).
-- **Aislamiento Total:** Se instancia una base temporal `data/sandbox.sqlite` y una carpeta de trabajo efímera `.agileforge/sandbox/temp-<uuid>/` (registrada en `.gitignore`).
-- **Desafío Sintético:**
-  1. Se asigna una historia modelo acorde a la especialidad del agente.
-  2. El agente reclama la tarea con `claim_task`.
-  3. Ejecuta la tarea y entrega evidencia con `submit_for_review`.
-  4. Se valida que no haya invocado capacidades ajenas y que haya emitido evidencia real.
-- **Limpieza Inmediata:** Al terminar la prueba (sea exitosa o fallida), el directorio temporal y la base `sandbox.sqlite` se eliminan por completo.
+- **Ejecución según el Modo:**
+  - **En Modo Plugin (Claude Code sin claves de API en la web):** Claude Code ejecuta el subagente invocando al servidor MCP configurado con la variable `AGILEFORGE_DB_PATH=data/sandbox-<uuid>.sqlite`.
+  - **En Modo Panel Web (con motor de IA configurado):** El backend ejecuta el runner agéntico utilizando las credenciales del servidor contra la base sandbox aislada.
+- **Validación del Desafío:** El agente reclama la tarea, entrega evidencia con `submit_for_review` y se valida que no intente auto-aprobarse ni ejecutar herramientas no concedidas.
+- **Limpieza Inmediata:** Destrucción de `sandbox-<uuid>.sqlite` y su carpeta temporal.
 
 ### 6.3 Bypass del Templado (Condiciones Restrictivas)
 
@@ -222,7 +245,7 @@ La **Armería** gestiona el catálogo de agentes disponibles para el proyecto ac
 Para evitar sobrecarga de contexto, dispersión en reuniones y contención de bloqueos en SQLite:
 - **Límite Máximo Recomendado:** **8 a 10 agentes activos por proyecto simultáneamente**.
 - Los roles excedentes permanecen en estado "En Reserva" dentro de la Armería (inactivos en el tablero y no invocables por Claude Code).
-- El Líder de Producto puede rotar especialistas según las necesidades del sprint activo (ej. activar al Auditor PCI durante el sprint de pasarela de pagos y regresarlo a la reserva al concluir).
+- El Líder de Producto puede rotar especialistas según las necesidades del sprint activo.
 
 ---
 
@@ -230,7 +253,7 @@ Para evitar sobrecarga de contexto, dispersión en reuniones y contención de bl
 
 | Fase | Entregables Principales | Complejidad | Estimación |
 |---|---|---|---|
-| **Fase 1: Registro de Roles en Archivos** | Especificación del esquema YAML, refactor de `TaskController` / `BoardService` para verificar capacidades, soporte de `.claude/agents/<id>.md`. | Media | 4-5 días |
-| **Fase 2: Forja y Templado con Sandbox** | Validador determinista (Nivel 1), runner de sandbox aislado en `data/sandbox.sqlite` (Nivel 2), bypass web con auditoría. | Alta | 5-6 días |
+| **Fase 1: Registro de Roles en Archivos** | Esquema YAML, refactor de controladores y servicios para verificar la matriz de 9 capacidades, generador de `.claude/agents/<id>.md`. | Media | 4-5 días |
+| **Fase 2: Forja y Templado con Sandbox UUID** | Validador Nivel 1, runner de sandbox aislado en `data/sandbox-<uuid>.sqlite` (Nivel 2 modo plugin/web), bypass web con auditoría. | Alta | 5-6 días |
 | **Fase 3: Armería, Web UI y Aleaciones** | Gestor visual de la Armería en panel web, límite de escuadrón activo, importador/exportador de packs de agentes. | Media | 4 días |
 | **Total Estimado** | | | **13-15 días** |
