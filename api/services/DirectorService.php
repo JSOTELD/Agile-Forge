@@ -139,7 +139,8 @@ class DirectorService
         }
 
         $cost = $llm->calculateCost('anthropic', $engine['model'], $inTok, $outTok);
-        $llm->recordUsage(self::ROLE_ID, null, 'default', 'anthropic', $engine['model'], $inTok, $outTok, $inTok + $outTok, $cost, 'director');
+        $sprintId = (string)($this->repo->getActiveSprint()['id'] ?? 'default');
+        $llm->recordUsage(self::ROLE_ID, null, $sprintId, 'anthropic', $engine['model'], $inTok, $outTok, $inTok + $outTok, $cost, 'director');
 
         return ['reply' => $reply, 'tokens' => $inTok + $outTok, 'cost_usd' => $cost];
     }

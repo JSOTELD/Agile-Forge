@@ -87,15 +87,6 @@ class Repository
         $aiEngine['api_key_configured'] = $this->llm->isProviderConfigured((string)$aiEngine['active_provider']);
         $localAi = $this->getLocalAiState($settings);
 
-        // Resumen contable de costos y tokens
-        $costSummary = $this->llm->getUsageSummary();
-        $uiPreferences = $settings['ui_preferences'] ?? [
-            'theme'      => 'obsidian',
-            'density'    => 'compact',
-            'ux_score'   => 94
-        ];
-        $skillsPool = $settings['available_skills_pool'] ?? [];
-
         // Sprint activo del proyecto
         $sprintStmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
         $sprintStmt->execute([$activeProjectId]);
@@ -124,6 +115,15 @@ class Repository
                 'budget_usd'      => 0.0,
             ];
         }
+
+        // Resumen contable de costos y tokens del sprint activo
+        $costSummary = $this->llm->getUsageSummary($sprint['id']);
+        $uiPreferences = $settings['ui_preferences'] ?? [
+            'theme'      => 'obsidian',
+            'density'    => 'compact',
+            'ux_score'   => 94
+        ];
+        $skillsPool = $settings['available_skills_pool'] ?? [];
 
         // Roles
         $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY CASE id WHEN 'director' THEN 0 ELSE 1 END, id ASC");

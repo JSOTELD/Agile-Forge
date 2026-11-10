@@ -144,12 +144,15 @@ class EngineService
             throw new RuntimeException($engine['reason'] ?? 'No hay motor de IA disponible.');
         }
 
+        $sprintId = (string)($meta['sprint_id'] ?? ($this->repo->getActiveSprint()['id'] ?? 'default'));
+        $meta['sprint_id'] = $sprintId;
+
         if ($engine['kind'] === 'local') {
             $res = $this->local->chat($systemPrompt, $messages, $engine['model'] ?: null, $maxTokens);
             $this->llm->recordUsage(
                 (string)($meta['agent_role'] ?? 'system'),
                 $meta['task_id'] ?? null,
-                'default',
+                $sprintId,
                 (string)$engine['provider'],
                 (string)($res['model'] ?? $engine['model']),
                 (int)($res['input_tokens'] ?? 0),

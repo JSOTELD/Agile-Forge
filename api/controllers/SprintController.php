@@ -102,7 +102,7 @@ class SprintController
             'counts_by_status'   => $countsByStatus,
             'blocked_tasks'      => $blockedTasks,
             'total_tasks'        => count($tasks),
-            'costs_summary'      => $this->llm->getUsageSummary()
+            'costs_summary'      => $this->llm->getUsageSummary($sprint['id'] ?? null)
         ]);
     }
 }
