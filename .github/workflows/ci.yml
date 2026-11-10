@@ -2,58 +2,82 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Lint & Build Validation
-    runs-on: ubuntu-latest
+  contract:
+    name: Contrato (PHP ${{ matrix.php }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, php: '8.0' }
+          - { os: ubuntu-latest, php: '8.3' }
+          - { os: windows-latest, php: '8.2' }
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
-          extensions: pdo, pdo_sqlite
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_sqlite, mbstring
+          coverage: none
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
+          cache: npm
           cache-dependency-path: mcp-server/package-lock.json
 
-      - name: Validate PHP syntax
-        run: |
-          find . -name "*.php" ! -path "./mcp-server/*" ! -path "./vendor/*" -exec php -l {} +
+      - name: Instalar dependencias del servidor MCP
+        working-directory: mcp-server
+        run: npm ci
 
-      - name: Validate SQLite Migration
-        run: |
-          php bin/migrate.php
+      - name: Tipos del servidor MCP
+        working-directory: mcp-server
+        run: npm run check
 
-      - name: Validate ES Modules Syntax
+      - name: Los bundles de los plugins están al día
+        if: matrix.os == 'ubuntu-latest' && matrix.php == '8.3'
+        shell: bash
         run: |
-          node -c assets/js/app.js
-          node -c assets/js/state.js
-          node -c assets/js/ui.js
-          node -c assets/js/kanban.js
-          node -c assets/js/chat.js
-          node -c assets/js/meetings.js
-          node -c assets/js/skills.js
-          node -c assets/js/ux-lab.js
-          node -c assets/js/projects.js
-          node -c assets/js/legal.js
-          node -c assets/js/local-ai.js
-          node -c assets/js/i18n.js
+          cd mcp-server && npm run build && npm run bundle && cd ..
+          if ! git diff --exit-code -- plugin/agileforge/server plugin/agileforge-vista/server; then
+            echo "::error::Los bundles no coinciden con mcp-server/src. Ejecuta 'npm run build && npm run bundle' en mcp-server y commitea."
+            exit 1
+          fi
 
-      - name: Build MCP Server
+      - name: Pruebas de contrato (API, MCP y repositorio)
+        run: node tests/run.mjs
+
+  plugin-validate:
+    name: Validación del plugin (Claude Code)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Informativo: depende del CLI publicado en npm, así que no bloquea el merge.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: claude plugin validate
         run: |
-          cd mcp-server
-          npm ci
-          npm run build
-
+          npx --yes @anthropic-ai/claude-code plugin validate plugin/agileforge
+          npx --yes @anthropic-ai/claude-code plugin validate plugin/agileforge-vista
+          npx --yes @anthropic-ai/claude-code plugin validate .

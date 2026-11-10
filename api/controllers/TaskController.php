@@ -251,7 +251,14 @@ class TaskController
                 } catch (\InvalidArgumentException $e) {
                     $proj = $this->repo->getActiveProject();
                 }
-                $ws = (string)($proj['path'] ?? dirname(__DIR__, 2));
+                // Una ruta vacía o relativa (p. ej. "." en una instalación nueva) se resuelve contra la raíz
+                // de la app, no contra el directorio de trabajo del script (que con php -S es api/).
+                $appRoot = dirname(__DIR__, 2);
+                $ws = trim((string)($proj['path'] ?? ''));
+                $isAbsWs = $ws !== '' && (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $ws);
+                if (!$isAbsWs) {
+                    $ws = ($ws === '' || $ws === '.') ? $appRoot : $appRoot . '/' . ltrim($ws, './\\');
+                }
                 $gitCheck = $this->verifyDoDGitFiles($ws, $filesChanged);
                 if (!$gitCheck['ok']) {
                     Bootstrap::fail("Rechazo de DoD: " . $gitCheck['message'], 422);
