@@ -65,6 +65,9 @@ jobs:
       - name: Pruebas de contrato (API, MCP y repositorio)
         run: node tests/run.mjs
 
+      - name: Diagnóstico de salud del entorno (Doctor)
+        run: npm run doctor
+
   plugin-validate:
     name: Validación del plugin (Claude Code)
     runs-on: ubuntu-latest
