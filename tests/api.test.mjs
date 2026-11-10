@@ -691,3 +691,20 @@ test('firma humana: enabled nulo o vacío se rechaza y no apaga el interruptor',
   const state = await api('GET', 'index.php/state');
   assert.equal(state.json.human_signoff?.settings?.default, true);
 });
+
+test('datos antiguos: prioridades en inglés se migran a las vigentes al abrir la base', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'af-prio-'));
+    const db = path.join(dir, 'prio.sqlite');
+    const php = process.env.PHP_BIN || 'php';
+    const run = (code) => execFileSync(php, ['-r', code], {
+        cwd: ROOT, env: { ...process.env, AGILEFORGE_DB_PATH: db }, encoding: 'utf8'
+    });
+    const boot = 'require "api/bootstrap.php"; require_once "api/Database.php"; $c = array_values(array_filter(get_declared_classes(), fn($x) => str_ends_with($x, "Database")))[0]; $p = $c::getPdo();';
+    run(boot + ` $p->exec("INSERT INTO tasks (id, project_id, title, assigned_to, priority, status) VALUES ('US-P1','default','a','director','high','backlog'), ('US-P2','default','b','director','medium','backlog'), ('US-P3','default','c','director','critical','backlog'), ('US-P4','default','d','director','low','backlog')");`);
+    const out = run(boot + ` echo json_encode($p->query("SELECT id, priority FROM tasks WHERE id LIKE 'US-P%' ORDER BY id")->fetchAll(PDO::FETCH_KEY_PAIR));`);
+    assert.deepEqual(JSON.parse(out), { 'US-P1': 'alta', 'US-P2': 'media', 'US-P3': 'critica', 'US-P4': 'baja' });
+    fs.rmSync(dir, { recursive: true, force: true });
+});

@@ -76,8 +76,17 @@ export function statusLabel(status) {
 }
 
 /** Texto legible de una prioridad. */
+// Datos antiguos guardaban la prioridad en inglés; el servidor ya los migra, esto es la red de seguridad.
+const PRIORITY_ALIASES = { critical: 'critica', high: 'alta', medium: 'media', low: 'baja' };
+
+export function normalizePriority(priority) {
+    const p = String(priority || '').toLowerCase();
+    return PRIORITY_LABELS[p] ? p : (PRIORITY_ALIASES[p] || 'media');
+}
+
 export function priorityLabel(priority) {
-    return PRIORITY_LABELS[priority] ? t(`priority_${priority}`, PRIORITY_LABELS[priority]) : String(priority || '');
+    const p = normalizePriority(priority);
+    return t(`priority_${p}`, PRIORITY_LABELS[p]);
 }
 
 // Los eventos "error" de las imágenes no burbujean, pero sí pasan por la fase de captura:

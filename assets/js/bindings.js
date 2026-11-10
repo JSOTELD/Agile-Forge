@@ -8,7 +8,7 @@
 import { appData, apiFetch, escapeHtml, jsArg, localTime } from './state.js';
 import { showToast, switchMainTab } from './ui.js';
 import { getLanguage, t as tr } from './i18n.js';
-import { roleLabel, statusLabel } from './roles.js';
+import { roleLabel, statusLabel, normalizePriority } from './roles.js';
 
 async function post(action, extra = {}) {
     const res = await apiFetch('api/tasks.php', {
@@ -158,7 +158,7 @@ export function openTaskDetail(taskId) {
         roleSel.innerHTML = (appData.roles || []).map(r => `<option value="${escapeHtml(r.id)}" ${r.id === t.assigned_to ? 'selected' : ''}>${escapeHtml(r.avatar)} ${escapeHtml(r.name)}</option>`).join('');
     }
     const prio = document.getElementById('detail-task-priority');
-    if (prio) prio.value = t.priority || 'media';
+    if (prio) prio.value = normalizePriority(t.priority);
     const pts = document.getElementById('detail-task-points');
     if (pts) pts.value = String(t.story_points || 3);
     const story = document.getElementById('detail-task-story');
