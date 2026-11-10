@@ -126,6 +126,9 @@ class TaskController
             if ($completedTask) {
                 $this->consolidateTaskCompletionMemory($completedTask);
             }
+        } else {
+            $memId = 'MEM-TASK-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $id);
+            $this->repo->toggleMemory($memId, false);
         }
 
         Bootstrap::jsonResponse(['success' => true, 'id' => $id, 'status' => $status]);
@@ -301,6 +304,9 @@ class TaskController
             if ($approvedTask) {
                 $this->consolidateTaskCompletionMemory($approvedTask);
             }
+        } else {
+            $memId = 'MEM-TASK-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $id);
+            $this->repo->toggleMemory($memId, false);
         }
 
         Bootstrap::jsonResponse(['success' => true, 'task_id' => $id, 'status' => $newStatus, 'decision' => $decision]);
@@ -435,9 +441,10 @@ class TaskController
 
             $points = (int)($task['story_points'] ?? 2);
             $importance = min(10, max(5, $points + 3));
+            $memId = 'MEM-TASK-' . preg_replace('/[^A-Za-z0-9_-]/', '-', (string)$task['id']);
 
             $this->repo->saveMemory([
-                'id'               => 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8)),
+                'id'               => $memId,
                 'project_id'       => $projectId,
                 'role_id'          => $roleId,
                 'node_type'        => 'progress',
