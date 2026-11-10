@@ -72,6 +72,24 @@ export function registerReadTools(server: McpServer, c: ReadClient): void {
     annotations: READ_ONLY,
   }, (a) => run(() => c.get(`roles/${encodeURIComponent(a.role_id)}/brief`)));
 
+  server.registerTool('list_memories', {
+    description: 'Lista nodos de la memoria interna de agentes del proyecto (avances, decisiones, aprendizajes, notas).',
+    inputSchema: {
+      project: z.string().optional().describe('ID de proyecto (por defecto el activo)'),
+      role: z.string().optional().describe('Rol asignado o "all"'),
+      node_type: z.enum(['progress', 'decision', 'learning', 'scratchpad', 'domain']).optional().describe('Tipo de nodo de memoria'),
+      limit: z.number().int().min(1).max(100).default(30),
+      active_only: z.boolean().default(true).describe('Solo memorias activas'),
+    },
+    annotations: READ_ONLY,
+  }, (a) => run(() => c.get('memories', { project: a.project, role: a.role, type: a.node_type, limit: a.limit, active_only: a.active_only ? 1 : undefined }), ['success']));
+
+  server.registerTool('get_memory', {
+    description: 'Obtiene el detalle completo de un nodo de memoria por su ID.',
+    inputSchema: { memory_id: z.string().describe('ID del nodo de memoria, ej. MEM-A1B2C3D4') },
+    annotations: READ_ONLY,
+  }, (a) => run(() => c.get(`memories/${encodeURIComponent(a.memory_id)}`)));
+
   server.registerTool('connection_info', {
     description: 'Diagnóstico de conexión: URL usada, modo, origen de la configuración y si la API responde. Nunca muestra el token.',
     inputSchema: {},

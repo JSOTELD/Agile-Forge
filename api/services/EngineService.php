@@ -144,12 +144,15 @@ class EngineService
             throw new RuntimeException($engine['reason'] ?? 'No hay motor de IA disponible.');
         }
 
+        $sprintId = (string)($meta['sprint_id'] ?? ($this->repo->getActiveSprint()['id'] ?? 'default'));
+        $meta['sprint_id'] = $sprintId;
+
         if ($engine['kind'] === 'local') {
             $res = $this->local->chat($systemPrompt, $messages, $engine['model'] ?: null, $maxTokens);
             $this->llm->recordUsage(
                 (string)($meta['agent_role'] ?? 'system'),
                 $meta['task_id'] ?? null,
-                'default',
+                $sprintId,
                 (string)$engine['provider'],
                 (string)($res['model'] ?? $engine['model']),
                 (int)($res['input_tokens'] ?? 0),
@@ -168,8 +171,8 @@ class EngineService
         ]);
     }
 
-    /** Prompt base de identidad de un agente. */
-    public static function agentSystemPrompt(array $role, array $jurisdiction, string $extra = ''): string
+    /** Prompt base de identidad de un agente con memoria nodular opcional. */
+    public static function agentSystemPrompt(array $role, array $jurisdiction, string $extra = '', string $memorySnippet = ''): string
     {
         $name = (string)($role['name'] ?? 'Agente');
         $alias = trim((string)($role['alias'] ?? ''));
@@ -177,11 +180,26 @@ class EngineService
         $skills = $role['assigned_skills'] ?? json_decode((string)($role['assigned_skills_json'] ?? '[]'), true) ?: [];
         $country = (string)($jurisdiction['country_name'] ?? 'Perú');
 
-        return "Eres {$name}" . ($alias !== '' ? " ({$alias})" : '') . ', agente del equipo AgileForge. ' .
+        $out = "Eres {$name}" . ($alias !== '' ? " ({$alias})" : '') . ', agente del equipo AgileForge. ' .
             ($specialty !== '' ? "Especialidad: {$specialty}. " : '') .
             ($skills ? 'Skills: ' . implode(', ', array_slice($skills, 0, 8)) . '. ' : '') .
             "Trabajas bajo la normativa de {$country}. Responde en el idioma en que te escriben (español por defecto), breve, concreto y orientado a la acción. " .
             'Si no sabes algo o te falta información del proyecto, dilo; no inventes datos.' .
             ($extra !== '' ? ' ' . $extra : '');
+
+        if ($memorySnippet !== '') {
+            $out .= "\n\n" . trim($memorySnippet);
+        }
+        return $out;
+    }
+
+    /** Construye el prompt completo del agente resolviendo jurisdicción y memorias nodulares del proyecto. */
+    public function buildAgentPrompt(array $role, ?string $projectId = null, string $extra = ''): string
+    {
+        $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+        $pid = $projectId ?: ($this->repo->getActiveProject()['id'] ?? 'default');
+        $roleId = (string)($role['id'] ?? 'all');
+        $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, $roleId, 1500);
+        return self::agentSystemPrompt($role, is_array($juris) ? $juris : [], $extra, $memSnippet);
     }
 }

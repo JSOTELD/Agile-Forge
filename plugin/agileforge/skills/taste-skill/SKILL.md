@@ -1,6 +1,7 @@
 ---
 name: taste-skill
 title: "Aesthetic Taste Guardian"
+description: "Elimina clichés estéticos de IA e impone jerarquía tipográfica rigurosa. Úsala al definir la dirección visual, paleta cromática y coherencia estética del producto."
 category: product
 level: Principal
 status: active

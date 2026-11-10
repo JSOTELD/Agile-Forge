@@ -1,6 +1,7 @@
 ---
 name: impeccable
 title: "Impeccable Visual Polish"
+description: "Pule microinteracciones, transiciones y elimina saltos de layout (CLS = 0). Úsala al refinar componentes visuales, animaciones y estados de carga en la interfaz."
 category: design
 level: Principal
 status: active

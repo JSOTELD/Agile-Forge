@@ -13,6 +13,11 @@ use AgileForge\Database;
 
 $rootDir = dirname(__DIR__);
 $jsonFile = $rootDir . '/data/team.json';
+$exampleFile = $rootDir . '/data/team.example.json';
+if (!file_exists($jsonFile) && file_exists($exampleFile)) {
+    echo "[*] No se encontró data/team.json: usando data/team.example.json como semilla de datos iniciales.\n";
+    $jsonFile = $exampleFile;
+}
 
 // 0. .env: si no existe se crea con el token principal, el token de vista (solo lectura) y la ruta de la base.
 //    Si ya existe NO se toca (solo se añade AGILEFORGE_VIEW_TOKEN cuando falta). Los tokens no se imprimen.
@@ -25,12 +30,12 @@ echo $envExisted
 
 $data = null;
 if (!file_exists($jsonFile)) {
-    echo "[-] No se encontró data/team.json: solo se inicializa el esquema de la base de datos.\n";
+    echo "[-] No se encontró archivo de equipo (team.json ni team.example.json): solo se inicializa el esquema de la base de datos.\n";
 } else {
     $raw = file_get_contents($jsonFile);
     $data = json_decode((string)$raw, true);
     if (!is_array($data)) {
-        echo "[-] JSON inválido en data/team.json.\n";
+        echo "[-] JSON inválido en {$jsonFile}.\n";
         exit(1);
     }
 }

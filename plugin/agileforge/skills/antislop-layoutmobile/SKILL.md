@@ -1,6 +1,7 @@
 ---
 name: antislop-layoutmobile
 title: "Anti-Slop Mobile Layout"
+description: "Adapta layouts móviles evitando desbordes horizontales y áreas táctiles pequeñas. Úsala al diseñar o ajustar vistas responsivas para smartphones y tablets."
 category: design
 level: Principal
 status: draft

@@ -321,10 +321,11 @@ class LlmService
 
         $meta = $opts['metadata'] ?? [];
         if (($opts['record_usage'] ?? true) !== false) {
+            $sprintId = !empty($meta['sprint_id']) ? (string)$meta['sprint_id'] : (string)((new \AgileForge\Repository())->getActiveSprint()['id'] ?? 'default');
             $this->recordUsage(
                 (string)($meta['agent_role'] ?? 'system'),
                 $meta['task_id'] ?? null,
-                (string)($meta['sprint_id'] ?? 'default'),
+                $sprintId,
                 $providerId,
                 $modelId,
                 $inputTokens,
@@ -509,10 +510,18 @@ class LlmService
         $stmt->execute($params);
         $overall = $stmt->fetch() ?: [];
 
-        $byAgent = $pdo->query(
-            "SELECT agent_role, COUNT(*) as calls, SUM(total_tokens) as tokens, SUM(estimated_cost_usd) as cost_usd
-             FROM ai_token_usage GROUP BY agent_role ORDER BY cost_usd DESC"
-        )->fetchAll();
+        $byAgentSql = "SELECT agent_role, COUNT(*) as calls, SUM(total_tokens) as tokens, SUM(estimated_cost_usd) as cost_usd
+                       FROM ai_token_usage";
+        if ($sprintId !== null) {
+            $byAgentSql .= " WHERE sprint_id = ?";
+            $baStmt = $pdo->prepare($byAgentSql . " GROUP BY agent_role ORDER BY cost_usd DESC");
+            $baStmt->execute([$sprintId]);
+            $byAgent = $baStmt->fetchAll();
+        } else {
+            $byAgent = $pdo->query(
+                $byAgentSql . " GROUP BY agent_role ORDER BY cost_usd DESC"
+            )->fetchAll();
+        }
 
         return [
             'total_calls'         => (int)($overall['total_calls'] ?? 0),

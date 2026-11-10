@@ -3,7 +3,7 @@
  * Convocatoria de brainstorming, actas ADR y conversión de acuerdos al Backlog.
  */
 
-import { appData, apiFetch, escapeHtml } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg } from './state.js';
 import { showToast, switchMainTab } from './ui.js';
 import { richText, isPluginMode } from './director.js';
 import { t } from './i18n.js';
@@ -147,11 +147,11 @@ export function renderActiveMeeting(meeting) {
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <button onclick="copyMeetingMinutes('${escapeHtml(meeting.id)}')" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5">
+                    <button onclick="copyMeetingMinutes(${jsArg(meeting.id)})" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5">
                         <span>📋</span> Copiar Acta
                     </button>
                     ${!isConverted && actionItems.length ? `
-                        <button onclick="convertMeetingToTasks('${escapeHtml(meeting.id)}')" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5 whitespace-nowrap">
+                        <button onclick="convertMeetingToTasks(${jsArg(meeting.id)})" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow transition flex items-center gap-1.5 whitespace-nowrap">
                             <span>📥</span> Convertir al Backlog
                         </button>
                     ` : `
@@ -282,11 +282,11 @@ export function renderMeetingsHistory() {
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <button onclick="viewPastMeeting('${escapeHtml(m.id)}')" class="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 font-bold text-xs transition">
+                    <button onclick="viewPastMeeting(${jsArg(m.id)})" class="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 font-bold text-xs transition">
                         Ver Acta
                     </button>
                     ${!isConverted ? `
-                        <button onclick="convertMeetingToTasks('${escapeHtml(m.id)}')" title="Convertir a tareas en el Backlog" class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
+                        <button onclick="convertMeetingToTasks(${jsArg(m.id)})" title="Convertir a tareas en el Backlog" class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition">
                             + Backlog
                         </button>
                     ` : ''}

@@ -34,8 +34,8 @@ $apiToken = \AgileForge\Bootstrap::getToken();
     <!-- Favicon Oficial AgileForge -->
     <link rel="icon" type="image/png" href="assets/brand/favicon.png">
     <link rel="apple-touch-icon" href="assets/brand/favicon.png">
-    <!-- Tailwind CSS CDN para renderizado dinámico -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Estilos compilados de Tailwind CSS (local, cero dependencia CDN) -->
+    <link rel="stylesheet" href="assets/css/app.css?v=<?= filemtime(__DIR__ . '/assets/css/app.css') ?>">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -874,7 +874,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <span class="hidden md:inline text-slate-500">|</span>
             <div class="hidden lg:flex items-center gap-1.5 text-slate-400 text-[10px]">
                 <span class="text-slate-500 font-bold uppercase">Ruta:</span>
-                <span id="active-workspace-display" class="font-mono truncate max-w-xs text-slate-300">D:\xampp\htdocs\canil perruno</span>
+                <span id="active-workspace-display" class="font-mono truncate max-w-xs text-slate-300">—</span>
                 <button onclick="openChangeWorkspaceModal()" class="text-slate-400 hover:text-white underline text-[10px]" title="Cambiar ruta de trabajo">✏️</button>
             </div>
             <span class="hidden md:inline text-slate-500">|</span>
@@ -889,10 +889,10 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">
                         <span id="sprint-number-badge" class="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">Sprint 1</span>
-                        <h2 id="sprint-name" class="font-extrabold text-white text-base sm:text-lg">Sprint 1: Experiencia Vareon & Movilidad Inteligente</h2>
+                        <h2 id="sprint-name" class="font-extrabold text-white text-base sm:text-lg">Cargando sprint…</h2>
                     </div>
                     <p id="sprint-goal" class="text-xs text-slate-300 max-w-2xl">
-                        Desplegar el selector de distritos, cotizador de movilidad por km y refinamiento UX con DoD 100% verde.
+
                     </p>
                 </div>
 
@@ -1288,7 +1288,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                     </div>
                     <div>
                         <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Nombre Comercial del Proyecto</label>
-                        <input type="text" id="legal-gen-name" value="Canil Perruno · Hotel & Guardería" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none">
+                        <input type="text" id="legal-gen-name" value="" placeholder="Nombre comercial (por defecto, el del proyecto)" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 outline-none">
                     </div>
                     <div class="flex items-end gap-2">
                         <button onclick="handleGenerateLegalDoc(false)" class="flex-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold rounded-xl border border-indigo-500/30 transition text-xs">
@@ -1778,7 +1778,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             </p>
             <div>
                 <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta del Proyecto</label>
-                <input type="text" id="workspace-input" placeholder="D:\xampp\htdocs\canil perruno"
+                <input type="text" id="workspace-input" placeholder="Ej: D:\xampp\htdocs\mi-proyecto"
                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs focus:border-indigo-500 outline-none">
             </div>
             <div class="flex justify-end gap-2 pt-2">
@@ -2049,6 +2049,39 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 </div>
             </div>
 
+            <!-- Presupuesto por Sprint (USD) -->
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-white uppercase tracking-wider block">Presupuesto del Sprint</span>
+                        <span id="modal-costs-budget-status" class="text-[11px] text-slate-400 font-mono">$0.00 gastados de $0.00 límite</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs text-slate-400 font-bold">$</span>
+                            <input type="number" id="modal-costs-budget-input" step="0.5" min="0" placeholder="5.00" class="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs font-mono outline-none focus:border-purple-500">
+                        </div>
+                        <button type="button" onclick="saveSprintBudget()" class="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition">
+                            Fijar
+                        </button>
+                    </div>
+                </div>
+                <!-- Barra de Progreso de Presupuesto -->
+                <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                    <div id="modal-costs-budget-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <!-- Alerta cuando se acerca o supera el límite -->
+                <div id="modal-costs-budget-warning" class="hidden p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">⚠️</span>
+                        <span id="modal-costs-budget-warning-text">Te estás acercando al límite de tu presupuesto. Considera activar la IA local (Ollama) para llamadas sin costo de tokens.</span>
+                    </div>
+                    <button type="button" onclick="closeCostsModal(); openAiEngineModal();" class="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-[11px] transition">
+                        🦙 Ver IA local
+                    </button>
+                </div>
+            </div>
+
             <!-- Desglose por agente -->
             <div class="space-y-2 flex-1 overflow-y-auto">
                 <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Desglose por Agente</h4>
@@ -2081,12 +2114,12 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <div class="space-y-3 text-xs">
                 <div>
                     <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Nombre del Proyecto *</label>
-                    <input type="text" id="new-project-name" placeholder="Ej: Vareon Mobile App, Core Backend, Portal B2B"
+                    <input type="text" id="new-project-name" placeholder="Ej: App móvil, Core Backend, Portal B2B"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-indigo-500">
                 </div>
                 <div>
                     <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta en Servidor Local (Opcional)</label>
-                    <input type="text" id="new-project-path" placeholder="Ej: D:\xampp\htdocs\vareon-mobile"
+                    <input type="text" id="new-project-path" placeholder="Ej: D:\xampp\htdocs\mi-app"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs outline-none focus:border-indigo-500">
                     <span class="text-[10px] text-slate-500 mt-0.5 block">Si se deja vacío, usará el directorio raíz de AgileForge.</span>
                 </div>
@@ -2116,7 +2149,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <div class="space-y-3 text-xs">
                 <div>
                     <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Ruta Absoluta del Directorio Local *</label>
-                    <input type="text" id="import-workspace-path" placeholder="Ej: D:\xampp\htdocs\canil perruno"
+                    <input type="text" id="import-workspace-path" placeholder="Ej: D:\xampp\htdocs\mi-proyecto"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs outline-none focus:border-purple-500">
                     <span class="text-[10px] text-slate-500 mt-0.5 block">Debe ser un directorio existente dentro de localhost / htdocs.</span>
                 </div>
@@ -2285,6 +2318,99 @@ $apiToken = \AgileForge\Bootstrap::getToken();
         </div>
     </div>
 
+    <!-- Modal: Memoria Nodular por Agente y Proyecto -->
+    <div id="agent-memory-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl p-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">🧠</span>
+                    <div>
+                        <h3 class="font-bold text-base text-white">Memoria Nodular Interna</h3>
+                        <p class="text-xs text-slate-400">
+                            <span id="agent-memory-role-name" class="text-purple-300 font-bold">Agente</span>
+                            (<span id="agent-memory-role-id" class="font-mono text-slate-400">rol</span>) ·
+                            Proyecto: <span id="agent-memory-project-name" class="text-indigo-300 font-mono">activo</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="toggleAddMemoryForm()" class="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-bold flex items-center gap-1 transition">
+                        <span>+</span> Crear Nodo
+                    </button>
+                    <button type="button" onclick="closeAgentMemoryModal()" class="text-slate-400 hover:text-white text-xl">✕</button>
+                </div>
+            </div>
+
+            <!-- Formulario Colapsable para Crear Nodo de Memoria -->
+            <div id="agent-memory-create-form" class="hidden p-4 rounded-2xl bg-slate-950 border border-purple-500/30 space-y-3">
+                <h4 class="text-xs font-bold text-purple-300 uppercase tracking-wider">Nuevo Nodo de Memoria</h4>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Tipo de Nodo</label>
+                        <select id="new-memory-type" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs outline-none">
+                            <option value="progress">📈 Avance / Entregable</option>
+                            <option value="decision">⚖️ Decisión Clave</option>
+                            <option value="learning" selected>💡 Aprendizaje</option>
+                            <option value="scratchpad">📝 Nota Rápida</option>
+                            <option value="domain">📐 Conocimiento de Dominio</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Importancia (1-10)</label>
+                        <select id="new-memory-importance" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs outline-none font-mono">
+                            <option value="10">10 (Crítico - Siempre en prompt)</option>
+                            <option value="8">8 (Alta relevancia)</option>
+                            <option value="5" selected>5 (Media / Estándar)</option>
+                            <option value="3">3 (Baja prioridad)</option>
+                            <option value="1">1 (Contextual)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Ámbito</label>
+                        <select id="new-memory-scope" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs outline-none">
+                            <option value="role" selected>Solo este agente</option>
+                            <option value="all">Todo el equipo (Global)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Título del Concepto</label>
+                    <input type="text" id="new-memory-title" placeholder="Ej: Regla de CORS y puertos en endpoints de pago"
+                           class="w-full px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-400 font-bold uppercase mb-1">Contenido / Síntesis de Conocimiento</label>
+                    <textarea id="new-memory-content" rows="3" placeholder="Describe los datos, reglas o conclusiones aprendidas para que el agente no arranque desde cero..."
+                              class="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs outline-none focus:border-purple-500"></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-1">
+                    <button type="button" onclick="toggleAddMemoryForm(false)" class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">Cancelar</button>
+                    <button type="button" onclick="saveNewAgentMemory()" class="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition">Guardar Memoria</button>
+                </div>
+            </div>
+
+            <!-- Filtros por tipo de nodo -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]" id="memory-filter-chips">
+                <button type="button" onclick="filterAgentMemories('all')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-purple-600 text-white font-bold whitespace-nowrap">Todas</button>
+                <button type="button" onclick="filterAgentMemories('progress')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">📈 Avances</button>
+                <button type="button" onclick="filterAgentMemories('decision')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">⚖️ Decisiones</button>
+                <button type="button" onclick="filterAgentMemories('learning')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">💡 Aprendizajes</button>
+                <button type="button" onclick="filterAgentMemories('scratchpad')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">📝 Notas</button>
+                <button type="button" onclick="filterAgentMemories('domain')" class="mem-filter-btn px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white whitespace-nowrap">📐 Dominio</button>
+            </div>
+
+            <!-- Lista de Nodos de Memoria -->
+            <div id="agent-memory-list" class="space-y-2 flex-1 overflow-y-auto pr-1 text-xs">
+                <!-- Se inyecta dinámicamente -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+                <span class="text-slate-500 text-[11px]">Las memorias activas se inyectan en el prompt del agente (hasta 1500 car.) priorizando mayor puntaje.</span>
+                <button type="button" onclick="closeAgentMemoryModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Asignar Nueva Historia de Usuario (Scrum) con Selector de Skills -->
     <div id="new-task-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
@@ -2301,7 +2427,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             <form id="task-form" onsubmit="handleCreateTask(event)" class="space-y-3.5 text-xs overflow-y-auto flex-1 pr-1">
                 <div>
                     <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Título de la Misión / Historia *</label>
-                    <input type="text" id="task-title" required placeholder="Ej: Implementar cotizador de movilidad por km y mapa"
+                    <input type="text" id="task-title" required placeholder="Ej: Formulario de registro con validación"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs">
                 </div>
 
@@ -2344,7 +2470,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
                 <div>
                     <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1">Historia de Usuario (Formato Ágil)</label>
-                    <input type="text" id="task-user-story" placeholder="Como cliente quiero ver el costo por km para presupuestar la estadía de mi perro"
+                    <input type="text" id="task-user-story" placeholder="Como cliente quiero crear mi cuenta en un paso para empezar a usar el servicio"
                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-indigo-500 outline-none text-xs">
                 </div>
 

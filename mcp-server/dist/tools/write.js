@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { PRIORITIES } from './read.js';
 import { WRITE, run } from './util.js';
 const enc = encodeURIComponent;
+/** Story points Fibonacci (el servidor acepta solo 1, 2, 3, 5, 8 y 13). */
+const FIB = [1, 2, 3, 5, 8, 13];
+const storyPoints = z
+    .number()
+    .int()
+    .refine((n) => FIB.includes(n), { message: 'Usa un valor Fibonacci: 1, 2, 3, 5, 8 o 13' });
 export function registerWriteTools(server, c) {
     const dflt = c.cfg.client;
     const post = (route, body) => run(() => c.post(route, body), ['success']);
@@ -12,7 +18,7 @@ export function registerWriteTools(server, c) {
             assigned_to: z.string().describe('Rol ejecutor, ej. backend_architect'),
             user_story: z.string().describe('"Como [rol], quiero [acción], para [beneficio]"'),
             dod: z.string().describe('Definition of Done verificable'),
-            story_points: z.number().int().min(1).max(13).default(2),
+            story_points: storyPoints.default(2).describe('Fibonacci: 1, 2, 3, 5, 8 o 13'),
             priority: z.enum(PRIORITIES).default('media'),
             description: z.string().optional(),
             skills: z.array(z.string()).optional().describe('Skills sugeridas'),
@@ -106,7 +112,7 @@ export function registerWriteTools(server, c) {
             action_items: z.array(z.object({
                 title: z.string(),
                 assigned_to: z.string(),
-                story_points: z.number().int().default(2),
+                story_points: storyPoints.default(2),
                 priority: z.enum(PRIORITIES).default('media'),
                 user_story: z.string().optional(),
                 dod: z.string().optional(),
@@ -136,4 +142,27 @@ export function registerWriteTools(server, c) {
         },
         annotations: WRITE,
     }, (a) => post('sprint/start', a));
+    server.registerTool('remember', {
+        description: 'Guarda o actualiza un nodo de memoria interna del proyecto para un rol específico o para todo el equipo.',
+        inputSchema: {
+            title: z.string().min(3).max(200).describe('Título o concepto clave'),
+            content: z.string().min(5).describe('Detalle de la memoria, lección aprendida, avance o nota de dominio'),
+            role_id: z.string().default('all').describe('Rol asociado (ej. backend_architect, lead_architect) o "all"'),
+            node_type: z.enum(['progress', 'decision', 'learning', 'scratchpad', 'domain']).default('learning').describe('Tipo de memoria'),
+            importance: z.number().int().min(1).max(10).default(5).describe('Nivel de importancia (1 a 10) para priorización en prompt'),
+            project_id: z.string().optional().describe('ID del proyecto (por defecto el activo)'),
+            id: z.string().optional().describe('ID existente si se desea actualizar'),
+        },
+        annotations: WRITE,
+    }, (a) => post('memories', a));
+    server.registerTool('forget', {
+        description: 'Desactiva o elimina un nodo de memoria de los agentes.',
+        inputSchema: {
+            memory_id: z.string().describe('ID del nodo de memoria, ej. MEM-A1B2C3D4'),
+            hard_delete: z.boolean().default(false).describe('true = eliminación permanente en BD, false = desactivar'),
+        },
+        annotations: WRITE,
+    }, (a) => a.hard_delete
+        ? post(`memories/${enc(a.memory_id)}/delete`, {})
+        : post(`memories/${enc(a.memory_id)}/toggle`, { is_active: false }));
 }

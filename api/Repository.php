@@ -87,44 +87,43 @@ class Repository
         $aiEngine['api_key_configured'] = $this->llm->isProviderConfigured((string)$aiEngine['active_provider']);
         $localAi = $this->getLocalAiState($settings);
 
-        // Resumen contable de costos y tokens
-        $costSummary = $this->llm->getUsageSummary();
+        // Sprint activo del proyecto
+        $sprintStmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
+        $sprintStmt->execute([$activeProjectId]);
+        $sprintRow = $sprintStmt->fetch();
+        $sprintStmt->closeCursor();
+        // Sin sprint activo en ESTE proyecto no se toma prestado el de otro proyecto: se muestra uno genérico
+
+        if ($sprintRow) {
+            $sprint = [
+                'id'              => $sprintRow['id'],
+                'number'          => (int)$sprintRow['number'],
+                'name'            => $sprintRow['name'],
+                'goal'            => $sprintRow['goal'],
+                'days_remaining'  => self::sprintDaysLeft($sprintRow),
+                'velocity_points' => (int)$sprintRow['velocity_points'],
+                'budget_usd'      => (float)($sprintRow['budget_usd'] ?? 0.0),
+            ];
+        } else {
+            $sprint = [
+                'id'              => 'default',
+                'number'          => 1,
+                'name'            => 'Sprint 1',
+                'goal'            => 'Sin sprint activo: inicia uno desde Claude Code (/sprint) o con el Director.',
+                'days_remaining'  => 0,
+                'velocity_points' => 20,
+                'budget_usd'      => 0.0,
+            ];
+        }
+
+        // Resumen contable de costos y tokens del sprint activo
+        $costSummary = $this->llm->getUsageSummary($sprint['id']);
         $uiPreferences = $settings['ui_preferences'] ?? [
             'theme'      => 'obsidian',
             'density'    => 'compact',
             'ux_score'   => 94
         ];
         $skillsPool = $settings['available_skills_pool'] ?? [];
-
-        // Sprint activo del proyecto
-        $sprintStmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
-        $sprintStmt->execute([$activeProjectId]);
-        $sprintRow = $sprintStmt->fetch();
-        $sprintStmt->closeCursor();
-
-        if (!$sprintRow) {
-            $stmt = $this->db->query("SELECT * FROM sprints WHERE status = 'active' ORDER BY number DESC LIMIT 1");
-            $sprintRow = $stmt->fetch();
-            $stmt->closeCursor();
-        }
-
-        if ($sprintRow) {
-            $sprint = [
-                'number'          => (int)$sprintRow['number'],
-                'name'            => $sprintRow['name'],
-                'goal'            => $sprintRow['goal'],
-                'days_remaining'  => (int)$sprintRow['days_remaining'],
-                'velocity_points' => (int)$sprintRow['velocity_points'],
-            ];
-        } else {
-            $sprint = [
-                'number'          => 1,
-                'name'            => 'Sprint 1',
-                'goal'            => 'Objetivo inicial del sprint',
-                'days_remaining'  => 5,
-                'velocity_points' => 20,
-            ];
-        }
 
         // Roles
         $rolesStmt = $this->db->query("SELECT * FROM roles ORDER BY CASE id WHEN 'director' THEN 0 ELSE 1 END, id ASC");
@@ -253,12 +252,15 @@ class Repository
         }
 
         // Trazabilidad de eventos recientes (Audit Feed para MCP & Web)
-        $eventsStmt = $this->db->query(
-            "SELECT e.*, t.title AS task_title 
-             FROM task_events e 
-             LEFT JOIN tasks t ON e.task_id = t.id 
-             ORDER BY e.created_at DESC LIMIT 30"
+        // Solo los eventos de historias del proyecto activo (antes se mezclaban los de todos los proyectos)
+        $eventsStmt = $this->db->prepare(
+            "SELECT e.*, t.title AS task_title
+             FROM task_events e
+             JOIN tasks t ON e.task_id = t.id
+             WHERE t.project_id = ?" . ($activeProjectId === 'default' ? " OR t.project_id IS NULL OR t.project_id = ''" : '') . "
+             ORDER BY e.created_at DESC, e.id DESC LIMIT 30"
         );
+        $eventsStmt->execute([$activeProjectId]);
         $recentEvents = [];
         while ($eRow = $eventsStmt->fetch()) {
             $eRow['payload'] = json_decode($eRow['payload_json'] ?? '{}', true);
@@ -352,6 +354,25 @@ class Repository
     {
         $fromFiles = self::skillsFromFiles();
         if ($fromFiles) {
+            // + las skills personalizadas creadas desde la interfaz (is_custom = 1), que no tienen SKILL.md:
+            // antes se guardaban pero nunca aparecían en el catálogo
+            $known = array_flip(array_column($fromFiles, 'id'));
+            $customStmt = $this->db->query("SELECT * FROM skills WHERE is_custom = 1 ORDER BY name ASC");
+            while ($row = $customStmt->fetch()) {
+                if (isset($known[$row['id']])) {
+                    continue;
+                }
+                $fromFiles[] = [
+                    'id'        => $row['id'],
+                    'name'      => $row['name'],
+                    'level'     => $row['level'] ?? 'Principal',
+                    'category'  => $row['category'] ?? 'Custom',
+                    'desc'      => $row['description'] ?? '',
+                    'tags'      => json_decode($row['tags_json'] ?? '[]', true) ?: [],
+                    'status'    => 'active',
+                    'is_custom' => true,
+                ];
+            }
             return $fromFiles;
         }
 
@@ -362,6 +383,23 @@ class Repository
             $skills[] = $row;
         }
         return $skills;
+    }
+
+    /**
+     * Normaliza una lista de skills: solo IDs con forma de slug que existan en el catálogo (archivos + personalizadas),
+     * sin repetidos. Evita IDs inventados (ADR-005) y texto arbitrario que luego se pinta en la interfaz.
+     */
+    public function cleanSkillIds(array $skills): array
+    {
+        $valid = array_flip(array_column($this->getSkillsCatalog(), 'id'));
+        $out = [];
+        foreach ($skills as $s) {
+            $s = trim((string)$s);
+            if ($s !== '' && preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/i', $s) && isset($valid[$s]) && !in_array($s, $out, true)) {
+                $out[] = $s;
+            }
+        }
+        return $out;
     }
 
     /**
@@ -542,7 +580,8 @@ class Repository
 
             // Verificar lock existente
             if (!empty($task['locked_by']) && $task['locked_by'] !== $roleKey) {
-                $lockedAt = strtotime($task['locked_at'] ?? 'now');
+                // locked_at es CURRENT_TIMESTAMP de SQLite (UTC): se interpreta como UTC, no con la zona horaria de PHP
+                $lockedAt = self::utcTimestamp($task['locked_at'] ?? null) ?? time();
                 // Lock expira en 30 minutos si no se renueva
                 if ((time() - $lockedAt) < 1800) {
                     return [
@@ -640,8 +679,31 @@ class Repository
         if ($sqlDate === null || $sqlDate === '') {
             return null;
         }
+        $ts = self::utcTimestamp($sqlDate);
+        return $ts === null ? $sqlDate : gmdate('Y-m-d\TH:i:s\Z', $ts);
+    }
+
+    /** Timestamp Unix de una fecha de SQLite (CURRENT_TIMESTAMP guarda UTC sin zona). */
+    public static function utcTimestamp(?string $sqlDate): ?int
+    {
+        if ($sqlDate === null || trim($sqlDate) === '') {
+            return null;
+        }
         $ts = strtotime($sqlDate . (preg_match('/[zZ]|[+-]\d\d:?\d\d$/', $sqlDate) ? '' : ' UTC'));
-        return $ts === false ? $sqlDate : gmdate('Y-m-d\TH:i:s\Z', $ts);
+        return $ts === false ? null : $ts;
+    }
+
+    /**
+     * Días que le quedan a un sprint. Con ends_at (fecha de cierre en UTC) se calculan con el reloj;
+     * sin ella (bases antiguas) se usa el número guardado.
+     */
+    public static function sprintDaysLeft(array $sprintRow): int
+    {
+        $end = self::utcTimestamp($sprintRow['ends_at'] ?? null);
+        if ($end === null) {
+            return max(0, (int)($sprintRow['days_remaining'] ?? 0));
+        }
+        return max(0, (int)ceil(($end - time()) / 86400));
     }
 
     /** Proyecto por id, o el activo. Lanza InvalidArgumentException si el id no existe. */
@@ -863,8 +925,10 @@ class Repository
             $goal = trim($goal);
             $days = max(0, min(60, $days ?? 10));
             $velocity = max(1, min(500, $velocity ?? 20));
-            $pdo->prepare("INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')")
-                ->execute([$id, $pid, $number, $name, $goal, $days, $velocity]);
+            // ends_at: fecha de cierre (UTC) para que los días restantes bajen solos con el calendario
+            $pdo->prepare("INSERT INTO sprints (id, project_id, number, name, goal, days_remaining, velocity_points, status, ends_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, 'active', datetime('now', ?))")
+                ->execute([$id, $pid, $number, $name, $goal, $days, $velocity, '+' . $days . ' days']);
             $result = [
                 'id' => $id, 'project_id' => $pid, 'number' => $number, 'name' => $name, 'goal' => $goal,
                 'days_remaining' => $days, 'velocity_points' => $velocity, 'status' => 'active',
@@ -872,6 +936,21 @@ class Repository
             ];
         });
         return $result;
+    }
+
+    public function getSprint(string $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM sprints WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getActiveSprint(?string $projectId = null): ?array
+    {
+        $pid = $projectId ?: ($this->getActiveProject()['id'] ?? 'default');
+        $stmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
+        $stmt->execute([$pid]);
+        return $stmt->fetch() ?: null;
     }
 
     /**
@@ -913,7 +992,7 @@ class Repository
             'number'          => (int)$sprintRow['number'],
             'name'            => $sprintRow['name'],
             'goal'            => self::clip($sprintRow['goal'] ?? '', 280),
-            'days_remaining'  => (int)$sprintRow['days_remaining'],
+            'days_remaining'  => self::sprintDaysLeft($sprintRow),
             'velocity_points' => (int)$sprintRow['velocity_points'],
             'points_done'     => $done,
             'points_total'    => $total,
@@ -1002,6 +1081,16 @@ class Repository
             return $m;
         }, $this->getCompactMeetings($pid, 2, 1, 100));
 
+        // Resumen de memoria nodular del proyecto
+        $memStmt = $this->db->prepare("SELECT node_type, COUNT(*) as cnt FROM agent_memories WHERE project_id = ? AND is_active = 1 GROUP BY node_type");
+        $memStmt->execute([$pid]);
+        $memRows = $memStmt->fetchAll();
+        $memSummary = ['total_active' => 0, 'by_type' => []];
+        foreach ($memRows as $mr) {
+            $memSummary['by_type'][$mr['node_type']] = (int)$mr['cnt'];
+            $memSummary['total_active'] += (int)$mr['cnt'];
+        }
+
         return [
             'success'         => true,
             'generated_at'    => gmdate('Y-m-d\TH:i:s\Z'),
@@ -1019,6 +1108,198 @@ class Repository
             'events'          => $this->getEvents(15, $pid),
             'since_yesterday' => $sinceYesterday,
             'engine'          => ['plugin_mode' => !$anyReady && !$localOn, 'local_ai_enabled' => $localOn],
+            'memories'        => $memSummary,
         ];
+    }
+
+    /**
+     * Gestión de Memoria Nodular por Proyecto y Rol
+     */
+    public function getMemories(?string $projectId = null, ?string $roleId = null, ?string $nodeType = null, bool $activeOnly = false, int $limit = 50): array
+    {
+        $clauses = [];
+        $params = [];
+
+        // Si no se especifica proyecto, usar siempre el proyecto activo
+        $pid = ($projectId !== null && $projectId !== '') ? $projectId : ($this->getActiveProject()['id'] ?? 'default');
+        $clauses[] = 'project_id = ?';
+        $params[] = $pid;
+
+        if ($roleId !== null && $roleId !== '') {
+            $clauses[] = '(role_id = ? OR role_id = \'all\')';
+            $params[] = $roleId;
+        }
+        if ($nodeType !== null && $nodeType !== '') {
+            $clauses[] = 'node_type = ?';
+            $params[] = $nodeType;
+        }
+        if ($activeOnly) {
+            $clauses[] = 'is_active = 1';
+        }
+
+        $where = $clauses ? 'WHERE ' . implode(' AND ', $clauses) : '';
+        $sql = "SELECT * FROM agent_memories {$where} ORDER BY importance_score DESC, updated_at DESC LIMIT " . max(1, min(200, $limit));
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+        return array_map(function ($r) {
+            $r['importance_score'] = (int)$r['importance_score'];
+            $r['is_active'] = (int)$r['is_active'];
+            return $r;
+        }, $rows ?: []);
+    }
+
+    public function getMemory(string $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM agent_memories WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) return null;
+        $row['importance_score'] = (int)$row['importance_score'];
+        $row['is_active'] = (int)$row['is_active'];
+        return $row;
+    }
+
+    public function saveMemory(array $data, bool $allowProjectMove = false): ?array
+    {
+        $id = trim((string)($data['id'] ?? ''));
+        if ($id === '') {
+            $id = 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        } elseif (!preg_match('/^[A-Za-z0-9_-]{1,80}$/', $id)) {
+            throw new \InvalidArgumentException('El id de la memoria solo admite letras, números, guiones y guion bajo (máx. 80).');
+        }
+
+        // Sin project_id usa el proyecto activo
+        $projectId = trim((string)($data['project_id'] ?? ''));
+        if ($projectId === '') {
+            $active = $this->getActiveProject();
+            $projectId = (string)($active['id'] ?? 'default');
+        }
+
+        // Valida que el proyecto exista
+        if (!$this->projectExists($projectId)) {
+            throw new \InvalidArgumentException("El proyecto '{$projectId}' no existe");
+        }
+
+        // Un id existente solo se actualiza dentro de su propio proyecto (no se «mueve» la memoria de otro)
+        $existing = $this->getMemory($id);
+        if ($existing && !$allowProjectMove && (string)$existing['project_id'] !== $projectId) {
+            throw new \InvalidArgumentException("La memoria '{$id}' pertenece a otro proyecto.");
+        }
+
+        // Valida que el rol exista o sea 'all'
+        $roleId = trim((string)($data['role_id'] ?? 'all'));
+        if ($roleId === '') $roleId = 'all';
+        if ($roleId !== 'all') {
+            $stmtRole = $this->db->prepare("SELECT COUNT(*) FROM roles WHERE id = ?");
+            $stmtRole->execute([$roleId]);
+            if ((int)$stmtRole->fetchColumn() === 0) {
+                throw new \InvalidArgumentException("El rol '{$roleId}' no existe");
+            }
+        }
+
+        $validTypes = ['progress', 'decision', 'learning', 'scratchpad', 'domain'];
+        $nodeType = trim((string)($data['node_type'] ?? 'progress'));
+        if (!in_array($nodeType, $validTypes, true)) {
+            $nodeType = 'progress';
+        }
+
+        // Límites: título ≤ 200 caracteres, contenido ≤ 4000
+        $title = trim((string)($data['title'] ?? ''));
+        if ($title === '') {
+            throw new \InvalidArgumentException('El título de la memoria es obligatorio.');
+        }
+        if (mb_strlen($title) > 200) {
+            throw new \InvalidArgumentException('El título no puede superar los 200 caracteres.');
+        }
+
+        $contentText = trim((string)($data['content_text'] ?? $data['content'] ?? ''));
+        if ($contentText === '') {
+            throw new \InvalidArgumentException('El contenido de la memoria es obligatorio.');
+        }
+        if (mb_strlen($contentText) > 4000) {
+            throw new \InvalidArgumentException('El contenido no puede superar los 4000 caracteres.');
+        }
+
+        $importance = isset($data['importance_score']) ? max(1, min(10, (int)$data['importance_score'])) : (isset($data['importance']) ? max(1, min(10, (int)$data['importance'])) : 5);
+
+        // is_active con filter_var(FILTER_VALIDATE_BOOLEAN)
+        $isActive = 1;
+        if (array_key_exists('is_active', $data)) {
+            $b = filter_var($data['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $isActive = ($b === null) ? (!empty($data['is_active']) ? 1 : 0) : ($b ? 1 : 0);
+        }
+
+        $stmt = $this->db->prepare(
+            "INSERT INTO agent_memories (id, project_id, role_id, node_type, title, content_text, importance_score, is_active, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET
+                project_id = excluded.project_id,
+                role_id = excluded.role_id,
+                node_type = excluded.node_type,
+                title = excluded.title,
+                content_text = excluded.content_text,
+                importance_score = excluded.importance_score,
+                is_active = excluded.is_active,
+                updated_at = CURRENT_TIMESTAMP"
+        );
+        $stmt->execute([$id, $projectId, $roleId, $nodeType, $title, $contentText, $importance, $isActive]);
+
+        return $this->getMemory($id);
+    }
+
+    public function toggleMemory(string $id, mixed $active = null): ?array
+    {
+        $existing = $this->getMemory($id);
+        if (!$existing) {
+            return null;
+        }
+        if ($active !== null) {
+            $b = filter_var($active, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $newActive = ($b === null) ? (!empty($active) ? 1 : 0) : ($b ? 1 : 0);
+        } else {
+            $newActive = $existing['is_active'] ? 0 : 1;
+        }
+        $stmt = $this->db->prepare("UPDATE agent_memories SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$newActive, $id]);
+        return $this->getMemory($id);
+    }
+
+    public function deleteMemory(string $id): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM agent_memories WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function getCompactMemoriesForPrompt(string $projectId, string $roleId, int $maxChars = 1500): string
+    {
+        $sql = "SELECT node_type, title, content_text, importance_score FROM agent_memories 
+                WHERE project_id = ? AND (role_id = ? OR role_id = 'all') AND is_active = 1 
+                ORDER BY importance_score DESC, updated_at DESC LIMIT 10";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$projectId, $roleId]);
+        $rows = $stmt->fetchAll();
+        if (empty($rows)) {
+            return '';
+        }
+
+        $lines = [];
+        $totalLen = 0;
+        foreach ($rows as $r) {
+            $t = self::clip($r['title'], 60);
+            $c = self::clip(preg_replace('/\s+/', ' ', $r['content_text']), 180);
+            $line = "• [{$r['node_type']}] {$t}: {$c}";
+            if ($totalLen + strlen($line) + 2 > $maxChars) {
+                break;
+            }
+            $lines[] = $line;
+            $totalLen += strlen($line) + 2;
+        }
+
+        if (empty($lines)) {
+            return '';
+        }
+        return "[MEMORIA NODULAR DEL PROYECTO ({$projectId})]\n" . implode("\n", $lines);
     }
 }

@@ -1,0 +1,147 @@
+{
+    "org_name": "AgileForge Workspace",
+    "active_workspace": ".",
+    "jurisdiction": {
+        "country_code": "PE",
+        "country_name": "Perú",
+        "flag": "🇵🇪",
+        "auto_detected": true,
+        "regulations": [
+            "Ley N° 29733 (Protección de Datos Personales y Registro de Bancos de Datos)",
+            "Ley N° 29571 (Código de Protección y Defensa del Consumidor)",
+            "D.S. N° 011-2011-PCM (Libro de Reclamaciones Virtual)",
+            "Normativa de Comercio Electrónico y Comprobantes de Pago"
+        ]
+    },
+    "ai_engine": {
+        "active_provider": "anthropic",
+        "active_model": "claude-sonnet-5-5",
+        "provider_name": "Anthropic Claude",
+        "icon": "🟣",
+        "execution_mode": "cli",
+        "role_routing_enabled": true
+    },
+    "sprint": {
+        "number": 1,
+        "name": "Sprint 1: Inicialización",
+        "goal": "Configurar el entorno base, validar la arquitectura del proyecto e integrar el equipo de agentes.",
+        "days_remaining": 14,
+        "velocity_points": 21,
+        "budget_usd": 50.0
+    },
+    "roles": [
+        {
+            "id": "director",
+            "name": "Director General & Estratega",
+            "alias": "The Chief",
+            "avatar": "👑",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-opus-5-5",
+            "description": "Liderazgo estratégico, priorización de backlog y asignación de valor de negocio.",
+            "specialty": "Gestión estratégica, descomposición de valor y decisiones ejecutivas",
+            "assigned_skills": ["director-toma-decisiones", "director-gestion-equipo", "director-priorizacion-valor", "context-sentinel"]
+        },
+        {
+            "id": "lead_architect",
+            "name": "Chief Software Architect",
+            "alias": "Master Builder",
+            "avatar": "📐",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-opus-5-5",
+            "description": "Diseño de sistemas, límites de capas, patrones arquitectónicos y ADRs.",
+            "specialty": "Clean Architecture, límites de dominio y contratos técnicos",
+            "assigned_skills": ["codebase-design", "domain-modeling", "clean-code"]
+        },
+        {
+            "id": "backend_architect",
+            "name": "Backend Architect & Database Engineer",
+            "alias": "Core Engine",
+            "avatar": "⚙️",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-sonnet-5-5",
+            "description": "APIs REST, lógica transaccional, persistencia SQL y prevención de inyecciones.",
+            "specialty": "APIs seguras, SQL/PDO transaccional e idempotencia",
+            "assigned_skills": ["api-design-patterns", "database-optimization", "security-hardening", "clean-code"]
+        },
+        {
+            "id": "frontend_master",
+            "name": "Frontend & UI/UX Specialist",
+            "alias": "Pixel Forge",
+            "avatar": "🎨",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-sonnet-5-5",
+            "description": "Interfaces web, componentes responsivos, accesibilidad y diseño de interacción.",
+            "specialty": "Diseño responsivo, accesibilidad WCAG y experiencia de usuario",
+            "assigned_skills": ["ui-polish", "design-system", "responsive-design"]
+        },
+        {
+            "id": "qa_security_guard",
+            "name": "QA, Pentester & Reliability Engineer",
+            "alias": "The Guardian",
+            "avatar": "🛡️",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-sonnet-5-5",
+            "description": "Auditoría de DoD, pruebas automatizadas, análisis de seguridad y dictámenes técnicos.",
+            "specialty": "Testing E2E, verificación de mutación y auditoría de seguridad",
+            "assigned_skills": ["webapp-testing", "security-hardening", "context-sentinel"]
+        },
+        {
+            "id": "creative_director",
+            "name": "Director Creativo & Innovador",
+            "alias": "Idea Spark",
+            "avatar": "💡",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-sonnet-5-5",
+            "description": "Propuestas de producto, validación de valor para el usuario y dirección de concepto.",
+            "specialty": "Innovación de producto y conceptualización",
+            "assigned_skills": ["creative-product-innovator", "ui-polish"]
+        },
+        {
+            "id": "legal_counsel",
+            "name": "Legal & Compliance Counsel",
+            "alias": "Lex Veritas",
+            "avatar": "⚖️",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-sonnet-5-5",
+            "description": "Revisión de privacidad, protección de datos personales y términos de servicio.",
+            "specialty": "Privacidad, cumplimiento normativo y contratos",
+            "assigned_skills": ["compliance-sentinel", "legal-frameworks"]
+        },
+        {
+            "id": "project_manager",
+            "name": "Project Manager & Scrum Master",
+            "alias": "Scrum Pilot",
+            "avatar": "⏱️",
+            "ai_provider": "anthropic",
+            "ai_model": "claude-haiku-5-5",
+            "description": "Seguimiento de sprint, facilitación de dailies y desbloqueo de impedimentos.",
+            "specialty": "Facilitación ágil, cadencia y métricas de flujo",
+            "assigned_skills": ["agile-project-manager", "context-sentinel"]
+        }
+    ],
+    "tasks": [
+        {
+            "id": "US-001",
+            "title": "Verificar arranque del workspace y conectividad MCP",
+            "story_points": 2,
+            "assigned_to": "backend_architect",
+            "priority": "alta",
+            "status": "por_hacer",
+            "user_story": "Como desarrollador, quiero verificar que el servidor local y el cliente MCP inicien sin errores.",
+            "dod": "El servidor responde 200 en /api y el handshake MCP completa satisfactoriamente.",
+            "description": "Comprobar inicialización del entorno y validar lectura de configuración."
+        },
+        {
+            "id": "US-002",
+            "title": "Auditar políticas de privacidad y protección de datos",
+            "story_points": 3,
+            "assigned_to": "legal_counsel",
+            "priority": "media",
+            "status": "por_hacer",
+            "user_story": "Como oficial de cumplimiento, quiero auditar que la aplicación no exponga datos personales sin consentimiento.",
+            "dod": "Documento de términos y condiciones generado y revisado contra la normativa aplicable.",
+            "description": "Validación de cumplimiento normativo y consentimiento informado."
+        }
+    ]
+}
+

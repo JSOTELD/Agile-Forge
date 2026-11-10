@@ -139,7 +139,8 @@ class DirectorService
         }
 
         $cost = $llm->calculateCost('anthropic', $engine['model'], $inTok, $outTok);
-        $llm->recordUsage(self::ROLE_ID, null, 'default', 'anthropic', $engine['model'], $inTok, $outTok, $inTok + $outTok, $cost, 'director');
+        $sprintId = (string)($this->repo->getActiveSprint()['id'] ?? 'default');
+        $llm->recordUsage(self::ROLE_ID, null, $sprintId, 'anthropic', $engine['model'], $inTok, $outTok, $inTok + $outTok, $cost, 'director');
 
         return ['reply' => $reply, 'tokens' => $inTok + $outTok, 'cost_usd' => $cost];
     }
@@ -415,8 +416,10 @@ class DirectorService
             return $this->fail($name, "{$role['name']} no tiene motor de IA disponible: {$engine['reason']}");
         }
         $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+        $pid = (string)($this->repo->getActiveProject()['id'] ?? 'default');
+        $agentMem = $this->repo->getCompactMemoriesForPrompt($pid, (string)($role['id'] ?? ''), 1000);
         $system = EngineService::agentSystemPrompt($role, is_array($juris) ? $juris : [],
-            'El Director General te hace una consulta: responde con tu recomendación concreta en máximo 6 líneas.');
+            'El Director General te hace una consulta: responde con tu recomendación concreta en máximo 6 líneas.', $agentMem);
         $res = $engines->ask($engine, $system, [['role' => 'user', 'content' => $question]],
             ['agent_role' => $role['id'], 'context_source' => 'director_consult'], 700);
         $answer = trim((string)$res['text']);
@@ -494,11 +497,17 @@ class DirectorService
             "CONTEXTO ACTUAL\n" .
             'Proyecto: ' . ($project['name'] ?? 'default') . ' — carpeta: ' . ($project['path'] ?? '') . "\n" .
             'Jurisdicción: ' . ($juris['country_name'] ?? 'Perú') . "\n" .
-            ($sprint ? "Sprint activo: {$sprint['name']} — objetivo: {$sprint['goal']} — quedan {$sprint['days_remaining']} días — velocidad {$sprint['velocity_points']} pts\n" : "Sin sprint activo.\n") .
+            ($sprint ? "Sprint activo: {$sprint['name']} — objetivo: {$sprint['goal']} — quedan " . Repository::sprintDaysLeft($sprint) . " días — velocidad {$sprint['velocity_points']} pts\n" : "Sin sprint activo.\n") .
             "Historias: backlog {$counts['backlog']}, en progreso {$counts['en_progreso']}, en revisión {$counts['revision']}, completadas {$counts['completada']}\n" .
             ($openLines ? "Historias abiertas:\n" . implode("\n", $openLines) . "\n" : '') .
             "Equipo (id: nombre — especialidad [motor]):\n" . implode("\n", $team) . "\n" .
             ($decisions ? "Decisiones recientes:\n" . implode("\n", $decisions) . "\n" : '');
+
+        $pid = (string)($project['id'] ?? 'default');
+        $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, self::ROLE_ID, 1500);
+        if ($memSnippet !== '') {
+            $prompt .= "\n\n" . $memSnippet;
+        }
 
         $skills = $compact ? '' : $this->skillGuides($role);
         if ($skills !== '') {

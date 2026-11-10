@@ -23,6 +23,8 @@ tools:
   - mcp__plugin_agileforge_board__list_decisions
   - mcp__plugin_agileforge_board__create_task
   - mcp__plugin_agileforge_board__record_decision
+  - mcp__plugin_agileforge_board__list_memories
+  - mcp__plugin_agileforge_board__get_memory
 skills:
   - codebase-design
   - domain-modeling

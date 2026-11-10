@@ -10,6 +10,15 @@
       "endpoint": "https://api.anthropic.com/v1/messages",
       "models": [
         {
+          "id": "claude-fable-5-2",
+          "name": "Claude Fable 5.2",
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 10.0,
+          "output_cost_per_m": 50.0,
+          "recommended_for": "Dirección General, Consejo de Mesa y razonamiento agéntico de máxima frontera"
+        },
+        {
           "id": "claude-fable-5-1",
           "name": "Claude Fable 5.1",
           "context_window": 1000000,

@@ -19,6 +19,8 @@ tools:
   - mcp__plugin_agileforge_board__update_task_status
   - mcp__plugin_agileforge_board__add_comment
   - mcp__plugin_agileforge_board__submit_for_review
+  - mcp__plugin_agileforge_board__list_memories
+  - mcp__plugin_agileforge_board__get_memory
 skills:
   - api-design-patterns
   - database-optimization

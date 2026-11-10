@@ -63,7 +63,8 @@ class RoleController
             Bootstrap::jsonResponse(['error' => 'Rol no encontrado'], 404);
         }
 
-        $cleanSkills = array_values(array_unique(array_filter(array_map('trim', $skills))));
+        // Solo skills que existen en el catálogo (se descartan IDs inventados o mal escritos)
+        $cleanSkills = (new Repository())->cleanSkillIds($skills);
 
         Database::transaction(function (PDO $pdo) use ($roleId, $cleanSkills) {
             $uStmt = $pdo->prepare("UPDATE roles SET assigned_skills_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -148,6 +149,26 @@ class RoleController
             'regulations'  => ['Ley 29733 (Protección de Datos)']
         ]);
 
+        $rawMemories = $this->repo->getMemories(null, $roleId, null, true, 5);
+        $compactMemories = array_map(static function (array $m): array {
+            return [
+                'id'         => $m['id'],
+                'node_type'  => $m['node_type'],
+                'title'      => $m['title'],
+                // Columnas reales de agent_memories: content_text / importance_score (recortado para el brief)
+                'content'    => mb_strimwidth((string)($m['content_text'] ?? ''), 0, 400, '…'),
+                'importance' => (int)($m['importance_score'] ?? 0),
+            ];
+        }, $rawMemories);
+
+        $systemPrompt = "Eres {$role['name']} ({$role['alias']}) en AgileForge. Tu especialidad es {$role['specialty']}. Opera bajo la normativa de {$jurisdiction['country_name']} {$jurisdiction['flag']}.";
+        if (!empty($compactMemories)) {
+            $systemPrompt .= "\n\nMemoria contextual previa del rol en este proyecto:\n";
+            foreach ($compactMemories as $cm) {
+                $systemPrompt .= "- [{$cm['node_type']}] {$cm['title']}: {$cm['content']}\n";
+            }
+        }
+
         $brief = [
             'role_id'            => $role['id'],
             'name'               => $role['name'],
@@ -159,7 +180,8 @@ class RoleController
             'description'        => $role['description'],
             'active_skills'      => $skillsInfo,
             'legal_jurisdiction' => $jurisdiction,
-            'system_prompt'      => "Eres {$role['name']} ({$role['alias']}) en AgileForge. Tu especialidad es {$role['specialty']}. Opera bajo la normativa de {$jurisdiction['country_name']} {$jurisdiction['flag']}."
+            'memories'           => $compactMemories,
+            'system_prompt'      => $systemPrompt,
         ];
 
         Bootstrap::jsonResponse(['success' => true, 'brief' => $brief]);

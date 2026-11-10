@@ -41,7 +41,12 @@ class SkillController
             Bootstrap::jsonResponse(['error' => 'El nombre de la habilidad es obligatorio'], 422);
         }
 
-        $id = !empty($input['id']) ? trim((string)$input['id']) : strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', $name));
+        // El ID siempre es un slug (a-z, 0-9 y guiones): se usa en atributos HTML y en las listas de skills
+        $slug = static fn(string $v): string => trim(strtolower((string)preg_replace('/[^a-zA-Z0-9]+/', '-', $v)), '-');
+        $id = substr($slug(!empty($input['id']) ? (string)$input['id'] : $name), 0, 64);
+        if ($id === '') {
+            Bootstrap::jsonResponse(['error' => 'El nombre de la habilidad necesita letras o números'], 422);
+        }
         $level = trim((string)($input['level'] ?? 'Principal'));
         $category = trim((string)($input['category'] ?? 'Custom'));
         $desc = trim((string)($input['desc'] ?? $input['description'] ?? ''));

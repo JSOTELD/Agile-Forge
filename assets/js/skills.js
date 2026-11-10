@@ -3,7 +3,7 @@
  * Asignación de skills por agente, explorador de toolkit y visor de fichas técnicas SKILL.md.
  */
 
-import { appData, apiFetch, escapeHtml, activeConfigRoleId, setActiveConfigRoleId } from './state.js';
+import { appData, apiFetch, escapeHtml, activeConfigRoleId, setActiveConfigRoleId, jsArg } from './state.js';
 import { showToast } from './ui.js';
 
 let skillsActiveCategory = 'all';
@@ -102,7 +102,7 @@ export function renderSkillsCards() {
                     </div>
                     <p class="text-[11px] text-slate-400 leading-snug">${escapeHtml(s.description || '')}</p>
                 </div>
-                <button type="button" onclick="openSkillDetail('${escapeHtml(s.id)}')" title="Ver Ficha Técnica" class="text-slate-500 hover:text-indigo-400 p-1">
+                <button type="button" onclick="openSkillDetail(${jsArg(s.id)})" title="Ver Ficha Técnica" class="text-slate-500 hover:text-indigo-400 p-1">
                     ℹ️
                 </button>
             </div>
@@ -246,6 +246,8 @@ export async function handleCreateCustomSkill(e) {
             if (window.fetchTeamData) await window.fetchTeamData();
             if (activeConfigRoleId) renderSkillsCards();
             showToast('Skill Creada', `Registrada ${icon} ${name}`, 'magic');
+        } else {
+            showToast('No se creó la skill', data.error || 'Error al crear la skill', 'error');
         }
     } catch (err) {
         showToast('Error', 'No se pudo crear la skill', 'error');

@@ -16,6 +16,7 @@ data/*.sqlite-shm
 *.sqlite
 *.sqlite3
 *.db
+data/team.json
 
 # Registros del servidor / Server logs
 data/logs/

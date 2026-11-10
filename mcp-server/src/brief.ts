@@ -39,6 +39,15 @@ export function formatBrief(o: any): string[] {
   lines.push(m ? `Última reunión: ${m.id} «${cut(m.title, 50)}»${m.resolution ? ` — ${cut(m.resolution, 90)}` : ''}` : 'Última reunión: ninguna.');
   const d = (o.decisions ?? [])[0];
   lines.push(d ? `Última decisión: ${d.id} ${cut(d.title, 60)} (${d.status ?? '-'})` : 'Última decisión: ninguna.');
+
+  const mem = o.memories ?? {};
+  if (mem.total_active != null && mem.total_active > 0) {
+    const types = Object.entries(mem.by_type ?? {})
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ');
+    lines.push(`Memoria: ${mem.total_active} nodos activos${types ? ` (${types})` : ''}.`);
+  }
+
   return lines;
 }
 

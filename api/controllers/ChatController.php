@@ -66,6 +66,20 @@ class ChatController
         // Se guarda primero: así las consultas que haga el Director quedan después en el historial
         $this->insert($userMsg, null, null);
 
+        if (!empty($input['stream'])) {
+            $canStream = true;
+            if ($targetRole === DirectorService::ROLE_ID) {
+                $dirEngine = $this->engines->resolveForRole($agent);
+                if (!$dirEngine['ready']) {
+                    $canStream = false;
+                }
+            }
+            if ($canStream) {
+                $this->streamMessage($userMsg, $agent, $targetRole, $queryText);
+                return;
+            }
+        }
+
         $meta = [];
         $model = null;
         $provider = null;
@@ -99,7 +113,9 @@ class ChatController
             } else {
                 try {
                     $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
-                    $system = EngineService::agentSystemPrompt($agent, is_array($juris) ? $juris : []);
+                    $pid = (string)($this->repo->getActiveProject()['id'] ?? 'default');
+                    $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, $targetRole, 1500);
+                    $system = EngineService::agentSystemPrompt($agent, is_array($juris) ? $juris : [], '', $memSnippet);
                     $history = $this->recentHistory($targetRole);
                     $history[] = ['role' => 'user', 'content' => $queryText];
                     $res = $this->engines->ask($engine, $system, $history, ['agent_role' => $targetRole, 'context_source' => 'chat'], 1500);
@@ -131,7 +147,9 @@ class ChatController
             'ai_provider' => $provider,
             'meta'        => $meta,
         ];
-        $this->insert($agentMsg, $model, $provider);
+        if (empty($meta['error'])) {
+            $this->insert($agentMsg, $model, $provider);
+        }
 
         Bootstrap::jsonResponse([
             'success'  => empty($meta['error']),
@@ -148,6 +166,103 @@ class ChatController
             $m['id'], $m['sender_role'], $m['sender_name'], $m['avatar'], $m['timestamp'], $m['text'],
             $model, $provider, !empty($m['meta']) ? json_encode($m['meta'], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) : null,
         ]);
+    }
+
+    private function streamMessage(array $userMsg, array $agent, string $targetRole, string $queryText): void
+    {
+        header('Content-Type: text/event-stream; charset=UTF-8');
+        header('Cache-Control: no-cache, no-transform');
+        header('X-Accel-Buffering: no');
+        header('Connection: keep-alive');
+
+        while (@ob_end_flush());
+        @ob_implicit_flush(true);
+
+        $sendEvent = static function (string $event, array $data): void {
+            echo "event: {$event}\n";
+            echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n\n";
+            @flush();
+        };
+
+        $sendEvent('start', ['user_message' => $userMsg]);
+
+        $meta = [];
+        $model = null;
+        $provider = null;
+        $replyText = '';
+
+        if ($targetRole === DirectorService::ROLE_ID) {
+            try {
+                $director = new DirectorService($this->repo);
+                $res = $director->run($queryText);
+                $replyText = $res['reply'];
+                $model = $res['engine']['model'];
+                $provider = $res['engine']['provider'];
+                $meta = [
+                    'actions'  => array_values(array_filter($res['actions'], fn($a) => $a['visible'])),
+                    'tokens'   => $res['tokens'],
+                    'cost_usd' => $res['cost_usd'],
+                    'source'   => $res['engine']['source'],
+                ];
+            } catch (\Throwable $e) {
+                Bootstrap::log('Director Stream: ' . $e->getMessage());
+                $replyText = '⚠️ El Director no pudo trabajar: ' . $e->getMessage();
+                $meta = ['error' => true];
+            }
+        } else {
+            $engine = $this->engines->resolveForRole($agent);
+            $model = $engine['model'];
+            $provider = $engine['provider'];
+            if (!$engine['ready']) {
+                $replyText = '⚠️ ' . $engine['reason'];
+                $meta = ['error' => true];
+            } else {
+                try {
+                    $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+                    $pid = (string)($this->repo->getActiveProject()['id'] ?? 'default');
+                    $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, $targetRole, 1500);
+                    $system = EngineService::agentSystemPrompt($agent, is_array($juris) ? $juris : [], '', $memSnippet);
+                    $history = $this->recentHistory($targetRole);
+                    $history[] = ['role' => 'user', 'content' => $queryText];
+                    $res = $this->engines->ask($engine, $system, $history, ['agent_role' => $targetRole, 'context_source' => 'chat_stream'], 1500);
+                    $replyText = $res['text'] !== '' ? $res['text'] : '(El modelo respondió vacío.)';
+                    $model = $res['model'] ?? $model;
+                    $meta = ['tokens' => $res['total_tokens'] ?? null, 'cost_usd' => $res['estimated_cost_usd'] ?? 0, 'source' => $engine['source']];
+                } catch (\Throwable $e) {
+                    Bootstrap::log("Chat Stream {$targetRole}: " . $e->getMessage());
+                    $replyText = "⚠️ {$agent['name']} no pudo responder: " . $e->getMessage();
+                    $meta = ['error' => true];
+                }
+            }
+        }
+
+        // Emitir el texto vía SSE sin retardos artificiales
+        if ($replyText !== '') {
+            $sendEvent('delta', ['text' => $replyText]);
+        }
+
+        $agentMsg = [
+            'id'          => 'MSG-' . (int)(microtime(true) * 1000 + 1) . '-A-' . bin2hex(random_bytes(3)),
+            'sender_role' => $targetRole,
+            'sender_name' => $agent['name'],
+            'avatar'      => $agent['avatar'] ?: '🤖',
+            'timestamp'   => date('H:i'),
+            'text'        => $replyText,
+            'ai_model'    => $model,
+            'ai_provider' => $provider,
+            'meta'        => $meta,
+        ];
+
+        if (empty($meta['error'])) {
+            $this->insert($agentMsg, $model, $provider);
+        }
+
+        $sendEvent('done', [
+            'success'       => empty($meta['error']),
+            'agent_message' => $agentMsg,
+            'error'         => !empty($meta['error']) ? $replyText : null
+        ]);
+        exit;
     }
 
     /**

@@ -19,6 +19,7 @@ require_once __DIR__ . '/controllers/DecisionController.php';
 require_once __DIR__ . '/controllers/SprintController.php';
 require_once __DIR__ . '/controllers/ProjectController.php';
 require_once __DIR__ . '/controllers/LocalAiController.php';
+require_once __DIR__ . '/controllers/MemoryController.php';
 
 use AgileForge\Bootstrap;
 use AgileForge\Database;
@@ -33,6 +34,7 @@ use AgileForge\Controllers\DecisionController;
 use AgileForge\Controllers\SprintController;
 use AgileForge\Controllers\ProjectController;
 use AgileForge\Controllers\LocalAiController;
+use AgileForge\Controllers\MemoryController;
 
 // 1. Inicializar seguridad, headers y variables de entorno
 Bootstrap::init();
@@ -71,6 +73,7 @@ if ($method === 'POST') {
     $sprintCtrl = new SprintController();
     $projCtrl = new ProjectController();
     $localAiCtrl = new LocalAiController();
+    $memoryCtrl = new MemoryController();
 
     switch ($action) {
         // Multi-Proyecto & Selector de Workspaces
@@ -130,14 +133,6 @@ if ($method === 'POST') {
 
         case 'save_ui_preferences':
             $settingCtrl->saveUiPreferences($input);
-            break;
-
-        case 'audit_ux_design':
-            $settingCtrl->auditUxDesign();
-            break;
-
-        case 'apply_ux_enhancements':
-            $settingCtrl->applyUxEnhancements();
             break;
 
         case 'audit_workspace_legal':
@@ -258,7 +253,7 @@ if ($method === 'POST') {
             break;
 
         case 'meeting_turn':
-            $meetingCtrl->turn((string)($input['meeting_id'] ?? ''), (string)($input['role_id'] ?? ''));
+            $meetingCtrl->turn((string)($input['meeting_id'] ?? ''), (string)($input['role_id'] ?? ''), !empty($input['stream']));
             break;
 
         case 'meeting_conclude':
@@ -307,6 +302,47 @@ if ($method === 'POST') {
 
         case 'start_sprint':
             $sprintCtrl->start($input);
+            break;
+
+        // Presupuesto de Sprint
+        case 'update_sprint_budget':
+            $sprintId = trim((string)($input['sprint_id'] ?? ''));
+            $rawBudget = $input['budget_usd'] ?? 0;
+            if (!is_numeric($rawBudget) || (float)$rawBudget < 0 || (float)$rawBudget > 100000) {
+                Bootstrap::fail('El presupuesto debe ser un número entre 0 y 100000 USD (0 = sin límite).', 422);
+            }
+            $budget = round((float)$rawBudget, 2);
+            $sprint = $sprintId !== '' ? $repo->getSprint($sprintId) : $repo->getActiveSprint();
+            if (!$sprint) {
+                Bootstrap::fail('Sprint no encontrado', 404);
+            }
+            Database::getPdo()->prepare("UPDATE sprints SET budget_usd = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+                ->execute([$budget, $sprint['id']]);
+            Bootstrap::jsonResponse(['success' => true, 'sprint_id' => $sprint['id'], 'budget_usd' => $budget]);
+            break;
+
+        // Memoria Nodular de Agentes
+        case 'list_memories':
+            $memoryCtrl->list($input);
+            break;
+
+        case 'get_memory':
+            $memId = (string)($input['memory_id'] ?? $input['id'] ?? '');
+            $memoryCtrl->show($memId);
+            break;
+
+        case 'save_memory':
+            $memoryCtrl->save($input);
+            break;
+
+        case 'toggle_memory':
+            $memId = (string)($input['memory_id'] ?? $input['id'] ?? '');
+            $memoryCtrl->toggle($memId, $input);
+            break;
+
+        case 'delete_memory':
+            $memId = (string)($input['memory_id'] ?? $input['id'] ?? '');
+            $memoryCtrl->delete($memId);
             break;
 
         // Generar prompt de revisión

@@ -62,6 +62,30 @@ export function escapeHtml(str) {
 }
 
 /**
+ * Argumento seguro para un atributo onclick="fn(...)": literal JS (JSON) escapado para HTML.
+ * escapeHtml solo no basta dentro de un handler: el navegador decodifica &#039; a ' antes de ejecutar el JS,
+ * y un valor con comillas (p. ej. una skill escrita por un agente) cerraría la cadena e inyectaría código.
+ */
+export function jsArg(value) {
+    return escapeHtml(JSON.stringify(String(value ?? '')));
+}
+
+/**
+ * Fecha de SQLite (CURRENT_TIMESTAMP, en UTC y sin zona) mostrada en la hora local del navegador.
+ */
+export function localTime(sqlDate) {
+    if (!sqlDate) return '';
+    const s = String(sqlDate);
+    const iso = /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(' ', 'T') + 'Z';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return s;
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return sameDay ? time : `${d.toLocaleDateString([], { day: '2-digit', month: '2-digit' })} ${time}`;
+}
+
+/**
  * Peticiones autenticadas al backend PHP con token de sesión
  */
 export async function apiFetch(endpoint, options = {}) {

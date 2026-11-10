@@ -14,7 +14,8 @@ if (process.argv.includes('--session-brief')) {
     await sessionBriefMain(cfg);
 }
 const client = new ReadClient(cfg);
-const server = new McpServer({ name: 'agileforge-vista', version: '2.1.0' });
+const VERSION = '2.2.0';
+const server = new McpServer({ name: 'agileforge-vista', version: VERSION });
 registerReadTools(server, client);
 registerReadResources(server, client, { roles: false });
 await server.connect(new StdioServerTransport());

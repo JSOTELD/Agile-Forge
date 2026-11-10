@@ -3,7 +3,7 @@
  * Renderizado del tablero con filtros combinables, lock de tareas, prompts y auditoría DoD.
  */
 
-import { appData, apiFetch, escapeHtml } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg, localTime } from './state.js';
 import { showToast } from './ui.js';
 
 export function renderKanban() {
@@ -134,7 +134,7 @@ export function renderKanban() {
             ${taskSkills.length > 0 ? `
                 <div class="flex flex-wrap gap-1 pt-0.5">
                     ${taskSkills.slice(0, 3).map(s => `
-                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800 cursor-pointer hover:border-indigo-500/40" onclick="openSkillDetail('${escapeHtml(s)}')" title="Ver ficha técnica de ${escapeHtml(s)}">
+                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-400 border border-slate-800 cursor-pointer hover:border-indigo-500/40" onclick="openSkillDetail(${jsArg(s)})" title="Ver ficha técnica de ${escapeHtml(s)}">
                             ⚡ ${escapeHtml(s)}
                         </span>
                     `).join('')}
@@ -217,7 +217,8 @@ export function renderActivityFeed() {
         const clientBadge = e.client ? `<span class="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[9px] font-mono text-indigo-300">${escapeHtml(e.client)}</span>` : '';
         const role = escapeHtml(e.role_key || 'agente');
         const taskTitle = e.task_title ? `<span class="text-slate-300 font-semibold">[${escapeHtml(e.task_id)}] ${escapeHtml(e.task_title)}</span>` : `<span class="text-indigo-400 font-mono">${escapeHtml(e.task_id)}</span>`;
-        const time = escapeHtml(e.created_at || '');
+        // created_at viene en UTC (SQLite): se muestra en la hora local
+        const time = escapeHtml(localTime(e.created_at));
 
         let desc = '';
         if (e.event_type === 'claimed') desc = `tomó la tarea y activó lock en progreso`;
@@ -259,19 +260,20 @@ export async function updateTaskStatus(taskId, newStatus) {
         const data = await res.json();
         if (data.success) {
             if (window.fetchTeamData) await window.fetchTeamData();
-        } else {
-            showToast('Error', data.error || 'No se pudo actualizar el estado', 'error');
+            return true;
         }
+        showToast('Error', data.error || 'No se pudo actualizar el estado', 'error');
     } catch (err) {
         showToast('Error', 'Fallo al actualizar estado de la tarea', 'error');
     }
+    return false;
 }
 
 export async function moveTaskForward(taskId, currentStatus) {
     const flow = { backlog: 'en_progreso', en_progreso: 'revision', revision: 'completada' };
     const next = flow[currentStatus];
-    if (next) {
-        await updateTaskStatus(taskId, next);
+    // El aviso de éxito solo aparece si el servidor aceptó el cambio (antes salía también tras un error)
+    if (next && await updateTaskStatus(taskId, next)) {
         showToast('Estado Avanzado', `Historia movida a ${next.replace('_', ' ')}`, 'success', 2000);
     }
 }
@@ -279,8 +281,7 @@ export async function moveTaskForward(taskId, currentStatus) {
 export async function moveTaskBackward(taskId, currentStatus) {
     const flow = { completada: 'revision', revision: 'en_progreso', en_progreso: 'backlog' };
     const prev = flow[currentStatus];
-    if (prev) {
-        await updateTaskStatus(taskId, prev);
+    if (prev && await updateTaskStatus(taskId, prev)) {
         showToast('Estado Modificado', `Historia movida a ${prev.replace('_', ' ')}`, 'info', 2000);
     }
 }

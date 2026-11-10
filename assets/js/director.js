@@ -55,7 +55,7 @@ export function renderDirectorPanel() {
         badge.textContent = e.ready ? `🤖 ${e.label}` : (plugin ? t('plugin_engine_badge') : '⚠️ sin motor de IA');
         badge.title = e.ready
             ? (e.source === 'role' ? 'Motor asignado al Director' : e.source === 'local' ? 'Usa la IA local (el motor asignado no tiene clave)' : 'Usa el motor global') + (e.reason ? ` — ${e.reason}` : '')
-            : (e.reason || 'Configura una clave de API en Motor IA o activa la IA local');
+            : (plugin ? t('plugin_engine_hint') : (e.reason || 'Configura una clave de API en Motor IA o activa la IA local'));
         badge.className = `text-[10px] font-mono px-2 py-0.5 rounded-full border cursor-pointer ${e.ready ? 'bg-slate-950 border-amber-500/40 text-amber-200' : (plugin ? 'bg-slate-900 border-slate-600 text-slate-300' : 'bg-rose-950/40 border-rose-500/40 text-rose-200')}`;
     }
     let note = document.getElementById('director-plugin-note');

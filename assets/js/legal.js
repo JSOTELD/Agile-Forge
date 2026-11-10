@@ -28,6 +28,8 @@ export async function runLegalWorkspaceAudit(force = false) {
             cachedLegalAudit = data;
             renderLegalPillars(data);
             showToast('Blindaje Legal', `Auditoría completada para ${data.jurisdiction?.country_name || 'jurisdicción activa'}`, 'success');
+        } else {
+            showToast('Auditoría no realizada', data.error || 'No se pudo auditar la carpeta del proyecto', 'error');
         }
     } catch (err) {
         showToast('Error', 'Fallo al ejecutar auditoría legal', 'error');
@@ -75,7 +77,8 @@ export function renderLegalPillars(data) {
 
 export async function handleGenerateLegalDoc(saveToDisk = false) {
     const docType = document.getElementById('legal-gen-type')?.value || 'terminos';
-    const bizName = document.getElementById('legal-gen-name')?.value?.trim() || 'AgileForge Project';
+    // Vacío = el servidor usa el nombre del proyecto activo
+    const bizName = document.getElementById('legal-gen-name')?.value?.trim() || '';
 
     showToast('Generando Documento', 'Redactando con cláusulas según jurisdicción activa...', 'info');
 
@@ -108,6 +111,8 @@ export async function handleGenerateLegalDoc(saveToDisk = false) {
             } else {
                 showToast('Vista Previa Lista', `Previsualizando ${data.filename}`, 'info');
             }
+        } else {
+            showToast('No se generó', data.error || 'No se pudo generar el documento legal', 'error');
         }
     } catch (err) {
         showToast('Error', 'No se pudo generar el documento legal', 'error');
