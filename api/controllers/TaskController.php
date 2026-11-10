@@ -221,6 +221,41 @@ class TaskController
 
         $newStatus = ($decision === 'approve') ? 'completada' : 'en_progreso';
 
+        $task = $this->repo->getTask($id);
+        if (!$task) {
+            Bootstrap::fail('Tarea no encontrada', 404);
+        }
+        if (($task['status'] ?? '') !== 'revision') {
+            Bootstrap::fail("La historia está en '{$task['status']}': solo se revisa una historia en estado 'revision' (entrégala antes con submit_for_review).", 409);
+        }
+
+        if ($decision === 'approve') {
+            if ($reviewerRole !== 'qa_security_guard') {
+                Bootstrap::fail("Solo el rol qa_security_guard puede aprobar una historia (revisor indicado: '{$reviewerRole}').", 403);
+            }
+            if (in_array($reviewerRole, $this->repo->getLockRoles($id), true)) {
+                Bootstrap::fail("El revisor '{$reviewerRole}' tomó o entregó esta historia: no puede aprobar su propio trabajo.", 403);
+            }
+            if (empty($task['review_evidence'])) {
+                Bootstrap::fail('No se puede aprobar sin evidencia registrada previa de entrega (submit_for_review).', 409);
+            }
+
+            // Validación de la DoD con Git / archivos del workspace (FUERA de la transacción para no bloquear SQLite)
+            $filesChanged = (array)($task['review_evidence']['files_changed'] ?? []);
+            if (!empty($filesChanged)) {
+                try {
+                    $proj = $this->repo->resolveProject($task['project_id'] ?? null);
+                } catch (\InvalidArgumentException $e) {
+                    $proj = $this->repo->getActiveProject();
+                }
+                $ws = (string)($proj['path'] ?? dirname(__DIR__, 2));
+                $gitCheck = $this->verifyDoDGitFiles($ws, $filesChanged);
+                if (!$gitCheck['ok']) {
+                    Bootstrap::fail("Rechazo de DoD: " . $gitCheck['message'], 422);
+                }
+            }
+        }
+
         $result = Database::transaction(function (PDO $pdo) use ($id, $decision, $checklist, $reviewerRole, $newStatus) {
             $task = $this->repo->getTask($id);
             if (!$task) {
@@ -238,22 +273,6 @@ class TaskController
                 }
                 if (empty($task['review_evidence'])) {
                     return ['error' => 'No se puede aprobar sin evidencia registrada previa de entrega (submit_for_review).', 'code' => 409];
-                }
-
-                // Validación de la DoD con Git / archivos del workspace
-                $filesChanged = (array)($task['review_evidence']['files_changed'] ?? []);
-                if (!empty($filesChanged)) {
-                    // Repository no tiene getProject(): resolveProject() devuelve el proyecto de la historia (o el activo)
-                    try {
-                        $proj = $this->repo->resolveProject($task['project_id'] ?? null);
-                    } catch (\InvalidArgumentException $e) {
-                        $proj = $this->repo->getActiveProject();
-                    }
-                    $ws = (string)($proj['path'] ?? dirname(__DIR__, 2));
-                    $gitCheck = $this->verifyDoDGitFiles($ws, $filesChanged);
-                    if (!$gitCheck['ok']) {
-                        return ['error' => "Rechazo de DoD: " . $gitCheck['message'], 'code' => 422];
-                    }
                 }
 
                 // Aprobada: se libera el lock
@@ -300,8 +319,25 @@ class TaskController
         $gitDir = $cleanWs . '/.git';
         $isGit = is_dir($gitDir);
 
-        $gitChangedFiles = [];
+        $gitAvailable = false;
+        $gitDiag = '';
         if ($isGit) {
+            if (!function_exists('exec')) {
+                $gitDiag = 'la función exec() está deshabilitada en PHP';
+            } else {
+                $testOut = [];
+                $testCode = 0;
+                @exec('git --version 2>&1', $testOut, $testCode);
+                if ($testCode !== 0) {
+                    $gitDiag = 'git no está disponible en el PATH del servidor web (código ' . $testCode . ')';
+                } else {
+                    $gitAvailable = true;
+                }
+            }
+        }
+
+        $gitChangedFiles = [];
+        if ($gitAvailable) {
             $cmd = 'git -C ' . escapeshellarg($cleanWs) . ' diff --name-only HEAD 2>&1';
             $out = [];
             @exec($cmd, $out);
@@ -358,10 +394,16 @@ class TaskController
         }
 
         if (!empty($missing)) {
+            $msg = 'Los siguientes archivos de la evidencia no existen en el workspace: ' . implode(', ', array_slice($missing, 0, 5));
+            if ($isGit && !$gitAvailable) {
+                $msg .= ". Además, {$gitDiag}, por lo que no se pudo verificar si existían en Git.";
+            } elseif ($isGit) {
+                $msg .= ' ni aparecen en el diff/log de Git.';
+            }
             return [
                 'ok'      => false,
                 'missing' => $missing,
-                'message' => 'Los siguientes archivos de la evidencia no existen en el workspace ni aparecen en Git: ' . implode(', ', array_slice($missing, 0, 5))
+                'message' => $msg
             ];
         }
 
