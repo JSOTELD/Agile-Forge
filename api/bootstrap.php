@@ -410,8 +410,8 @@ class Bootstrap
         $n = count($segments);
         $a = $segments[0] ?? '';
         $ok = match (true) {
-            $n === 1 => in_array($a, ['overview', 'events', 'meetings', 'decisions', 'tasks'], true),
-            $n === 2 => ($a === 'meetings' || $a === 'tasks') && $segments[1] !== ''
+            $n === 1 => in_array($a, ['overview', 'events', 'meetings', 'decisions', 'tasks', 'memories'], true),
+            $n === 2 => ($a === 'meetings' || $a === 'tasks' || $a === 'memories') && $segments[1] !== ''
                 || ($a === 'sprint' && $segments[1] === 'status'),
             $n === 3 => $a === 'roles' && $segments[1] !== '' && $segments[2] === 'brief',
             default => false,

@@ -246,6 +246,54 @@ export function openCostsModal() {
     if (outTokEl) outTokEl.textContent = (costs.total_output_tokens || 0).toLocaleString();
     if (usdEl) usdEl.textContent = `$${parseFloat(costs.total_cost_usd || 0).toFixed(4)}`;
 
+    // Presupuesto de Sprint
+    const sprint = appData.active_sprint || appData.sprint || {};
+    const budgetUsd = parseFloat(sprint.budget_usd || 0.0);
+    const totalCostUsd = parseFloat(costs.total_cost_usd || 0.0);
+
+    const budgetInput = document.getElementById('modal-costs-budget-input');
+    const budgetStatus = document.getElementById('modal-costs-budget-status');
+    const budgetBar = document.getElementById('modal-costs-budget-bar');
+    const budgetWarning = document.getElementById('modal-costs-budget-warning');
+    const budgetWarningText = document.getElementById('modal-costs-budget-warning-text');
+
+    if (budgetInput) budgetInput.value = budgetUsd > 0 ? budgetUsd.toFixed(2) : '';
+    if (budgetStatus) {
+        budgetStatus.textContent = budgetUsd > 0
+            ? `$${totalCostUsd.toFixed(4)} gastados de $${budgetUsd.toFixed(2)} límite`
+            : `$${totalCostUsd.toFixed(4)} gastados (sin límite definido)`;
+    }
+
+    if (budgetBar) {
+        if (budgetUsd > 0) {
+            const pct = Math.min(100, Math.round((totalCostUsd / budgetUsd) * 100));
+            budgetBar.style.width = `${pct}%`;
+            if (pct >= 90) {
+                budgetBar.className = 'h-full bg-rose-500 transition-all duration-300';
+            } else if (pct >= 70) {
+                budgetBar.className = 'h-full bg-amber-500 transition-all duration-300';
+            } else {
+                budgetBar.className = 'h-full bg-emerald-500 transition-all duration-300';
+            }
+        } else {
+            budgetBar.style.width = '0%';
+        }
+    }
+
+    if (budgetWarning) {
+        if (budgetUsd > 0 && totalCostUsd >= budgetUsd * 0.8) {
+            budgetWarning.classList.remove('hidden');
+            if (budgetWarningText) {
+                const pct = Math.round((totalCostUsd / budgetUsd) * 100);
+                budgetWarningText.textContent = totalCostUsd >= budgetUsd
+                    ? `⚠️ Has alcanzado el 100% de tu presupuesto ($${totalCostUsd.toFixed(2)} de $${budgetUsd.toFixed(2)}). Considera pasar a la IA local (Ollama) para llamadas sin costo de tokens.`
+                    : `⚠️ Te estás acercando al límite de tu presupuesto (${pct}% consumido). Considera pasar a la IA local (Ollama) para llamadas sin costo de tokens.`;
+            }
+        } else {
+            budgetWarning.classList.add('hidden');
+        }
+    }
+
     if (agentContainer) {
         const byAgent = costs.by_agent || [];
         if (byAgent.length === 0) {
@@ -284,6 +332,258 @@ export function openCostsModal() {
 export function closeCostsModal() {
     const modal = document.getElementById('costs-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+export async function saveSprintBudget() {
+    const input = document.getElementById('modal-costs-budget-input');
+    const val = parseFloat(input?.value || 0);
+    const sprint = appData.active_sprint || appData.sprint || {};
+    try {
+        const res = await apiFetch({
+            action: 'update_sprint_budget',
+            sprint_id: sprint.id || '',
+            budget_usd: val
+        });
+        if (res.success) {
+            showToast('success', `Presupuesto del sprint fijado en $${val.toFixed(2)} USD`);
+            if (sprint) sprint.budget_usd = val;
+            openCostsModal();
+        } else {
+            showToast('error', res.error || 'No se pudo guardar el presupuesto');
+        }
+    } catch (e) {
+        showToast('error', e.message);
+    }
+}
+
+// -------------------------------------------------------------
+// MEMORIA NODULAR DE AGENTES POR PROYECTO
+// -------------------------------------------------------------
+let currentMemoryRoleId = null;
+let currentMemoryRoleName = '';
+let currentMemoryFilter = 'all';
+let currentLoadedMemories = [];
+
+export async function openAgentMemoryModal(roleId, roleName) {
+    currentMemoryRoleId = roleId;
+    currentMemoryRoleName = roleName || roleId;
+    currentMemoryFilter = 'all';
+
+    const modal = document.getElementById('agent-memory-modal');
+    const nameEl = document.getElementById('agent-memory-role-name');
+    const idEl = document.getElementById('agent-memory-role-id');
+    const projEl = document.getElementById('agent-memory-project-name');
+
+    if (nameEl) nameEl.textContent = currentMemoryRoleName;
+    if (idEl) idEl.textContent = currentMemoryRoleId;
+    if (projEl) projEl.textContent = appData.current_project?.name || appData.active_workspace || 'default';
+
+    toggleAddMemoryForm(false);
+    if (modal) modal.classList.remove('hidden');
+
+    await loadAgentMemories(roleId);
+}
+
+export function closeAgentMemoryModal() {
+    const modal = document.getElementById('agent-memory-modal');
+    if (modal) modal.classList.add('hidden');
+    currentMemoryRoleId = null;
+}
+
+export function toggleAddMemoryForm(show) {
+    const form = document.getElementById('agent-memory-create-form');
+    if (!form) return;
+    if (show === undefined) {
+        form.classList.toggle('hidden');
+    } else if (show) {
+        form.classList.remove('hidden');
+    } else {
+        form.classList.add('hidden');
+    }
+}
+
+export async function loadAgentMemories(roleId) {
+    const listEl = document.getElementById('agent-memory-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="p-4 text-center text-slate-500 font-mono">Cargando memorias nodulares...</div>';
+
+    try {
+        const projId = appData.current_project?.id || 'default';
+        const res = await apiFetch({
+            action: 'list_memories',
+            project: projId,
+            role: roleId,
+            limit: 100
+        });
+
+        currentLoadedMemories = res.memories || [];
+        renderAgentMemoryItems();
+    } catch (e) {
+        listEl.innerHTML = `<div class="p-4 text-center text-rose-400">Error cargando memorias: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+export function filterAgentMemories(type) {
+    currentMemoryFilter = type;
+    document.querySelectorAll('.mem-filter-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white', 'font-bold');
+        btn.classList.add('bg-slate-800', 'text-slate-300');
+    });
+    const clicked = event?.target;
+    if (clicked && clicked.classList) {
+        clicked.classList.remove('bg-slate-800', 'text-slate-300');
+        clicked.classList.add('bg-purple-600', 'text-white', 'font-bold');
+    }
+    renderAgentMemoryItems();
+}
+
+function renderAgentMemoryItems() {
+    const listEl = document.getElementById('agent-memory-list');
+    if (!listEl) return;
+
+    let items = currentLoadedMemories;
+    if (currentMemoryFilter !== 'all') {
+        items = items.filter(m => m.node_type === currentMemoryFilter);
+    }
+
+    if (!items || items.length === 0) {
+        listEl.innerHTML = `
+            <div class="p-6 text-center rounded-2xl bg-slate-950/40 border border-slate-800/80 text-slate-500 space-y-2">
+                <span class="text-3xl block">🧠</span>
+                <p>No hay nodos de memoria registrados para este agente en el proyecto actual.</p>
+                <p class="text-[11px] text-slate-600">Al completar historias de usuario, se auto-consolidan lecciones y avances deterministas aquí.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const typeIcons = {
+        progress: '📈 Avance',
+        decision: '⚖️ Decisión',
+        learning: '💡 Aprendizaje',
+        scratchpad: '📝 Nota',
+        domain: '📐 Dominio'
+    };
+
+    const typeColors = {
+        progress: 'border-emerald-500/30 text-emerald-300 bg-emerald-950/20',
+        decision: 'border-blue-500/30 text-blue-300 bg-blue-950/20',
+        learning: 'border-amber-500/30 text-amber-300 bg-amber-950/20',
+        scratchpad: 'border-slate-500/30 text-slate-300 bg-slate-950/20',
+        domain: 'border-purple-500/30 text-purple-300 bg-purple-950/20'
+    };
+
+    listEl.innerHTML = items.map(m => {
+        const badgeClass = typeColors[m.node_type] || 'border-slate-500/30 text-slate-300 bg-slate-950/20';
+        const typeLabel = typeIcons[m.node_type] || m.node_type;
+        const isActive = !!m.is_active;
+        const opacityClass = isActive ? '' : 'opacity-50 grayscale';
+
+        return `
+            <div class="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 hover:border-slate-700 transition space-y-2 ${opacityClass}">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full border ${badgeClass}">
+                            ${escapeHtml(typeLabel)}
+                        </span>
+                        <span class="text-[10px] font-mono text-purple-300 bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-500/20">
+                            ⭐ ${m.importance_score}/10
+                        </span>
+                        ${m.role_id === 'all' ? '<span class="text-[9px] font-mono text-indigo-300 bg-indigo-950/30 px-1 rounded border border-indigo-500/20">Global Equipo</span>' : ''}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="toggleAgentMemory(${jsArg(m.id)}, ${!isActive})" class="text-[11px] px-2 py-0.5 rounded-lg border transition font-mono ${isActive ? 'bg-slate-900 border-slate-700 text-slate-400 hover:text-amber-300' : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/40'}">
+                            ${isActive ? '⏸️ Desactivar' : '▶️ Activar'}
+                        </button>
+                        <button onclick="deleteAgentMemory(${jsArg(m.id)})" class="text-[11px] px-2 py-0.5 rounded-lg bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-300 transition" title="Eliminar nodo">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <h5 class="text-xs font-bold text-white mb-0.5">${escapeHtml(m.title)}</h5>
+                    <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line font-mono bg-slate-900/60 p-2 rounded-xl border border-slate-800/60">${escapeHtml(m.content_text)}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+export async function saveNewAgentMemory() {
+    const typeEl = document.getElementById('new-memory-type');
+    const impEl = document.getElementById('new-memory-importance');
+    const scopeEl = document.getElementById('new-memory-scope');
+    const titleEl = document.getElementById('new-memory-title');
+    const contentEl = document.getElementById('new-memory-content');
+
+    const title = titleEl?.value.trim() || '';
+    const content = contentEl?.value.trim() || '';
+    if (!title || !content) {
+        showToast('error', 'El título y el contenido son obligatorios');
+        return;
+    }
+
+    const projId = appData.current_project?.id || 'default';
+    const roleId = scopeEl?.value === 'all' ? 'all' : (currentMemoryRoleId || 'all');
+    const nodeType = typeEl?.value || 'learning';
+    const importance = parseInt(impEl?.value || '5', 10);
+
+    try {
+        const res = await apiFetch({
+            action: 'save_memory',
+            project_id: projId,
+            role_id: roleId,
+            node_type: nodeType,
+            title: title,
+            content_text: content,
+            importance_score: importance,
+            is_active: 1
+        });
+
+        if (res.success) {
+            showToast('success', 'Nodo de memoria guardado');
+            if (titleEl) titleEl.value = '';
+            if (contentEl) contentEl.value = '';
+            toggleAddMemoryForm(false);
+            await loadAgentMemories(currentMemoryRoleId);
+        } else {
+            showToast('error', res.error || 'Error al guardar memoria');
+        }
+    } catch (e) {
+        showToast('error', e.message);
+    }
+}
+
+export async function toggleAgentMemory(id, newState) {
+    try {
+        const res = await apiFetch({
+            action: 'toggle_memory',
+            memory_id: id,
+            is_active: newState ? 1 : 0
+        });
+        if (res.success) {
+            showToast('success', newState ? 'Memoria activada' : 'Memoria desactivada');
+            await loadAgentMemories(currentMemoryRoleId);
+        }
+    } catch (e) {
+        showToast('error', e.message);
+    }
+}
+
+export async function deleteAgentMemory(id) {
+    if (!confirm('¿Eliminar permanentemente este nodo de memoria?')) return;
+    try {
+        const res = await apiFetch({
+            action: 'delete_memory',
+            memory_id: id
+        });
+        if (res.success) {
+            showToast('success', 'Nodo de memoria eliminado');
+            await loadAgentMemories(currentMemoryRoleId);
+        }
+    } catch (e) {
+        showToast('error', e.message);
+    }
 }
 
 // -------------------------------------------------------------
@@ -376,12 +676,15 @@ export function renderRoles() {
                     </div>
                 </div>
 
-                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 flex-wrap">
                     <button onclick="quickConsultAgent(${jsArg(r.id)})" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
-                        <span>💬</span> Consultar en Chat
+                        <span>💬</span> Chat
+                    </button>
+                    <button onclick="openAgentMemoryModal(${jsArg(r.id)}, ${jsArg(r.name)})" class="text-xs px-2 py-1 rounded-xl bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-purple-200 font-medium transition flex items-center gap-1">
+                        <span>🧠</span> Memoria
                     </button>
                     <button onclick="openSkillsConfig(${jsArg(r.id)})" class="text-xs px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium transition">
-                        ⚙️ Configurar Skills
+                        ⚙️ Skills
                     </button>
                 </div>
             </div>
@@ -551,6 +854,17 @@ window.populateRoleSelects = populateRoleSelects;
 window.renderSprintBanner = renderSprintBanner;
 window.openCostsModal = openCostsModal;
 window.closeCostsModal = closeCostsModal;
+window.saveSprintBudget = saveSprintBudget;
+
+// Memoria Nodular de Agentes
+window.openAgentMemoryModal = openAgentMemoryModal;
+window.closeAgentMemoryModal = closeAgentMemoryModal;
+window.toggleAddMemoryForm = toggleAddMemoryForm;
+window.loadAgentMemories = loadAgentMemories;
+window.filterAgentMemories = filterAgentMemories;
+window.saveNewAgentMemory = saveNewAgentMemory;
+window.toggleAgentMemory = toggleAgentMemory;
+window.deleteAgentMemory = deleteAgentMemory;
 
 // Roles & Chat
 window.renderRoles = renderRoles;

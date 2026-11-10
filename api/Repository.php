@@ -105,19 +105,23 @@ class Repository
 
         if ($sprintRow) {
             $sprint = [
+                'id'              => $sprintRow['id'],
                 'number'          => (int)$sprintRow['number'],
                 'name'            => $sprintRow['name'],
                 'goal'            => $sprintRow['goal'],
                 'days_remaining'  => self::sprintDaysLeft($sprintRow),
                 'velocity_points' => (int)$sprintRow['velocity_points'],
+                'budget_usd'      => (float)($sprintRow['budget_usd'] ?? 0.0),
             ];
         } else {
             $sprint = [
+                'id'              => 'default',
                 'number'          => 1,
                 'name'            => 'Sprint 1',
                 'goal'            => 'Sin sprint activo: inicia uno desde Claude Code (/sprint) o con el Director.',
                 'days_remaining'  => 0,
                 'velocity_points' => 20,
+                'budget_usd'      => 0.0,
             ];
         }
 
@@ -934,6 +938,21 @@ class Repository
         return $result;
     }
 
+    public function getSprint(string $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM sprints WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getActiveSprint(?string $projectId = null): ?array
+    {
+        $pid = $projectId ?: ($this->getActiveProject()['id'] ?? 'default');
+        $stmt = $this->db->prepare("SELECT * FROM sprints WHERE project_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1");
+        $stmt->execute([$pid]);
+        return $stmt->fetch() ?: null;
+    }
+
     /**
      * Resumen ligero del tablero para vistas de solo lectura (contrato API ↔ MCP ↔ Vista).
      * Sin claves, rutas de disco, settings ni chat. Lanza InvalidArgumentException si el proyecto no existe.
@@ -1062,6 +1081,16 @@ class Repository
             return $m;
         }, $this->getCompactMeetings($pid, 2, 1, 100));
 
+        // Resumen de memoria nodular del proyecto
+        $memStmt = $this->db->prepare("SELECT node_type, COUNT(*) as cnt FROM agent_memories WHERE project_id = ? AND is_active = 1 GROUP BY node_type");
+        $memStmt->execute([$pid]);
+        $memRows = $memStmt->fetchAll();
+        $memSummary = ['total_active' => 0, 'by_type' => []];
+        foreach ($memRows as $mr) {
+            $memSummary['by_type'][$mr['node_type']] = (int)$mr['cnt'];
+            $memSummary['total_active'] += (int)$mr['cnt'];
+        }
+
         return [
             'success'         => true,
             'generated_at'    => gmdate('Y-m-d\TH:i:s\Z'),
@@ -1079,6 +1108,154 @@ class Repository
             'events'          => $this->getEvents(15, $pid),
             'since_yesterday' => $sinceYesterday,
             'engine'          => ['plugin_mode' => !$anyReady && !$localOn, 'local_ai_enabled' => $localOn],
+            'memories'        => $memSummary,
         ];
+    }
+
+    /**
+     * Gestión de Memoria Nodular por Proyecto y Rol
+     */
+    public function getMemories(?string $projectId = null, ?string $roleId = null, ?string $nodeType = null, bool $activeOnly = false, int $limit = 50): array
+    {
+        $clauses = [];
+        $params = [];
+
+        if ($projectId !== null && $projectId !== '') {
+            $clauses[] = 'project_id = ?';
+            $params[] = $projectId;
+        }
+        if ($roleId !== null && $roleId !== '') {
+            $clauses[] = '(role_id = ? OR role_id = \'all\')';
+            $params[] = $roleId;
+        }
+        if ($nodeType !== null && $nodeType !== '') {
+            $clauses[] = 'node_type = ?';
+            $params[] = $nodeType;
+        }
+        if ($activeOnly) {
+            $clauses[] = 'is_active = 1';
+        }
+
+        $where = $clauses ? 'WHERE ' . implode(' AND ', $clauses) : '';
+        $sql = "SELECT * FROM agent_memories {$where} ORDER BY importance_score DESC, updated_at DESC LIMIT " . max(1, min(200, $limit));
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+        return array_map(function ($r) {
+            $r['importance_score'] = (int)$r['importance_score'];
+            $r['is_active'] = (int)$r['is_active'];
+            return $r;
+        }, $rows ?: []);
+    }
+
+    public function getMemory(string $id): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM agent_memories WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) return null;
+        $row['importance_score'] = (int)$row['importance_score'];
+        $row['is_active'] = (int)$row['is_active'];
+        return $row;
+    }
+
+    public function saveMemory(array $data): ?array
+    {
+        $id = trim((string)($data['id'] ?? ''));
+        if ($id === '') {
+            $id = 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        }
+
+        $projectId = trim((string)($data['project_id'] ?? 'default'));
+        if ($projectId === '') $projectId = 'default';
+
+        $roleId = trim((string)($data['role_id'] ?? 'all'));
+        if ($roleId === '') $roleId = 'all';
+
+        $validTypes = ['progress', 'decision', 'learning', 'scratchpad', 'domain'];
+        $nodeType = trim((string)($data['node_type'] ?? 'progress'));
+        if (!in_array($nodeType, $validTypes, true)) {
+            $nodeType = 'progress';
+        }
+
+        $title = trim((string)($data['title'] ?? ''));
+        if ($title === '') {
+            throw new \InvalidArgumentException('El título de la memoria es obligatorio.');
+        }
+
+        $contentText = trim((string)($data['content_text'] ?? $data['content'] ?? ''));
+        if ($contentText === '') {
+            throw new \InvalidArgumentException('El contenido de la memoria es obligatorio.');
+        }
+
+        $importance = isset($data['importance_score']) ? max(1, min(10, (int)$data['importance_score'])) : (isset($data['importance']) ? max(1, min(10, (int)$data['importance'])) : 5);
+        $isActive = array_key_exists('is_active', $data) ? ($data['is_active'] ? 1 : 0) : 1;
+
+        $stmt = $this->db->prepare(
+            "INSERT INTO agent_memories (id, project_id, role_id, node_type, title, content_text, importance_score, is_active, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(id) DO UPDATE SET
+                project_id = excluded.project_id,
+                role_id = excluded.role_id,
+                node_type = excluded.node_type,
+                title = excluded.title,
+                content_text = excluded.content_text,
+                importance_score = excluded.importance_score,
+                is_active = excluded.is_active,
+                updated_at = CURRENT_TIMESTAMP"
+        );
+        $stmt->execute([$id, $projectId, $roleId, $nodeType, $title, $contentText, $importance, $isActive]);
+
+        return $this->getMemory($id);
+    }
+
+    public function toggleMemory(string $id, ?bool $active = null): ?array
+    {
+        $existing = $this->getMemory($id);
+        if (!$existing) {
+            return null;
+        }
+        $newActive = $active !== null ? ($active ? 1 : 0) : ($existing['is_active'] ? 0 : 1);
+        $stmt = $this->db->prepare("UPDATE agent_memories SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$newActive, $id]);
+        return $this->getMemory($id);
+    }
+
+    public function deleteMemory(string $id): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM agent_memories WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function getCompactMemoriesForPrompt(string $projectId, string $roleId, int $maxChars = 1500): string
+    {
+        $sql = "SELECT node_type, title, content_text, importance_score FROM agent_memories 
+                WHERE project_id = ? AND (role_id = ? OR role_id = 'all') AND is_active = 1 
+                ORDER BY importance_score DESC, updated_at DESC LIMIT 10";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$projectId, $roleId]);
+        $rows = $stmt->fetchAll();
+        if (empty($rows)) {
+            return '';
+        }
+
+        $lines = [];
+        $totalLen = 0;
+        foreach ($rows as $r) {
+            $t = self::clip($r['title'], 60);
+            $c = self::clip(preg_replace('/\s+/', ' ', $r['content_text']), 180);
+            $line = "• [{$r['node_type']}] {$t}: {$c}";
+            if ($totalLen + strlen($line) + 2 > $maxChars) {
+                break;
+            }
+            $lines[] = $line;
+            $totalLen += strlen($line) + 2;
+        }
+
+        if (empty($lines)) {
+            return '';
+        }
+        return "[MEMORIA NODULAR DEL PROYECTO ({$projectId})]\n" . implode("\n", $lines);
     }
 }

@@ -415,8 +415,10 @@ class DirectorService
             return $this->fail($name, "{$role['name']} no tiene motor de IA disponible: {$engine['reason']}");
         }
         $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+        $pid = (string)($this->repo->getActiveProject()['id'] ?? 'default');
+        $agentMem = $this->repo->getCompactMemoriesForPrompt($pid, (string)($role['id'] ?? ''), 1000);
         $system = EngineService::agentSystemPrompt($role, is_array($juris) ? $juris : [],
-            'El Director General te hace una consulta: responde con tu recomendación concreta en máximo 6 líneas.');
+            'El Director General te hace una consulta: responde con tu recomendación concreta en máximo 6 líneas.', $agentMem);
         $res = $engines->ask($engine, $system, [['role' => 'user', 'content' => $question]],
             ['agent_role' => $role['id'], 'context_source' => 'director_consult'], 700);
         $answer = trim((string)$res['text']);
@@ -499,6 +501,12 @@ class DirectorService
             ($openLines ? "Historias abiertas:\n" . implode("\n", $openLines) . "\n" : '') .
             "Equipo (id: nombre — especialidad [motor]):\n" . implode("\n", $team) . "\n" .
             ($decisions ? "Decisiones recientes:\n" . implode("\n", $decisions) . "\n" : '');
+
+        $pid = (string)($project['id'] ?? 'default');
+        $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, self::ROLE_ID, 1500);
+        if ($memSnippet !== '') {
+            $prompt .= "\n\n" . $memSnippet;
+        }
 
         $skills = $compact ? '' : $this->skillGuides($role);
         if ($skills !== '') {

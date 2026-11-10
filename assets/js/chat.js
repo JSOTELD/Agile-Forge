@@ -96,28 +96,66 @@ export async function handleSendChat(e) {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
+        const canStream = !!(engine.ready || targetRole === 'director');
         const res = await apiFetch('api/tasks.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'send_chat',
                 target_role: targetRole,
-                message: text
+                message: text,
+                stream: canStream
             })
         });
-        let data;
-        try {
-            data = await res.json();
-        } catch (parseErr) {
-            data = { success: false, error: usingLocal
-                ? `La IA local tardó demasiado en responder (HTTP ${res.status}). La primera respuesta tarda más mientras el modelo se carga; vuelve a intentarlo.`
-                : `El servidor respondió HTTP ${res.status}.` };
-            if (input && !input.value) input.value = text;
-        }
-        if (window.fetchTeamData) await window.fetchTeamData();
-        if (!data.success) {
-            if (isPluginMode()) showToast(t('plugin_mode_title'), t('plugin_mode_msg'), 'info', 7000);
-            else showToast('El agente no pudo responder', data.error || 'No se pudo enviar la consulta', 'error', 6000);
+
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('text/event-stream')) {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedText = '';
+            const bubbleEl = pending.querySelector('.animate-pulse');
+            if (bubbleEl) {
+                bubbleEl.classList.remove('animate-pulse');
+                bubbleEl.classList.add('font-mono');
+            }
+
+            let buffer = '';
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const payload = JSON.parse(line.slice(6));
+                            if (payload.text) {
+                                accumulatedText += payload.text;
+                                if (bubbleEl) bubbleEl.textContent = accumulatedText;
+                                container.scrollTop = container.scrollHeight;
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+            if (window.fetchTeamData) await window.fetchTeamData();
+        } else {
+            let data;
+            try {
+                data = await res.json();
+            } catch (parseErr) {
+                data = { success: false, error: usingLocal
+                    ? `La IA local tardó demasiado en responder (HTTP ${res.status}). La primera respuesta tarda más mientras el modelo se carga; vuelve a intentarlo.`
+                    : `El servidor respondió HTTP ${res.status}.` };
+                if (input && !input.value) input.value = text;
+            }
+            if (window.fetchTeamData) await window.fetchTeamData();
+            if (!data.success) {
+                if (isPluginMode()) showToast(t('plugin_mode_title'), t('plugin_mode_msg'), 'info', 7000);
+                else showToast('El agente no pudo responder', data.error || 'No se pudo enviar la consulta', 'error', 6000);
+            }
         }
     } catch (err) {
         showToast('Error', 'Fallo al comunicar con el chat', 'error');

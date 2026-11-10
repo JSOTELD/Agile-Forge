@@ -287,6 +287,22 @@ class Database
             context_source TEXT DEFAULT 'chat',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS agent_memories (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL DEFAULT 'default',
+            role_id TEXT NOT NULL,
+            node_type TEXT NOT NULL DEFAULT 'progress',
+            title TEXT NOT NULL,
+            content_text TEXT NOT NULL,
+            importance_score INTEGER NOT NULL DEFAULT 5,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_agent_memories_lookup 
+        ON agent_memories(project_id, role_id, is_active, importance_score);
 SQL;
 
         $pdo->exec($sql);
@@ -299,6 +315,8 @@ SQL;
         self::addColumnIfMissing($pdo, 'meetings', 'closed_at', 'DATETIME');
         // Fecha de cierre del sprint (UTC): los días restantes se calculan con el calendario en vez de quedar fijos
         self::addColumnIfMissing($pdo, 'sprints', 'ends_at', 'DATETIME');
+        // Presupuesto de costos por sprint (USD)
+        self::addColumnIfMissing($pdo, 'sprints', 'budget_usd', 'REAL DEFAULT 0.0');
         self::backfillSprintEnds($pdo);
         self::repairBoardData($pdo);
 

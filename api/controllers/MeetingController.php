@@ -237,7 +237,7 @@ class MeetingController
     }
 
     /** Genera la intervención de un participante con su propio motor de IA. */
-    public function turn(string $meetingId, string $roleId): void
+    public function turn(string $meetingId, string $roleId, bool $stream = false): void
     {
         $meeting = $this->loadMeeting($meetingId);
         $role = $this->board->role($roleId);
@@ -253,6 +253,31 @@ class MeetingController
         }
         @set_time_limit(400);
         $turn = $this->generateTurn($meeting, $role);
+
+        if ($stream) {
+            header('Content-Type: text/event-stream; charset=UTF-8');
+            header('Cache-Control: no-cache, no-transform');
+            header('X-Accel-Buffering: no');
+            header('Connection: keep-alive');
+            while (@ob_end_flush());
+            @ob_implicit_flush(1);
+
+            $send = static function (string $event, array $data): void {
+                echo "event: {$event}\n";
+                echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
+                @flush();
+            };
+
+            $send('start', ['role_id' => $roleId, 'name' => $role['name']]);
+            $chunks = preg_split('/(?<=[ \n\.\,\!\?])/u', (string)$turn['statement'], -1, PREG_SPLIT_NO_EMPTY) ?: [$turn['statement']];
+            foreach ($chunks as $chunk) {
+                $send('delta', ['text' => $chunk]);
+                usleep(15000);
+            }
+            $send('done', ['success' => true, 'turn' => $turn]);
+            exit;
+        }
+
         Bootstrap::jsonResponse(['success' => true, 'turn' => $turn]);
     }
 
@@ -349,11 +374,14 @@ class MeetingController
             $statement = "⚠️ {$role['name']} no tiene motor de IA disponible: {$engine['reason']}";
         } else {
             $juris = $this->repo->getSetting('jurisdiction', ['country_name' => 'Perú']);
+            $pid = (string)($meeting['project_id'] ?? $this->repo->getActiveProject()['id'] ?? 'default');
+            $memSnippet = $this->repo->getCompactMemoriesForPrompt($pid, (string)($role['id'] ?? ''), 1200);
             $types = ['brainstorming' => 'lluvia de ideas', 'decision' => 'consejo de decisión técnica', 'compliance' => 'revisión de cumplimiento legal', 'daily' => 'daily standup'];
             $system = EngineService::agentSystemPrompt($role, is_array($juris) ? $juris : [],
                 'Participas en una reunión de tipo ' . ($types[$meeting['type']] ?? $meeting['type']) . '. ' .
                 'Aporta tu postura desde tu especialidad en 2 o 3 párrafos cortos: argumentos, riesgos y una propuesta concreta. ' .
-                'Responde a lo que dijeron los demás cuando sea relevante. Sin saludos.');
+                'Responde a lo que dijeron los demás cuando sea relevante. Sin saludos.',
+                $memSnippet);
 
             $discussion = "TEMA: {$meeting['topic']}\n\n";
             foreach ($meeting['turns'] as $t) {

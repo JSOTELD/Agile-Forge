@@ -121,6 +121,13 @@ class TaskController
             Bootstrap::fail('No se pudo actualizar el estado de la tarea', 500);
         }
 
+        if ($status === 'completada') {
+            $completedTask = $this->repo->getTask($id);
+            if ($completedTask) {
+                $this->consolidateTaskCompletionMemory($completedTask);
+            }
+        }
+
         Bootstrap::jsonResponse(['success' => true, 'id' => $id, 'status' => $status]);
     }
 
@@ -232,6 +239,18 @@ class TaskController
                 if (empty($task['review_evidence'])) {
                     return ['error' => 'No se puede aprobar sin evidencia registrada previa de entrega (submit_for_review).', 'code' => 409];
                 }
+
+                // Validación de la DoD con Git / archivos del workspace
+                $filesChanged = (array)($task['review_evidence']['files_changed'] ?? []);
+                if (!empty($filesChanged)) {
+                    $proj = $this->repo->getProject($task['project_id'] ?? '') ?? $this->repo->getActiveProject();
+                    $ws = (string)($proj['path'] ?? dirname(__DIR__, 2));
+                    $gitCheck = $this->verifyDoDGitFiles($ws, $filesChanged);
+                    if (!$gitCheck['ok']) {
+                        return ['error' => "Rechazo de DoD: " . $gitCheck['message'], 'code' => 422];
+                    }
+                }
+
                 // Aprobada: se libera el lock
                 $pdo->prepare("UPDATE tasks SET status = 'completada', locked_by = NULL, locked_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$id]);
             } else {
@@ -252,7 +271,127 @@ class TaskController
         if (isset($result['error'])) {
             Bootstrap::fail($result['error'], (int)$result['code']);
         }
+
+        if ($decision === 'approve') {
+            $approvedTask = $this->repo->getTask($id);
+            if ($approvedTask) {
+                $this->consolidateTaskCompletionMemory($approvedTask);
+            }
+        }
+
         Bootstrap::jsonResponse(['success' => true, 'task_id' => $id, 'status' => $newStatus, 'decision' => $decision]);
+    }
+
+    /**
+     * Valida que los archivos de la evidencia de entrega existan en disco o en el historial/status de Git.
+     */
+    private function verifyDoDGitFiles(string $workspacePath, array $files): array
+    {
+        if (empty($files)) {
+            return ['ok' => true];
+        }
+
+        $cleanWs = rtrim(str_replace('\\', '/', $workspacePath), '/');
+        $gitDir = $cleanWs . '/.git';
+        $isGit = is_dir($gitDir);
+
+        $gitChangedFiles = [];
+        if ($isGit) {
+            $cmd = 'git -C ' . escapeshellarg($cleanWs) . ' diff --name-only HEAD 2>&1';
+            $out = [];
+            @exec($cmd, $out);
+            foreach ($out as $line) {
+                $trimmed = trim(str_replace('\\', '/', $line));
+                if ($trimmed !== '') {
+                    $gitChangedFiles[$trimmed] = true;
+                }
+            }
+
+            $cmdSt = 'git -C ' . escapeshellarg($cleanWs) . ' status --porcelain 2>&1';
+            $outSt = [];
+            @exec($cmdSt, $outSt);
+            foreach ($outSt as $line) {
+                $filePart = trim(substr($line, 3));
+                if ($filePart !== '') {
+                    $gitChangedFiles[str_replace('\\', '/', $filePart)] = true;
+                }
+            }
+
+            $cmdLog = 'git -C ' . escapeshellarg($cleanWs) . ' log -n 5 --name-only --pretty=format:"" 2>&1';
+            $outLog = [];
+            @exec($cmdLog, $outLog);
+            foreach ($outLog as $line) {
+                $trimmed = trim(str_replace('\\', '/', $line));
+                if ($trimmed !== '') {
+                    $gitChangedFiles[$trimmed] = true;
+                }
+            }
+        }
+
+        $missing = [];
+        foreach ($files as $file) {
+            $norm = ltrim(str_replace('\\', '/', trim((string)$file)), '/');
+            if ($norm === '') continue;
+
+            $fullPath = $cleanWs . '/' . $norm;
+            $existsOnDisk = file_exists($fullPath);
+            $existsInGit = isset($gitChangedFiles[$norm]);
+
+            if (!$existsOnDisk && !$existsInGit) {
+                $missing[] = $norm;
+            }
+        }
+
+        if (!empty($missing)) {
+            return [
+                'ok'      => false,
+                'missing' => $missing,
+                'message' => 'Los siguientes archivos de la evidencia no existen en el workspace ni aparecen en Git: ' . implode(', ', array_slice($missing, 0, 5))
+            ];
+        }
+
+        return ['ok' => true];
+    }
+
+    /**
+     * Auto-consolidación determinista de memoria nodular al completar una historia.
+     */
+    public function consolidateTaskCompletionMemory(array $task): void
+    {
+        try {
+            $projectId = (string)($task['project_id'] ?? 'default');
+            $roleId = (string)($task['assigned_to'] ?? 'developer');
+            $evidence = is_array($task['review_evidence'] ?? null)
+                ? $task['review_evidence']
+                : (json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: []);
+
+            $evidenceSummary = trim((string)($evidence['summary'] ?? ''));
+            $title = "Completada: {$task['id']} - " . mb_substr((string)($task['title'] ?? ''), 0, 70);
+
+            $content = $evidenceSummary !== ''
+                ? $evidenceSummary
+                : "Historia completada exitosamente. DoD: " . (string)($task['dod'] ?? 'Verificada');
+
+            if (!empty($evidence['files_changed'])) {
+                $content .= "\nArchivos: " . implode(', ', array_slice((array)$evidence['files_changed'], 0, 6));
+            }
+
+            $points = (int)($task['story_points'] ?? 2);
+            $importance = min(10, max(5, $points + 3));
+
+            $this->repo->saveMemory([
+                'id'               => 'MEM-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8)),
+                'project_id'       => $projectId,
+                'role_id'          => $roleId,
+                'node_type'        => 'progress',
+                'title'            => $title,
+                'content_text'     => $content,
+                'importance_score' => $importance,
+                'is_active'        => 1,
+            ]);
+        } catch (\Throwable $e) {
+            Bootstrap::log("Error consolidando memoria de tarea {$task['id']}: " . $e->getMessage());
+        }
     }
 
     public function addComment(string $taskId, array $input): void

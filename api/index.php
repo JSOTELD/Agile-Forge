@@ -16,6 +16,7 @@ require_once __DIR__ . '/controllers/SettingController.php';
 require_once __DIR__ . '/controllers/ChatController.php';
 require_once __DIR__ . '/controllers/DecisionController.php';
 require_once __DIR__ . '/controllers/SprintController.php';
+require_once __DIR__ . '/controllers/MemoryController.php';
 
 use AgileForge\Bootstrap;
 use AgileForge\Database;
@@ -28,6 +29,7 @@ use AgileForge\Controllers\SettingController;
 use AgileForge\Controllers\ChatController;
 use AgileForge\Controllers\DecisionController;
 use AgileForge\Controllers\SprintController;
+use AgileForge\Controllers\MemoryController;
 
 Bootstrap::init();
 // Este endpoint acepta el token de vista (solo GET); api/tasks.php no (ADR-004)
@@ -61,6 +63,7 @@ $settingCtrl = new SettingController();
 $chatCtrl = new ChatController();
 $decisionCtrl = new DecisionController();
 $sprintCtrl = new SprintController();
+$memoryCtrl = new MemoryController();
 $repo = new Repository();
 
 // Rutas de la API REST
@@ -209,6 +212,33 @@ if ($res === 'decisions') {
     }
 }
 
+if ($res === 'memories') {
+    $memId = $segments[1] ?? null;
+    $subAction = $segments[2] ?? null;
+
+    if ($memId === null) {
+        if ($method === 'GET') {
+            $memoryCtrl->list($_GET);
+        } elseif ($method === 'POST') {
+            $input = Bootstrap::requireJsonBody();
+            $memoryCtrl->save($input);
+        }
+    } else {
+        if ($subAction === null) {
+            if ($method === 'GET') {
+                $memoryCtrl->show($memId);
+            } elseif ($method === 'DELETE') {
+                $memoryCtrl->delete($memId);
+            }
+        } elseif ($subAction === 'toggle' && $method === 'POST') {
+            $input = Bootstrap::requireJsonBody();
+            $memoryCtrl->toggle($memId, $input);
+        } elseif ($subAction === 'delete' && $method === 'POST') {
+            $memoryCtrl->delete($memId);
+        }
+    }
+}
+
 // Si ninguna ruta coincide
 Bootstrap::jsonResponse([
     'error'     => 'Ruta no encontrada',
@@ -233,6 +263,10 @@ Bootstrap::jsonResponse([
         'GET  /api/roles/{id}/brief',
         'GET  /api/skills',
         'GET  /api/decisions[?limit=N]',
-        'POST /api/decisions'
+        'POST /api/decisions',
+        'GET  /api/memories[?project=<id>&role=<id>&type=<type>]',
+        'GET  /api/memories/{id}',
+        'POST /api/memories',
+        'DELETE /api/memories/{id}'
     ]
 ], 404);
