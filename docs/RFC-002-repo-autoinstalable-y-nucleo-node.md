@@ -290,7 +290,8 @@ El flujo secuencial de desarrollo acordado para garantizar estabilidad continua 
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
 ┌───────────────────────────────────▼────────────────────────────────────┐
-│ 5. Núcleo Node.js v3 (Node 22.13+, node:sqlite, Fastify, MCP directo)  │
+│ 5. Núcleo Node.js v3 (Node 22.13+, node:sqlite, servidor HTTP          │
+│    (Fastify o node:http, según decida David), MCP directo)             │
 │    Port completo del backend con interruptor AGILEFORGE_BACKEND.       │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
