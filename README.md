@@ -138,11 +138,12 @@ Each agent has its own model and effort, so the expensive model is used only whe
 | creative-director | sonnet | low |
 | legal-compliance | sonnet | low |
 | project-manager | haiku | low |
+| Tester (v0, experimental) | opus | high |
 | observador (View) | haiku | low |
 
 ### Commands
 
-- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <type> <topic>`, `/agileforge:director <instruction>`, `/agileforge:equipo`.
+- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <type> <topic>`, `/agileforge:director <instruction>`, `/agileforge:equipo`, `/agileforge:probar [scope]` (Tester, v0, experimental).
 - **View:** `/agileforge-vista:estado`, `/agileforge-vista:tablero`, `/agileforge-vista:reuniones`, `/agileforge-vista:decisiones`, `/agileforge-vista:actividad`.
 
 ### Governance: who can complete a story

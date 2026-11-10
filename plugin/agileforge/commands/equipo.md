@@ -15,5 +15,6 @@ Muestra esta tabla tal cual (si `$ARGUMENTS` nombra un agente, solo su fila y su
 | creative-director | creative_director | sonnet | low | Ideas de producto y dirección visual |
 | legal-compliance | legal_counsel | sonnet | low | Privacidad y términos (orientativo, no asesoría profesional) |
 | project-manager | project_manager | haiku | low | Sprint, daily, historias, reuniones |
+| tester | — | opus | high | Tester (v0, experimental): encuentra fallos y los demuestra con pruebas en un entorno desechable; no arregla ni aprueba (`/agileforge:probar`) |
 
 Añade una línea: para cambiar modelo o esfuerzo, ver la sección "Agentes" del README del plugin (por delegación, variables `CLAUDE_CODE_SUBAGENT_MODEL` / `CLAUDE_CODE_EFFORT_LEVEL`, o editando el frontmatter en un clon local).

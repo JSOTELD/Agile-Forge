@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ---
 
+## [Unreleased]
+
+### Español
+
+#### Añadido
+- **Tester (v0, experimental):** agente `tester` (opus) y comando `/agileforge:probar [alcance]`. Encuentra fallos y los demuestra con pruebas ejecutables en un entorno desechable; no arregla código, no aprueba y no prioriza. Método: reglas de negocio primero; cuatro ataques por regla (actor, estado, dueño y concurrencia); entradas hostiles; perfiles de la receta más "usuario nuevo" y "sin credenciales"; revisión de errores 500, log y `git status` tras cada tanda; interfaz al final. Cada bug confirmado se registra con `create_task` como `[BUG][critica|alta|media|baja] …`. Sin herramientas para tomar, entregar, dictaminar ni mover historias. No es un rol del tablero ni forma parte del pack core.
+- **Receta de pruebas por proyecto:** plantilla `plugin/agileforge/templates/testing.md` para `.agileforge/testing.md` (entorno desechable, datos de ejemplo, perfiles con credenciales de prueba, log, límite de peticiones, reinicio y apagado, y carpeta donde puede escribir el tester). Sin receta aprobada el tester no prueba: propone un borrador y se detiene hasta que David lo apruebe.
+- **Receta del propio AgileForge** (`.agileforge/testing.md`, en borrador): `npm test` con base temporal y carpeta temporal propia, y un entorno exploratorio en un clon limpio con tokens y log propios. Perfiles: token principal, token de vista, sin token y usuario nuevo.
+
+#### Cambiado
+- **Director:** puede posponer un hallazgo del tester dejando el motivo con `add_comment`; no puede descartar ni cerrar hallazgos críticos o de seguridad (los decide David) y nunca borra historias de bug.
+
+### English
+
+#### Added
+- **Tester (v0, experimental):** `tester` agent (opus) and `/agileforge:probar [scope]` command. It finds failures and proves them with executable tests in a disposable environment; it does not fix code, approve or prioritize. Method: business rules first; four attacks per rule (actor, state, owner and concurrency); hostile inputs; the recipe's profiles plus "new user" and "no credentials"; a check for 500 errors, the server log and `git status` after each round; the UI last. Each confirmed bug is logged with `create_task` as `[BUG][critica|alta|media|baja] …`. It has no tools to claim, submit, review or move stories. It is not a board role and is not part of the core pack.
+- **Per-project test recipe:** template `plugin/agileforge/templates/testing.md` for `.agileforge/testing.md` (disposable environment, sample data, profiles with test credentials, log, rate limit, restart and shutdown, and the only folder the tester may write to). Without an approved recipe the tester does not test: it proposes a draft and stops until David approves it.
+- **AgileForge's own recipe** (`.agileforge/testing.md`, draft): `npm test` with a temporary database and its own temporary folder, plus an exploratory environment in a clean clone with its own tokens and log. Profiles: main token, view token, no token and new user.
+
+#### Changed
+- **Director:** may postpone a tester finding, leaving the reason with `add_comment`; cannot dismiss or close critical or security findings (David decides them) and never deletes bug stories.
+
+---
+
 ## [2.3.0] - 2026-11-10
 
 ### Español
