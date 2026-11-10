@@ -13,6 +13,8 @@ tools:
   - mcp__plugin_agileforge_board__get_task
   - mcp__plugin_agileforge_board__get_role_brief
   - mcp__plugin_agileforge_board__add_comment
+  - mcp__plugin_agileforge_board__list_memories
+  - mcp__plugin_agileforge_board__get_memory
 skills:
   - creative-product-innovator
   - ui-polish

@@ -25,6 +25,8 @@ tools:
   - mcp__plugin_agileforge_board__start_meeting
   - mcp__plugin_agileforge_board__add_meeting_turn
   - mcp__plugin_agileforge_board__close_meeting
+  - mcp__plugin_agileforge_board__list_memories
+  - mcp__plugin_agileforge_board__get_memory
 skills:
   - agile-project-manager
   - context-sentinel
