@@ -1,7 +1,7 @@
 ---
 name: director
 description: "Director General de AgileForge. Úsalo como hilo principal (claude --agent agileforge:director) para instrucciones de alto nivel: priorizar, decidir, repartir trabajo entre los especialistas y dejarlo registrado en el tablero."
-model: opus
+model: claude-fable-5-2
 effort: high
 color: purple
 tools:
