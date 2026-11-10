@@ -17,7 +17,7 @@ if (process.argv.includes('--session-brief')) {
 }
 
 const client = new ReadClient(cfg);
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const server = new McpServer({ name: 'agileforge-vista', version: VERSION });
 
 registerReadTools(server, client);

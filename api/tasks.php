@@ -105,6 +105,11 @@ if ($method === 'POST') {
             $settingCtrl->updateWorkspace($ws);
             break;
 
+        case 'update_human_signoff':
+        case 'toggle_human_signoff':
+            $settingCtrl->updateHumanSignoff($input);
+            break;
+
         case 'update_jurisdiction':
             $settingCtrl->updateJurisdiction($input);
             break;
@@ -187,7 +192,8 @@ if ($method === 'POST') {
             $decision = (string)($input['decision'] ?? '');
             $checklist = is_array($input['checklist'] ?? null) ? $input['checklist'] : [];
             $reviewerRole = (string)($input['reviewer_role'] ?? $input['reviewer'] ?? '');
-            $taskCtrl->review($taskId, $decision, $checklist, $reviewerRole);
+            $verification = is_array($input['verification'] ?? null) ? $input['verification'] : null;
+            $taskCtrl->review($taskId, $decision, $checklist, $reviewerRole, $verification);
             break;
 
         case 'add_comment':

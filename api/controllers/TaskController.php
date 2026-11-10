@@ -70,6 +70,14 @@ class TaskController
         $id = (string)($input['task_id'] ?? $input['id'] ?? '');
         $fields = is_array($input['fields'] ?? null) ? $input['fields'] : $input;
         $client = (string)($input['client'] ?? '') !== '' ? (string)$input['client'] : 'api';
+
+        $task = $this->repo->getTask($id);
+        if ($task && ($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
+            if ($client !== 'web') {
+                Bootstrap::fail('Aprobada por QA: espera la firma humana en el panel', 409);
+            }
+        }
+
         try {
             $task = $this->board->updateTask($id, $fields, $client, (string)($input['role'] ?? 'user'), $client === 'web');
         } catch (\InvalidArgumentException $e) {
@@ -102,6 +110,11 @@ class TaskController
             ], 422);
         }
 
+        $task = $this->repo->getTask($id);
+        if (!$task) {
+            Bootstrap::fail('Historia de usuario no encontrada', 404);
+        }
+
         // ADR-004: "completada" solo la fija un humano desde la web (client: "web") o review_task approve de QA.
         // human_approved ya no se lee de la petición: no es una credencial.
         if ($status === 'completada' && $client !== 'web') {
@@ -112,8 +125,22 @@ class TaskController
             );
         }
 
-        if (!$this->repo->getTask($id)) {
-            Bootstrap::fail('Historia de usuario no encontrada', 404);
+        // Mientras una historia esté en "revision" con qa_approved, los clientes que no sean web NO pueden moverla
+        if (($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
+            if ($client !== 'web') {
+                Bootstrap::fail('Aprobada por QA: espera la firma humana en el panel', 409);
+            }
+            // Si la web la mueve a cualquier estado que no sea "completada", también se borra qa_approved y se registra qa_approval_revoked
+            if ($status !== 'completada') {
+                $evidence = $task['review_evidence'];
+                unset($evidence['qa_approved']);
+                $this->repo->updateReviewEvidence($id, $evidence);
+                $this->repo->recordEvent($id, $roleKey ?? 'human', 'qa_approval_revoked', [
+                    'previous_status' => 'revision',
+                    'new_status'      => $status,
+                    'reason'          => 'moved_by_web'
+                ], 'web');
+            }
         }
 
         $ok = $this->repo->updateTaskStatus($id, $status, $note, $roleKey, $client);
@@ -140,6 +167,13 @@ class TaskController
             Bootstrap::jsonResponse(['error' => 'roleKey es obligatorio para tomar una tarea'], 422);
         }
 
+        $task = $this->repo->getTask($id);
+        if ($task && ($task['status'] ?? '') === 'revision' && !empty($task['review_evidence']['qa_approved'])) {
+            if ($client !== 'web') {
+                Bootstrap::fail('Aprobada por QA: espera la firma humana en el panel', 409);
+            }
+        }
+
         $res = $this->repo->claimTask($id, $roleKey, $client);
         if (!$res['success']) {
             Bootstrap::jsonResponse(['error' => $res['error']], $res['code'] ?? 400);
@@ -161,10 +195,18 @@ class TaskController
 
         $filesChanged = $evidence['files_changed'] ?? [];
         $summary = trim((string)($evidence['summary'] ?? ''));
+        $testsRun = (array)($evidence['tests_run'] ?? []);
 
-        if (empty($filesChanged) && empty($summary)) {
-            Bootstrap::jsonResponse(['error' => 'Se requiere evidencia de cambios (archivos modificados o resumen de entrega)'], 422);
+        if (empty($testsRun)) {
+            Bootstrap::fail('Se requiere evidencia de pruebas ejecutadas (evidence.tests_run no puede estar vacío).', 422);
         }
+
+        if (mb_strlen($summary) < 20) {
+            Bootstrap::fail('El resumen de entrega (evidence.summary) debe tener al menos 20 caracteres.', 422);
+        }
+
+        $evidence['tests_run'] = $testsRun;
+        $evidence['summary'] = $summary;
 
         // Generar sello de procedencia de autoría (AI Attribution & IP Provenance)
         $provHash = hash('sha256', "{$id}|{$roleKey}|" . microtime(true) . '|' . json_encode($evidence));
@@ -208,11 +250,14 @@ class TaskController
     }
 
     /**
-     * Revisión de una historia (ADR-004).
-     * approve exige: estado "revision", revisor qa_security_guard, revisor distinto de quien tiene/tuvo el lock y evidencia previa.
+     * Revisión de una historia (ADR-004 y RFC-002 revisión independiente).
+     * approve exige: estado "revision", revisor qa_security_guard, revisor distinto de quien tiene/tuvo el lock,
+     * evidencia previa de entrega, bloque verification y tiempo mínimo de revisión (AGILEFORGE_MIN_REVIEW_SECONDS).
+     * Si human_signoff está activo, la historia permanece en "revision" con la marca qa_approved a la espera de la firma en la web.
+     * Si human_signoff está inactivo, pasa directo a "completada".
      * request_changes devuelve a "en_progreso" manteniendo el lock del desarrollador.
      */
-    public function review(string $id, string $decision, array $checklist, string $reviewerRole): void
+    public function review(string $id, string $decision, array $checklist, string $reviewerRole, ?array $verification = null): void
     {
         $reviewerRole = trim($reviewerRole);
         if (!in_array($decision, ['approve', 'request_changes'], true)) {
@@ -222,8 +267,6 @@ class TaskController
             Bootstrap::fail('reviewer_role es obligatorio (para aprobar: qa_security_guard).', 422);
         }
 
-        $newStatus = ($decision === 'approve') ? 'completada' : 'en_progreso';
-
         $task = $this->repo->getTask($id);
         if (!$task) {
             Bootstrap::fail('Tarea no encontrada', 404);
@@ -232,7 +275,18 @@ class TaskController
             Bootstrap::fail("La historia está en '{$task['status']}': solo se revisa una historia en estado 'revision' (entrégala antes con submit_for_review).", 409);
         }
 
+        $humanSignoff = $this->repo->isHumanSignoffEnabled($task['project_id'] ?? null);
+        $newStatus = ($decision === 'approve')
+            ? ($humanSignoff ? 'revision' : 'completada')
+            : 'en_progreso';
+
+        $verificationClean = null;
+        $elapsedSeconds = 0;
+
         if ($decision === 'approve') {
+            if (!empty($task['review_evidence']['qa_approved'])) {
+                Bootstrap::fail('Ya está aprobada por QA', 409);
+            }
             if ($reviewerRole !== 'qa_security_guard') {
                 Bootstrap::fail("Solo el rol qa_security_guard puede aprobar una historia (revisor indicado: '{$reviewerRole}').", 403);
             }
@@ -243,6 +297,58 @@ class TaskController
                 Bootstrap::fail('No se puede aprobar sin evidencia registrada previa de entrega (submit_for_review).', 409);
             }
 
+            // Validación de verification (Barrera B.2)
+            if (!is_array($verification)) {
+                Bootstrap::fail('Se exige el bloque de verificación (verification) para aprobar una historia.', 422);
+            }
+            $rawCommands = $verification['commands_run'] ?? null;
+            if (!is_array($rawCommands) || empty($rawCommands)) {
+                Bootstrap::fail('verification.commands_run debe contener al menos un comando ejecutado.', 422);
+            }
+            $commandsRun = [];
+            foreach ($rawCommands as $cmd) {
+                if (!is_string($cmd) || trim($cmd) === '') {
+                    Bootstrap::fail('verification.commands_run debe contener solo cadenas de texto no vacías.', 422);
+                }
+                $commandsRun[] = trim($cmd);
+            }
+            $notes = isset($verification['notes']) && is_string($verification['notes']) ? trim($verification['notes']) : '';
+            if (mb_strlen($notes) < 30) {
+                Bootstrap::fail('verification.notes debe tener al menos 30 caracteres.', 422);
+            }
+            $verificationClean = [
+                'commands_run' => $commandsRun,
+                'notes'        => $notes,
+            ];
+
+            // Tiempo mínimo de revisión (Barrera B.3)
+            $lastSub = $this->repo->getLastSubmissionEvent($id);
+            $elapsedSeconds = isset($lastSub['elapsed_seconds']) ? (int)$lastSub['elapsed_seconds'] : 0;
+            if (isset($lastSub['created_at'])) {
+                $ts = strtotime($lastSub['created_at'] . ' UTC');
+                if ($ts !== false) {
+                    $phpElapsed = time() - $ts;
+                    if ($phpElapsed > $elapsedSeconds) {
+                        $elapsedSeconds = $phpElapsed;
+                    }
+                }
+            }
+            $elapsedSeconds = max(0, $elapsedSeconds);
+
+            $rawMinSeconds = getenv('AGILEFORGE_MIN_REVIEW_SECONDS');
+            if ($rawMinSeconds === false || $rawMinSeconds === null || $rawMinSeconds === '') {
+                $rawMinSeconds = Bootstrap::env('AGILEFORGE_MIN_REVIEW_SECONDS', '60');
+            }
+            $minReviewSeconds = is_numeric($rawMinSeconds) ? (int)$rawMinSeconds : 60;
+
+            if ($elapsedSeconds < $minReviewSeconds) {
+                Bootstrap::fail(
+                    "Tiempo de revisión insuficiente ({$elapsedSeconds}s transcurridos, mínimo requerido: {$minReviewSeconds}s).",
+                    422,
+                    ['elapsed_seconds' => $elapsedSeconds, 'min_seconds' => $minReviewSeconds]
+                );
+            }
+
             // Validación de la DoD con Git / archivos del workspace (FUERA de la transacción para no bloquear SQLite)
             $filesChanged = (array)($task['review_evidence']['files_changed'] ?? []);
             if (!empty($filesChanged)) {
@@ -251,8 +357,6 @@ class TaskController
                 } catch (\InvalidArgumentException $e) {
                     $proj = $this->repo->getActiveProject();
                 }
-                // Una ruta vacía o relativa (p. ej. "." en una instalación nueva) se resuelve contra la raíz
-                // de la app, no contra el directorio de trabajo del script (que con php -S es api/).
                 $appRoot = dirname(__DIR__, 2);
                 $ws = trim((string)($proj['path'] ?? ''));
                 $isAbsWs = $ws !== '' && (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $ws);
@@ -266,7 +370,7 @@ class TaskController
             }
         }
 
-        $result = Database::transaction(function (PDO $pdo) use ($id, $decision, $checklist, $reviewerRole, $newStatus) {
+        $result = Database::transaction(function (PDO $pdo) use ($id, $decision, $checklist, $reviewerRole, $newStatus, $humanSignoff, $verificationClean, $elapsedSeconds) {
             $task = $this->repo->getTask($id);
             if (!$task) {
                 return ['error' => 'Tarea no encontrada', 'code' => 404];
@@ -285,20 +389,84 @@ class TaskController
                     return ['error' => 'No se puede aprobar sin evidencia registrada previa de entrega (submit_for_review).', 'code' => 409];
                 }
 
-                // Aprobada: se libera el lock
-                $pdo->prepare("UPDATE tasks SET status = 'completada', locked_by = NULL, locked_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$id]);
+                $evidence = is_array($task['review_evidence'] ?? null)
+                    ? $task['review_evidence']
+                    : (json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: []);
+                $evidence['verification'] = $verificationClean;
+                $evidence['review_duration_seconds'] = $elapsedSeconds;
+                $evidence['qa_approved'] = [
+                    'reviewer'                => $reviewerRole,
+                    'approved_at'             => date('c'),
+                    'checklist'               => $checklist,
+                    'verification'            => $verificationClean,
+                    'review_duration_seconds' => $elapsedSeconds,
+                ];
+
+                $evidenceJson = json_encode($evidence, JSON_UNESCAPED_UNICODE);
+
+                if ($humanSignoff) {
+                    // Firma humana activa: permanece en revisión, se libera el lock, se marca qa_approved
+                    $pdo->prepare("UPDATE tasks SET status = 'revision', locked_by = NULL, locked_at = NULL, review_evidence_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+                        ->execute([$evidenceJson, $id]);
+
+                    $payload = [
+                        'decision'                => 'approve',
+                        'checklist'               => $checklist,
+                        'verification'            => $verificationClean,
+                        'reviewer'                => $reviewerRole,
+                        'review_duration_seconds' => $elapsedSeconds,
+                        'qa_approved'             => true,
+                    ];
+                    $this->repo->recordEvent($id, $reviewerRole, 'qa_approved', $payload, 'mcp');
+
+                    $comment = "✅ Aprobada por {$reviewerRole} ({$elapsedSeconds}s). Falta firma humana en el panel web.";
+                    $this->repo->addComment($id, $reviewerRole, $reviewerRole, '🔍', $comment);
+                } else {
+                    // Firma humana inactiva: pasa a completada directamente
+                    $pdo->prepare("UPDATE tasks SET status = 'completada', locked_by = NULL, locked_at = NULL, review_evidence_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+                        ->execute([$evidenceJson, $id]);
+
+                    $payload = [
+                        'decision'                => 'approve',
+                        'checklist'               => $checklist,
+                        'verification'            => $verificationClean,
+                        'reviewer'                => $reviewerRole,
+                        'status'                  => 'completada',
+                        'review_duration_seconds' => $elapsedSeconds,
+                    ];
+                    $this->repo->recordEvent($id, $reviewerRole, 'task_reviewed', $payload, 'mcp');
+
+                    $comment = "✅ Tarea aprobada por {$reviewerRole} ({$elapsedSeconds}s). Cumplimiento DoD verificado.";
+                    $this->repo->addComment($id, $reviewerRole, $reviewerRole, '🔍', $comment);
+                }
             } else {
                 // Cambios solicitados: vuelve a desarrollo y el lock del desarrollador se mantiene (se renueva)
-                $pdo->prepare("UPDATE tasks SET status = 'en_progreso', locked_at = CASE WHEN locked_by IS NOT NULL AND locked_by != '' THEN CURRENT_TIMESTAMP ELSE locked_at END, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$id]);
+                $hadQaApproved = !empty($task['review_evidence']['qa_approved']);
+                $evidence = is_array($task['review_evidence'] ?? null)
+                    ? $task['review_evidence']
+                    : (json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: []);
+
+                if ($hadQaApproved) {
+                    unset($evidence['qa_approved']);
+                }
+                $evidenceJson = json_encode($evidence, JSON_UNESCAPED_UNICODE);
+
+                $pdo->prepare("UPDATE tasks SET status = 'en_progreso', review_evidence_json = ?, locked_at = CASE WHEN locked_by IS NOT NULL AND locked_by != '' THEN CURRENT_TIMESTAMP ELSE locked_at END, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+                    ->execute([$evidenceJson, $id]);
+
+                $payload = ['decision' => $decision, 'checklist' => $checklist, 'reviewer' => $reviewerRole, 'status' => 'en_progreso'];
+                $this->repo->recordEvent($id, $reviewerRole, 'task_reviewed', $payload, 'mcp');
+
+                if ($hadQaApproved) {
+                    $this->repo->recordEvent($id, $reviewerRole, 'qa_approval_revoked', [
+                        'reason'   => 'request_changes',
+                        'reviewer' => $reviewerRole,
+                    ], 'mcp');
+                }
+
+                $comment = "⚠️ Cambios solicitados por {$reviewerRole}. Se regresa a desarrollo.";
+                $this->repo->addComment($id, $reviewerRole, $reviewerRole, '🔍', $comment);
             }
-
-            $payload = ['decision' => $decision, 'checklist' => $checklist, 'reviewer' => $reviewerRole, 'status' => $newStatus];
-            $this->repo->recordEvent($id, $reviewerRole, 'task_reviewed', $payload, 'mcp');
-
-            $comment = ($decision === 'approve')
-                ? "✅ Tarea aprobada por {$reviewerRole}. Cumplimiento DoD verificado."
-                : "⚠️ Cambios solicitados por {$reviewerRole}. Se regresa a desarrollo.";
-            $this->repo->addComment($id, $reviewerRole, $reviewerRole, '🔍', $comment);
             return ['ok' => true];
         });
 
@@ -307,16 +475,25 @@ class TaskController
         }
 
         if ($decision === 'approve') {
-            $approvedTask = $this->repo->getTask($id);
-            if ($approvedTask) {
-                $this->consolidateTaskCompletionMemory($approvedTask);
+            if (!$humanSignoff) {
+                $approvedTask = $this->repo->getTask($id);
+                if ($approvedTask) {
+                    $this->consolidateTaskCompletionMemory($approvedTask);
+                }
             }
         } else {
             $memId = 'MEM-TASK-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $id);
             $this->repo->toggleMemory($memId, false);
         }
 
-        Bootstrap::jsonResponse(['success' => true, 'task_id' => $id, 'status' => $newStatus, 'decision' => $decision]);
+        Bootstrap::jsonResponse([
+            'success'               => true,
+            'task_id'               => $id,
+            'status'                => $newStatus,
+            'decision'              => $decision,
+            'qa_approved'           => ($decision === 'approve'),
+            'human_signoff_pending' => ($decision === 'approve' && $humanSignoff),
+        ]);
     }
 
     /**

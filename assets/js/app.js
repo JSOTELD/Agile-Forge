@@ -975,6 +975,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (action === 'open-task-detail') openTaskDetail(taskId);
         else if (action === 'show-task-prompt') showTaskPrompt(taskId);
         else if (action === 'request-task-review') showReviewPrompt(taskId);
+        else if (action === 'sign-and-complete') {
+            updateTaskStatus(taskId, 'completada').then(ok => {
+                if (ok) showToast('Firma Humana Registrada', 'Historia completada con éxito', 'success', 2500);
+            });
+        }
     });
 
     // Actualización de viewport al redimensionar ventana

@@ -27,6 +27,11 @@ export function renderProjectSelector() {
     if (wsDisplay) {
         wsDisplay.textContent = current.path || appData.active_workspace || 'Sin workspace';
     }
+
+    const chk = document.getElementById('project-setting-human-signoff');
+    if (chk) {
+        chk.checked = current.human_signoff ?? appData.human_signoff?.enabled ?? true;
+    }
 }
 
 export async function handleSwitchProject(projectId) {
@@ -145,4 +150,54 @@ export async function submitImportWorkspace() {
         showToast('Error de Red', 'Fallo al importar workspace', 'error');
     }
 }
+
+export function openProjectSettingsModal() {
+    const modal = document.getElementById('project-settings-modal');
+    if (!modal) return;
+    const current = appData.current_project || {};
+    const chk = document.getElementById('project-setting-human-signoff');
+    if (chk) {
+        chk.checked = current.human_signoff ?? appData.human_signoff?.enabled ?? true;
+    }
+    const nameEl = document.getElementById('project-settings-name');
+    if (nameEl) {
+        nameEl.textContent = current.name || 'AgileForge Default';
+    }
+    modal.classList.remove('hidden');
+}
+
+export function closeProjectSettingsModal() {
+    const modal = document.getElementById('project-settings-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+export async function toggleProjectHumanSignoff(enabled) {
+    const current = appData.current_project || {};
+    try {
+        const res = await apiFetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'update_human_signoff',
+                project_id: current.id || null,
+                enabled: Boolean(enabled),
+                client: 'web'
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Firma Humana', enabled ? 'Firma humana requerida para completar historias' : 'Firma humana desactivada (QA completará directo)', 'info');
+            if (window.fetchTeamData) await window.fetchTeamData();
+        } else {
+            showToast('Error', data.error || 'No se pudo actualizar el ajuste', 'error');
+        }
+    } catch (err) {
+        showToast('Error de Red', 'Fallo al comunicar con el servidor', 'error');
+    }
+}
+
+window.openProjectSettingsModal = openProjectSettingsModal;
+window.closeProjectSettingsModal = closeProjectSettingsModal;
+window.toggleProjectHumanSignoff = toggleProjectHumanSignoff;
+
 

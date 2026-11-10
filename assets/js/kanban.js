@@ -93,11 +93,14 @@ export function renderKanban() {
         const isLegal = t.assigned_to === 'legal_counsel';
         const aiModel = t.ai_model || role?.ai_model || appData.ai_engine?.active_model || 'claude-sonnet-5-5';
         const isLocked = !!t.locked_by;
+        const isQaApproved = (t.status === 'revision' && !!(t.review_evidence?.qa_approved));
+        const reviewDuration = t.review_evidence?.qa_approved?.review_duration_seconds ?? t.review_evidence?.review_duration_seconds;
+        const isQuickReview = (reviewDuration !== undefined && reviewDuration !== null && Number(reviewDuration) < 300);
 
         const taskSkills = t.skills || role?.assigned_skills?.slice(0, 2) || [];
 
         const card = document.createElement('div');
-        card.className = `kanban-card p-3.5 rounded-2xl bg-slate-950/90 border ${isLegal ? 'border-amber-500/30' : (isLocked ? 'border-indigo-500/40' : 'border-slate-800')} hover:border-slate-600 transition shadow-sm space-y-2.5`;
+        card.className = `kanban-card p-3.5 rounded-2xl bg-slate-950/90 border ${isLegal ? 'border-amber-500/30' : (isLocked ? 'border-indigo-500/40' : (isQaApproved ? 'border-emerald-500/40' : 'border-slate-800'))} hover:border-slate-600 transition shadow-sm space-y-2.5`;
         card.innerHTML = `
             <div class="flex items-center justify-between gap-1 text-[10px]">
                 <div class="flex items-center gap-1.5 font-mono">
@@ -105,6 +108,11 @@ export function renderKanban() {
                     <span class="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 font-bold text-slate-300">${pts} pts</span>
                 </div>
                 <div class="flex items-center gap-1">
+                    ${isQuickReview ? `
+                        <span class="px-1.5 py-0.2 rounded font-mono text-[9px] bg-amber-950/80 text-amber-300 border border-amber-500/30 flex items-center gap-0.5" title="Revisión completada en ${reviewDuration}s">
+                            <span>⚡</span> Revisión rápida
+                        </span>
+                    ` : ''}
                     ${isLocked ? `
                         <span class="px-1.5 py-0.2 rounded font-mono text-[9px] bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 flex items-center gap-0.5" title="Lock activo por ${escapeHtml(t.locked_by)}">
                             <span>🔒</span> ${escapeHtml(t.locked_by)}
@@ -119,6 +127,18 @@ export function renderKanban() {
             <h5 class="kanban-title font-bold text-white text-xs leading-snug cursor-pointer hover:text-indigo-300 transition" data-action="open-task-detail" data-task-id="${escapeHtml(t.id)}">
                 ${escapeHtml(t.title)}
             </h5>
+
+            <!-- Insignia y Acción de Firma Humana -->
+            ${isQaApproved ? `
+                <div class="space-y-1.5 pt-1">
+                    <div class="px-2 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center justify-between gap-1 shadow-sm">
+                        <span class="flex items-center gap-1"><span>🛡️</span> Aprobada por QA · falta tu firma</span>
+                    </div>
+                    <button data-action="sign-and-complete" data-task-id="${escapeHtml(t.id)}" class="w-full py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm" title="Aprobar firma humana y marcar completada">
+                        <span>✍️</span> Firmar y Completar
+                    </button>
+                </div>
+            ` : ''}
 
             <!-- Motor IA y Agente Asignado -->
             <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-900">
@@ -207,6 +227,7 @@ export function renderActivityFeed() {
         claimed: '🔒',
         submitted_for_review: '📤',
         task_reviewed: '🔍',
+        qa_approved: '🛡️',
         task_created: '📋',
         status_change: '⚙️',
         comment_added: '💬'
@@ -223,6 +244,7 @@ export function renderActivityFeed() {
         let desc = '';
         if (e.event_type === 'claimed') desc = `tomó la tarea y activó lock en progreso`;
         else if (e.event_type === 'submitted_for_review') desc = `entregó a revisión con evidencia de tests`;
+        else if (e.event_type === 'qa_approved') desc = `aprobó técnicamente (esperando firma humana en web)`;
         else if (e.event_type === 'task_reviewed') desc = `auditó cumplimiento de DoD (${escapeHtml(e.payload?.decision || '')})`;
         else if (e.event_type === 'status_change') desc = `cambió estado a ${escapeHtml(e.payload?.status || '')}`;
         else if (e.event_type === 'task_created') desc = `creó la historia`;

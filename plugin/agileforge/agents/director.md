@@ -56,7 +56,7 @@ Conviertes instrucciones del dueño del producto en decisiones registradas y tra
 3c. Memoria interna del proyecto → `remember` (para lecciones, avances y contexto nodular) o `list_memories` / `get_memory` para consultar sin sesgos.
 4. Trabajo nuevo → `create_task` (historia "Como…, quiero…, para…", DoD verificable, Fibonacci, `assigned_to` = rol).
 5. Delega con Agent en `agileforge:<agente>`: ID de la historia, DoD y límites. No pases `model` ni `effort`: cada agente ya trae los suyos (ver `/agileforge:equipo`). Paraleliza solo historias independientes.
-6. Historia en `revision` → pide dictamen a `agileforge:qa-security`. Tú no apruebas; el humano puede hacerlo desde la web.
+6. Historia en `revision` → pide dictamen a `agileforge:qa-security`. Tú no apruebas; la aprobación de QA deja la historia lista para la firma humana en el panel web.
 
 | agente | role_key |
 |---|---|

@@ -63,6 +63,7 @@ class Repository
         $projects = $this->getProjects();
         $currentProject = $this->getActiveProject();
         $activeProjectId = $currentProject['id'] ?? 'default';
+        $currentProject['human_signoff'] = $this->isHumanSignoffEnabled($activeProjectId);
 
         $activeWorkspace = $currentProject['path'] ?? ($settings['active_workspace'] ?? dirname(__DIR__));
         $orgName = $settings['org_name'] ?? 'AgileForge Ecosystem';
@@ -168,6 +169,7 @@ class Repository
                 'prompt_template' => $row['prompt_template'],
                 'locked_by'       => $row['locked_by'] ?? null,
                 'locked_at'       => $row['locked_at'] ?? null,
+                'review_evidence' => json_decode((string)($row['review_evidence_json'] ?? ''), true) ?: null,
             ];
         }
 
@@ -192,6 +194,7 @@ class Repository
                     'prompt_template' => $row['prompt_template'],
                     'locked_by'       => $row['locked_by'] ?? null,
                     'locked_at'       => $row['locked_at'] ?? null,
+                    'review_evidence' => json_decode((string)($row['review_evidence_json'] ?? ''), true) ?: null,
                 ];
             }
         }
@@ -290,6 +293,10 @@ class Repository
             'meetings'              => $meetings,
             'recent_events'         => $recentEvents,
             'costs_summary'         => $costSummary,
+            'human_signoff'         => [
+                'enabled'  => $this->isHumanSignoffEnabled($activeProjectId),
+                'settings' => $this->getSetting('human_signoff', ['default' => true, 'projects' => []]),
+            ],
         ];
     }
 
@@ -345,6 +352,49 @@ class Repository
             $out[$row['key']] = json_decode($row['value_json'], true);
         }
         return $out;
+    }
+
+    public function isHumanSignoffEnabled(?string $projectId = null): bool
+    {
+        $setting = $this->getSetting('human_signoff', null);
+        if (!is_array($setting)) {
+            return true;
+        }
+        if ($projectId !== null && isset($setting['projects']) && is_array($setting['projects']) && array_key_exists($projectId, $setting['projects'])) {
+            return (bool)$setting['projects'][$projectId];
+        }
+        return isset($setting['default']) ? (bool)$setting['default'] : true;
+    }
+
+    public function setHumanSignoff(?string $projectId, bool $enabled): void
+    {
+        $setting = $this->getSetting('human_signoff', null);
+        if (!is_array($setting)) {
+            $setting = ['default' => true, 'projects' => []];
+        }
+        if (!isset($setting['projects']) || !is_array($setting['projects'])) {
+            $setting['projects'] = [];
+        }
+        if ($projectId === null || $projectId === '') {
+            $setting['default'] = $enabled;
+        } else {
+            $setting['projects'][$projectId] = $enabled;
+        }
+        $this->setSetting('human_signoff', $setting);
+    }
+
+    public function getLastSubmissionEvent(string $taskId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT *, (strftime('%s', 'now') - strftime('%s', created_at)) AS elapsed_seconds
+             FROM task_events
+             WHERE task_id = ? AND event_type = 'submitted_for_review'
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([$taskId]);
+        $row = $stmt->fetch();
+        $stmt->closeCursor();
+        return $row ?: null;
     }
 
     /**
@@ -496,7 +546,8 @@ class Repository
         $tasks = [];
         while ($row = $stmt->fetch()) {
             $row['skills'] = json_decode($row['skills_json'] ?? '[]', true) ?: [];
-            unset($row['skills_json']);
+            $row['review_evidence'] = json_decode((string)($row['review_evidence_json'] ?? ''), true) ?: null;
+            unset($row['skills_json'], $row['review_evidence_json']);
             $tasks[] = $row;
         }
         return $tasks;
@@ -578,6 +629,18 @@ class Repository
                 return ['success' => false, 'error' => "La historia {$id} ya está completada: no se puede tomar (si hay que reabrirla, que un humano la mueva desde el tablero).", 'code' => 409];
             }
 
+            // Mientras una historia esté en "revision" con qa_approved, los clientes que no sean web NO pueden tomarla (claim_task)
+            $evidence = json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: [];
+            if (($task['status'] ?? '') === 'revision' && !empty($evidence['qa_approved'])) {
+                if ($client !== 'web') {
+                    return [
+                        'success' => false,
+                        'error'   => 'Aprobada por QA: espera la firma humana en el panel',
+                        'code'    => 409
+                    ];
+                }
+            }
+
             // Verificar lock existente
             if (!empty($task['locked_by']) && $task['locked_by'] !== $roleKey) {
                 // locked_at es CURRENT_TIMESTAMP de SQLite (UTC): se interpreta como UTC, no con la zona horaria de PHP
@@ -607,6 +670,13 @@ class Repository
     {
         $stmt = $this->db->prepare("INSERT INTO task_events (task_id, role_key, client, event_type, payload_json) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$taskId, $roleKey, $client, $eventType, json_encode($payload, JSON_UNESCAPED_UNICODE)]);
+    }
+
+    public function updateReviewEvidence(string $taskId, ?array $evidence): void
+    {
+        $json = $evidence !== null ? json_encode($evidence, JSON_UNESCAPED_UNICODE) : null;
+        $stmt = $this->db->prepare("UPDATE tasks SET review_evidence_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute([$json, $taskId]);
     }
 
     public function addComment(string $taskId, string $authorRole, string $authorName, string $avatar, string $content): string

@@ -26,7 +26,7 @@ export function registerWriteTools(server, c) {
         annotations: WRITE,
     }, (a) => post('tasks', { ...a, client: dflt }));
     server.registerTool('claim_task', {
-        description: 'Toma una historia: la asigna al rol, la pasa a en_progreso y la bloquea (lock).',
+        description: 'Toma una historia: la asigna al rol, la pasa a en_progreso y la bloquea (lock). Historias aprobadas por QA no se pueden tomar mientras esperan firma humana.',
         inputSchema: {
             task_id: z.string(),
             role_key: z.string().describe('Rol que la toma'),
@@ -35,7 +35,7 @@ export function registerWriteTools(server, c) {
         annotations: WRITE,
     }, (a) => post(`tasks/${enc(a.task_id)}/claim`, { role_key: a.role_key, client: a.client || dflt }));
     server.registerTool('update_task_status', {
-        description: 'Mueve una historia a backlog, en_progreso o revision con una nota. No completa: eso lo hace review_task (QA) o el humano en la web.',
+        description: 'Mueve una historia a backlog, en_progreso o revision con una nota. Historias aprobadas por QA no se pueden mover por clientes externos; completar exige client=web.',
         inputSchema: {
             task_id: z.string(),
             status: z.enum(['backlog', 'en_progreso', 'revision']),
@@ -57,13 +57,13 @@ export function registerWriteTools(server, c) {
         annotations: WRITE,
     }, (a) => post(`tasks/${enc(a.task_id)}/comments`, { role: a.role, content: a.content, name: a.name || a.role, avatar: a.avatar || '💬' }));
     server.registerTool('submit_for_review', {
-        description: 'Entrega la historia a revisión con evidencia (archivos, pruebas, resumen).',
+        description: 'Entrega la historia a revisión con evidencia verificable (archivos, pruebas ejecutadas y resumen de al menos 20 caracteres).',
         inputSchema: {
             task_id: z.string(),
             role_key: z.string().describe('Rol que entrega'),
             files_changed: z.array(z.string()),
-            tests_run: z.array(z.string()).describe('Pruebas y resultado, ej. "npm test: 24 ok"'),
-            summary: z.string().min(10),
+            tests_run: z.array(z.string()).min(1).describe('Pruebas ejecutadas y su resultado (mínimo 1), ej. "npm test: 24 ok"'),
+            summary: z.string().min(20).describe('Resumen detallado de la entrega (mínimo 20 caracteres)'),
         },
         annotations: WRITE,
     }, (a) => post(`tasks/${enc(a.task_id)}/submit-review`, {
@@ -71,15 +71,24 @@ export function registerWriteTools(server, c) {
         evidence: { files_changed: a.files_changed, tests_run: a.tests_run, summary: a.summary },
     }));
     server.registerTool('review_task', {
-        description: 'Dictamina una historia en revisión. approve la completa solo si el revisor es QA (qa_security_guard), distinto de quien la tomó, y hay evidencia.',
+        description: 'Dictamina una historia en revisión. approve exige que el revisor sea QA (qa_security_guard), distinto de quien la tomó, evidencia previa, tiempo mínimo transcurrido y verification (commands_run como cadenas y notes). Con firma humana activa la historia permanece en revisión hasta la firma en el panel web. No se puede aprobar dos veces.',
         inputSchema: {
             task_id: z.string(),
             decision: z.enum(['approve', 'request_changes']),
             checklist: z.array(z.string()).describe('Criterios DoD verificados'),
             reviewer_role: z.string().describe('Normalmente qa_security_guard'),
+            verification: z.object({
+                commands_run: z.array(z.string()).min(1).describe('Comandos ejecutados para verificar'),
+                notes: z.string().min(30).describe('Notas de verificación (mínimo 30 caracteres)'),
+            }).optional().describe('Bloque de verificación técnica (obligatorio si decision=approve)'),
         },
         annotations: WRITE,
-    }, (a) => post(`tasks/${enc(a.task_id)}/review`, { decision: a.decision, checklist: a.checklist, reviewer_role: a.reviewer_role }));
+    }, (a) => post(`tasks/${enc(a.task_id)}/review`, {
+        decision: a.decision,
+        checklist: a.checklist,
+        reviewer_role: a.reviewer_role,
+        verification: a.verification,
+    }));
     server.registerTool('start_meeting', {
         description: 'Abre una sala de reunión entre roles (brainstorming, decision, compliance o daily).',
         inputSchema: {

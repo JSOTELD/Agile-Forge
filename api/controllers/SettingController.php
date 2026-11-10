@@ -499,5 +499,44 @@ HTML;
             'content'    => $generated
         ]);
     }
+
+    public function updateHumanSignoff(array $input): void
+    {
+        $client = (string)($input['client'] ?? '');
+        if ($client !== 'web') {
+            Bootstrap::fail('Modificar el ajuste de firma humana requiere acceso desde el panel web (client: "web").', 403);
+        }
+
+        if (!array_key_exists('enabled', $input)) {
+            Bootstrap::fail('El campo "enabled" es obligatorio.', 422);
+        }
+
+        $enabled = filter_var($input['enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($enabled === null) {
+            Bootstrap::fail('El campo "enabled" debe ser un booleano válido (true o false).', 422);
+        }
+
+        $projectId = isset($input['project_id']) && trim((string)$input['project_id']) !== ''
+            ? trim((string)$input['project_id'])
+            : null;
+
+        if ($projectId !== null) {
+            try {
+                $this->repo->resolveProject($projectId);
+            } catch (\InvalidArgumentException $e) {
+                Bootstrap::fail("Proyecto no encontrado: '{$projectId}'", 404);
+            }
+        }
+
+        $this->repo->setHumanSignoff($projectId, $enabled);
+        Bootstrap::log("Ajuste human_signoff para proyecto '" . ($projectId ?? 'default') . "' cambiado a " . ($enabled ? 'true' : 'false') . " por client '{$client}' a las " . date('c'));
+
+        Bootstrap::jsonResponse([
+            'success'    => true,
+            'project_id' => $projectId,
+            'enabled'    => $enabled,
+            'setting'    => $this->repo->getSetting('human_signoff')
+        ]);
+    }
 }
 
