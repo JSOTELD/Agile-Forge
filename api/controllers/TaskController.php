@@ -243,7 +243,12 @@ class TaskController
                 // Validación de la DoD con Git / archivos del workspace
                 $filesChanged = (array)($task['review_evidence']['files_changed'] ?? []);
                 if (!empty($filesChanged)) {
-                    $proj = $this->repo->getProject($task['project_id'] ?? '') ?? $this->repo->getActiveProject();
+                    // Repository no tiene getProject(): resolveProject() devuelve el proyecto de la historia (o el activo)
+                    try {
+                        $proj = $this->repo->resolveProject($task['project_id'] ?? null);
+                    } catch (\InvalidArgumentException $e) {
+                        $proj = $this->repo->getActiveProject();
+                    }
                     $ws = (string)($proj['path'] ?? dirname(__DIR__, 2));
                     $gitCheck = $this->verifyDoDGitFiles($ws, $filesChanged);
                     if (!$gitCheck['ok']) {
@@ -330,7 +335,17 @@ class TaskController
 
         $missing = [];
         foreach ($files as $file) {
-            $norm = ltrim(str_replace('\\', '/', trim((string)$file)), '/');
+            $norm = str_replace('\\', '/', trim((string)$file));
+            // Los agentes suelen reportar rutas absolutas: si está dentro del workspace se pasa a relativa;
+            // si es absoluta y existe en disco, también vale como evidencia
+            if ($norm !== '' && (preg_match('#^[A-Za-z]:/#', $norm) || str_starts_with($norm, '/'))) {
+                if (strcasecmp(substr($norm, 0, strlen($cleanWs) + 1), $cleanWs . '/') === 0) {
+                    $norm = substr($norm, strlen($cleanWs) + 1);
+                } elseif (file_exists($norm)) {
+                    continue;
+                }
+            }
+            $norm = ltrim(preg_replace('#^\./#', '', $norm) ?? $norm, '/');
             if ($norm === '') continue;
 
             $fullPath = $cleanWs . '/' . $norm;

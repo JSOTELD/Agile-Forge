@@ -13,6 +13,7 @@ use AgileForge\Database;
 use AgileForge\Repository;
 use InvalidArgumentException;
 use PDO;
+use RuntimeException;
 
 class BoardService
 {
