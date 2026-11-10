@@ -43,7 +43,9 @@ export function renderLegalPillars(data) {
     const scoreEl = document.getElementById('legal-overall-score');
     if (!container || !data) return;
 
-    if (scoreEl) scoreEl.textContent = `${data.overall_compliance_score || 95}%`;
+    // Sin valor por defecto: si la auditoría no devuelve puntaje, no se inventa uno
+    const score = Number(data.overall_compliance_score);
+    if (scoreEl) scoreEl.textContent = Number.isFinite(score) ? `${Math.round(score)}%` : '—';
 
     const pillars = data.compliance_pillars || [];
     container.innerHTML = pillars.map(p => {

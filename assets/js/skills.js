@@ -4,6 +4,7 @@
  */
 
 import { appData, apiFetch, escapeHtml, activeConfigRoleId, setActiveConfigRoleId, jsArg } from './state.js';
+import { roleLabel } from './roles.js';
 import { showToast } from './ui.js';
 
 let skillsActiveCategory = 'all';
@@ -119,7 +120,7 @@ export function updateSelectedSkillsCount() {
     const checkedInputs = Array.from(document.querySelectorAll('#skills-cards-container input:checked'));
     const badge = document.getElementById('skills-selected-count');
     if (badge) {
-        badge.textContent = `${checkedInputs.length} skills seleccionadas para ${role.name.split(' ')[0]}`;
+        badge.textContent = `${checkedInputs.length} skills seleccionadas para ${roleLabel(role)}`;
     }
 }
 

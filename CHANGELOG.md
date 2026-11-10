@@ -16,9 +16,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - **Tester (v0, experimental):** agente `tester` (opus) y comando `/agileforge:probar [alcance]`. Encuentra fallos y los demuestra con pruebas ejecutables en un entorno desechable; no arregla código, no aprueba y no prioriza. Método: reglas de negocio primero; cuatro ataques por regla (actor, estado, dueño y concurrencia); entradas hostiles; perfiles de la receta más "usuario nuevo" y "sin credenciales"; revisión de errores 500, log y `git status` tras cada tanda; interfaz al final. Cada bug confirmado se registra con `create_task` como `[BUG][critica|alta|media|baja] …`. Sin herramientas para tomar, entregar, dictaminar ni mover historias. No es un rol del tablero ni forma parte del pack core.
 - **Receta de pruebas por proyecto:** plantilla `plugin/agileforge/templates/testing.md` para `.agileforge/testing.md` (entorno desechable, datos de ejemplo, perfiles con credenciales de prueba, log, límite de peticiones, reinicio y apagado, y carpeta donde puede escribir el tester). Sin receta aprobada el tester no prueba: propone un borrador y se detiene hasta que David lo apruebe.
 - **Receta del propio AgileForge** (`.agileforge/testing.md`, en borrador): `npm test` con base temporal y carpeta temporal propia, y un entorno exploratorio en un clon limpio con tokens y log propios. Perfiles: token principal, token de vista, sin token y usuario nuevo.
+- **Panel — identidad visual:** avatares de marca por rol (`assets/brand/avatars/`), ícono 1024 del plugin, portada social y tipografías servidas en local (`assets/fonts/`, sin peticiones externas).
+- **Panel — detalle de historia:** bloque de revisión con el resumen de entrega, archivos, pruebas, datos de la aprobación de QA y el botón para firmar.
+- **`npm run build:css`** para recompilar los estilos.
 
 #### Cambiado
 - **Director:** puede posponer un hallazgo del tester dejando el motivo con `add_comment`; no puede descartar ni cerrar hallazgos críticos o de seguridad (los decide David) y nunca borra historias de bug.
+- **Panel — rediseño:** cabecera en una sola fila con panel de ajustes (tema, idioma, motor de IA, jurisdicción, carpeta, vista y manual), tablero visible sin desplazarse, Director plegable debajo del tablero, prioridad con icono además de color, nombres de rol únicos, feed de actividad en lenguaje llano y horas en hora local.
+- **Panel — accesibilidad:** modales con `role="dialog"`, Escape cierra solo el de arriba y devuelve el foco; botones de mover con etiqueta y deshabilitados en los extremos; temas claros legibles.
+
+#### Corregido
+- El Laboratorio UX mostraba «5 de 10 (100%)»: ahora cuenta siempre las 10 heurísticas.
+- La puntuación legal inventaba un 95% cuando no había dato; el pie mostraba «Versión 3.0.0».
+- Se retiran del panel afirmaciones sin verificar («optimizaciones activas», insignias decorativas) y la inversión en IA muestra «No aplica» en modo plugin.
+- `update_human_signoff` con `enabled` nulo o vacío apagaba la firma humana; ahora se rechaza con 422.
+- Reuniones: horas de los turnos en UTC y turnos que mostraban el identificador del rol.
 
 ### English
 
@@ -26,9 +38,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - **Tester (v0, experimental):** `tester` agent (opus) and `/agileforge:probar [scope]` command. It finds failures and proves them with executable tests in a disposable environment; it does not fix code, approve or prioritize. Method: business rules first; four attacks per rule (actor, state, owner and concurrency); hostile inputs; the recipe's profiles plus "new user" and "no credentials"; a check for 500 errors, the server log and `git status` after each round; the UI last. Each confirmed bug is logged with `create_task` as `[BUG][critica|alta|media|baja] …`. It has no tools to claim, submit, review or move stories. It is not a board role and is not part of the core pack.
 - **Per-project test recipe:** template `plugin/agileforge/templates/testing.md` for `.agileforge/testing.md` (disposable environment, sample data, profiles with test credentials, log, rate limit, restart and shutdown, and the only folder the tester may write to). Without an approved recipe the tester does not test: it proposes a draft and stops until David approves it.
 - **AgileForge's own recipe** (`.agileforge/testing.md`, draft): `npm test` with a temporary database and its own temporary folder, plus an exploratory environment in a clean clone with its own tokens and log. Profiles: main token, view token, no token and new user.
+- **Panel — visual identity:** brand avatars per role (`assets/brand/avatars/`), 1024 plugin icon, social preview and locally served fonts (`assets/fonts/`, no external requests).
+- **Panel — story detail:** review block with the delivery summary, files, tests, QA approval data and the sign-off button.
+- **`npm run build:css`** to rebuild the styles.
 
 #### Changed
 - **Director:** may postpone a tester finding, leaving the reason with `add_comment`; cannot dismiss or close critical or security findings (David decides them) and never deletes bug stories.
+- **Panel — redesign:** single-row header with a settings panel (theme, language, AI engine, jurisdiction, folder, view and manual), board visible without scrolling, collapsible Director below the board, priority with an icon as well as colour, unique role names, plain-language activity feed and local times.
+- **Panel — accessibility:** modals with `role="dialog"`, Escape closes only the top one and restores focus; move buttons labelled and disabled at the ends; readable light themes.
+
+#### Fixed
+- The UX Lab showed "5 of 10 (100%)": it now always counts the 10 heuristics.
+- The legal score invented 95% when there was no data; the footer showed "Version 3.0.0".
+- Unverified claims removed from the panel ("active optimizations", decorative badges); AI spend shows "Not applicable" in plugin mode.
+- `update_human_signoff` with a null or empty `enabled` turned human sign-off off; it is now rejected with 422.
+- Meetings: turn times in UTC and turns showing the role identifier.
 
 ---
 

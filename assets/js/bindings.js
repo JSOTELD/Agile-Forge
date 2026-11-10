@@ -5,9 +5,10 @@
  * jurisdicción, carpeta de trabajo, Motor IA y claves de API.
  */
 
-import { appData, apiFetch, escapeHtml, jsArg } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg, localTime } from './state.js';
 import { showToast, switchMainTab } from './ui.js';
-import { getLanguage } from './i18n.js';
+import { getLanguage, t as tr } from './i18n.js';
+import { roleLabel, statusLabel } from './roles.js';
 
 async function post(action, extra = {}) {
     const res = await apiFetch('api/tasks.php', {
@@ -150,7 +151,7 @@ export function openTaskDetail(taskId) {
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('detail-task-id', t.id);
     set('detail-task-title', t.title);
-    set('detail-task-status', (t.status || 'backlog').replace('_', ' '));
+    set('detail-task-status', statusLabel(t.status || 'backlog'));
 
     const roleSel = document.getElementById('detail-task-role');
     if (roleSel) {
@@ -168,7 +169,56 @@ export function openTaskDetail(taskId) {
     if (desc) desc.value = t.description || '';
     const skills = document.getElementById('detail-task-skills');
     if (skills) skills.innerHTML = (t.skills || []).map(s => `<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">⚡ ${escapeHtml(s)}</span>`).join('') || '<span class="text-[11px] text-slate-500">Sin skills</span>';
+    renderReviewBlock(t);
     show('task-detail-modal');
+}
+
+/**
+ * Estado de la revisión en el detalle: qué entregó el agente, qué verificó QA y, si procede, el botón de firma.
+ * Solo lectura: todo sale de review_evidence, que ya viene con la historia.
+ */
+function renderReviewBlock(task) {
+    const box = document.getElementById('detail-review-block');
+    if (!box) return;
+    const ev = task.review_evidence || null;
+    const inReview = task.status === 'revision';
+    if (!inReview && !(task.status === 'completada' && ev)) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+        return;
+    }
+    const list = (items) => {
+        const arr = (Array.isArray(items) ? items : []).filter(x => typeof x === 'string' && x.trim() !== '');
+        return arr.length ? `<ul>${arr.map(x => `<li><code>${escapeHtml(x)}</code></li>`).join('')}</ul>` : '—';
+    };
+    const row = (label, html) => `<dt>${escapeHtml(label)}</dt><dd>${html}</dd>`;
+    const qa = ev?.qa_approved || null;
+    let html = `<h4>${escapeHtml(tr('review_title', 'Revisión'))}</h4>`;
+    if (ev) {
+        html += `<dl>
+            ${row(tr('review_summary', 'Entrega'), escapeHtml(ev.summary || '—'))}
+            ${row(tr('review_files', 'Archivos'), list(ev.files_changed))}
+            ${row(tr('review_tests', 'Pruebas'), list(ev.tests_run))}
+        </dl>`;
+    } else {
+        html += `<p class="review-wait">${escapeHtml(tr('review_no_delivery', 'Todavía no hay una entrega registrada.'))}</p>`;
+    }
+    if (qa) {
+        const secs = Number(qa.review_duration_seconds);
+        html += `<dl>
+            ${row(tr('review_by', 'Aprobó'), `${escapeHtml(roleLabel(qa.reviewer))} · ${escapeHtml(localTime(qa.approved_at))}${Number.isFinite(secs) ? ` · ${escapeHtml(String(secs))} s` : ''}`)}
+            ${row(tr('review_checklist', 'Checklist'), list(qa.checklist))}
+            ${row(tr('review_commands', 'Verificó con'), list(qa.verification?.commands_run))}
+            ${row(tr('review_notes', 'Notas de QA'), escapeHtml(qa.verification?.notes || '—'))}
+        </dl>`;
+    }
+    if (inReview && qa) {
+        html += `<button type="button" data-action="sign-and-complete" data-task-id="${escapeHtml(task.id)}" class="btn-sign"><span aria-hidden="true">✍️</span> ${escapeHtml(tr('sign_complete', 'Firmar y completar'))}</button>`;
+    } else if (inReview) {
+        html += `<p class="review-wait">${escapeHtml(tr('review_waiting', 'Esperando la revisión de QA.'))}</p>`;
+    }
+    box.innerHTML = html;
+    box.classList.remove('hidden');
 }
 
 export function closeTaskDetail() { hide('task-detail-modal'); detailTaskId = null; }

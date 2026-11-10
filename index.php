@@ -2,6 +2,9 @@
 require_once __DIR__ . '/api/bootstrap.php';
 \AgileForge\Bootstrap::loadEnv();
 $apiToken = \AgileForge\Bootstrap::getToken();
+// Versión real del plugin (una sola fuente: el manifiesto), para no mostrar un número escrito a mano
+$afManifest = json_decode((string)@file_get_contents(__DIR__ . '/plugin/agileforge/.claude-plugin/plugin.json'), true);
+$afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($afManifest['version'] ?? '')) ? $afManifest['version'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="es" class="theme-obsidian">
@@ -30,7 +33,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
             } catch(e) {}
         })();
     </script>
-    <title>AgileForge · Command Center Scrum & Multi-Skills de Agentes IA</title>
+    <title>AgileForge · Tu equipo de agentes de IA para Claude Code</title>
     <!-- Favicon Oficial AgileForge -->
     <link rel="icon" type="image/png" href="assets/brand/favicon.png">
     <link rel="apple-touch-icon" href="assets/brand/favicon.png">
@@ -678,14 +681,222 @@ $apiToken = \AgileForge\Bootstrap::getToken();
         html.theme-paper .toast-card.toast-magic > span:first-child {
             color: #7c3aed !important;
         }
+        /* Tipografías locales (OFL 1.1, ver assets/fonts): el panel no hace peticiones externas */
+        @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-display: swap; font-weight: 200 800; src: url('assets/fonts/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+        @font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-display: swap; font-weight: 200 800; src: url('assets/fonts/plus-jakarta-sans-latin-ext-wght-normal.woff2') format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+        @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-display: swap; font-weight: 100 800; src: url('assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+        @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-display: swap; font-weight: 100 800; src: url('assets/fonts/jetbrains-mono-latin-ext-wght-normal.woff2') format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
             background-color: var(--bg-base);
             color: #f8fafc;
         }
 
-        code, pre, .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        code, pre, .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+
+
+        /* ===== Cabecera compacta ===== */
+        .app-header { position: relative; z-index: 40; }
+        @media (min-width: 768px) { .app-header { position: sticky; top: 0; } }
+        .app-header-row { display: flex; align-items: center; gap: .6rem .9rem; flex-wrap: wrap; }
+        .app-brand { display: flex; align-items: center; gap: .55rem; text-decoration: none; flex: none; }
+        .app-brand-text { display: flex; flex-direction: column; gap: 2px; }
+        .app-brand-sub { display: none; max-width: 11rem; }
+        @media (min-width: 1536px) { .app-brand-sub { display: block; } }
+        .app-project { display: flex; align-items: center; gap: .3rem; flex: none; min-width: 0; }
+        .app-project select { max-width: 11rem; }
+        .app-tabs { display: flex; align-items: center; gap: .25rem; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+        .app-tabs::-webkit-scrollbar { display: none; }
+        .app-tabs button { white-space: nowrap; flex: none; }
+        .app-actions { display: flex; align-items: center; gap: .35rem; flex: none; margin-left: auto; }
+        @media (max-width: 1023px) {
+            .app-tabs { order: 5; flex-basis: 100%; }
+            .app-project { margin-left: auto; }
+            .app-actions { margin-left: 0; }
+        }
+        @media (max-width: 639px) {
+            .app-project { order: 4; flex-basis: 100%; margin-left: 0; }
+            .app-project select { flex: 1; max-width: none; }
+            .app-actions { margin-left: auto; }
+        }
+        .tab-count { font-size: 10px; padding: 0 .4rem; border-radius: 9999px; font-family: 'JetBrains Mono', ui-monospace, monospace; background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+        .tab-active .tab-count { background: rgba(255, 255, 255, .22); color: #fff; }
+        .hdr-icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 .45rem; border-radius: .7rem; background: rgba(15, 23, 42, .9); border: 1px solid #1e293b; color: #cbd5e1; font-size: 13px; font-weight: 700; transition: border-color .15s, background .15s; flex: none; }
+        .hdr-icon-btn:hover { background: #1e293b; border-color: rgba(129, 140, 248, .5); }
+        @media (pointer: coarse) { .hdr-icon-btn { min-width: 44px; height: 44px; } }
+        .hdr-chip { font-size: 9px; padding: .05rem .4rem; border-radius: .375rem; font-family: 'JetBrains Mono', ui-monospace, monospace; background: rgba(245, 158, 11, .14); color: #fcd34d; border: 1px solid rgba(245, 158, 11, .3); white-space: nowrap; }
+        .btn-primary { display: inline-flex; align-items: center; gap: .35rem; height: 34px; padding: 0 .85rem; border-radius: .7rem; background: #4f46e5; color: #fff; font-size: 12px; font-weight: 700; border: 1px solid #4f46e5; box-shadow: 0 6px 16px -6px rgba(79, 70, 229, .7); white-space: nowrap; transition: background .15s; flex: none; }
+        .btn-primary:hover { background: #6366f1; }
+        @media (pointer: coarse) { .btn-primary { height: 44px; } }
+
+        /* Panel de ajustes */
+        .settings-menu { position: absolute; right: 0; top: calc(100% + .5rem); width: min(21rem, calc(100vw - 2rem)); max-height: min(80vh, 36rem); overflow-y: auto; padding: .75rem; border-radius: 1rem; background: #0b1020; border: 1px solid #1e293b; box-shadow: 0 24px 60px -12px rgba(0, 0, 0, .7); z-index: 60; }
+        .settings-menu.hidden { display: none; }
+        .settings-menu-title { margin: .55rem 0 .35rem; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; }
+        .settings-menu-title:first-child { margin-top: 0; }
+        .settings-menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+        .settings-menu-grid .col-span-2 { grid-column: span 2; }
+        .settings-item { display: flex; align-items: center; gap: .5rem; min-height: 40px; padding: .35rem .6rem; border-radius: .7rem; background: rgba(15, 23, 42, .9); border: 1px solid #1e293b; color: #e2e8f0; font-size: 12px; text-align: left; text-decoration: none; transition: border-color .15s, background .15s; min-width: 0; }
+        button.settings-item:hover, a.settings-item:hover { background: #1e293b; border-color: rgba(129, 140, 248, .5); }
+        .settings-item-static { cursor: default; }
+        .settings-item-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; flex: 1; }
+        .settings-item-lbl { font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; }
+
+        /* Panel del Director: plegado por defecto */
+        .director-panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem 1rem; }
+        .director-panel > summary::-webkit-details-marker { display: none; }
+        .director-chevron { color: #94a3b8; transition: transform .15s; }
+        .director-panel[open] .director-chevron { transform: rotate(180deg); }
+        .director-body { padding: 0 1rem 1rem; }
+        .director-panel textarea:disabled, .director-panel button:disabled { opacity: .5; cursor: not-allowed; }
+
+
+        /* Bloque de revisión en el detalle de la historia */
+        .review-block { border: 1px solid #1e293b; border-radius: .9rem; padding: .75rem; background: rgba(2, 6, 23, .6); display: grid; gap: .6rem; }
+        .review-block.hidden { display: none; }
+        .review-block h4 { margin: 0; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #94a3b8; }
+        .review-block dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .25rem .75rem; font-size: 11px; }
+        .review-block dt { color: #94a3b8; }
+        .review-block dd { margin: 0; color: #e2e8f0; min-width: 0; overflow-wrap: anywhere; }
+        .review-block ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .15rem; }
+        .review-block code { font-size: 10px; }
+        .review-wait { font-size: 11px; color: #fcd34d; }
+        html.theme-light .review-block, html.theme-paper .review-block { background: #f8fafc; border-color: #cbd5e1; }
+        html.theme-light .review-block dd, html.theme-paper .review-block dd { color: #0f172a; }
+        html.theme-light .review-block dt, html.theme-paper .review-block dt,
+        html.theme-light .review-block h4, html.theme-paper .review-block h4 { color: #475569; }
+        html.theme-light .review-wait, html.theme-paper .review-wait { color: #92400e; }
+
+        /* Firma humana en la tarjeta */
+        .qa-signoff-banner { display: flex; align-items: center; gap: .3rem; padding: .25rem .5rem; border-radius: .75rem; font-size: 10px; font-weight: 700; background: #052e16; color: #86efac; border: 1px solid rgba(34, 197, 94, .45); }
+        .btn-sign { display: flex; align-items: center; justify-content: center; gap: .4rem; width: 100%; min-height: 34px; padding: .3rem .6rem; border-radius: .75rem; background: #047857; color: #fff; font-size: 12px; font-weight: 700; border: 1px solid #047857; transition: background .15s; }
+        .btn-sign:hover { background: #059669; }
+        @media (pointer: coarse) { .btn-sign { min-height: 44px; } }
+
+        /* ===== Temas claros (Solar Day y Clean Paper): correcciones sobre las reglas generales ===== */
+        html.theme-light header .tab-active, html.theme-paper header .tab-active { background-color: #4f46e5 !important; border-color: #4f46e5 !important; color: #fff !important; }
+        html.theme-light header .tab-inactive, html.theme-paper header .tab-inactive { background-color: transparent !important; border-color: transparent !important; box-shadow: none !important; color: #334155 !important; }
+        html.theme-light header .tab-inactive:hover, html.theme-paper header .tab-inactive:hover { background-color: #e2e8f0 !important; }
+        html.theme-light .tab-count, html.theme-paper .tab-count { background: #e2e8f0; color: #334155; }
+        html.theme-light .tab-active .tab-count, html.theme-paper .tab-active .tab-count { background: rgba(255, 255, 255, .25); color: #fff; }
+        html.theme-light header .btn-primary, html.theme-paper header .btn-primary,
+        html.theme-light .btn-primary, html.theme-paper .btn-primary { background-color: #4f46e5 !important; border-color: #4f46e5 !important; color: #fff !important; box-shadow: 0 6px 16px -8px rgba(79, 70, 229, .7) !important; }
+        html.theme-light header .btn-primary:hover, html.theme-paper header .btn-primary:hover { background-color: #4338ca !important; color: #fff !important; }
+        html.theme-light .settings-menu, html.theme-paper .settings-menu { background: #fff; border-color: #cbd5e1; box-shadow: 0 24px 60px -16px rgba(15, 23, 42, .35); }
+        html.theme-light .settings-item, html.theme-paper .settings-item { background: #f8fafc !important; border-color: #cbd5e1 !important; color: #0f172a !important; box-shadow: none !important; }
+        html.theme-light .settings-item-lbl, html.theme-paper .settings-item-lbl,
+        html.theme-light .settings-menu-title, html.theme-paper .settings-menu-title { color: #475569; }
+        html.theme-light .hdr-chip, html.theme-paper .hdr-chip { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        html.theme-light .kanban-card .btn-sign, html.theme-paper .kanban-card .btn-sign,
+        html.theme-light .btn-sign, html.theme-paper .btn-sign { background-color: #047857 !important; border-color: #047857 !important; color: #fff !important; }
+        html.theme-light .kanban-card .btn-sign:hover, html.theme-paper .kanban-card .btn-sign:hover { background-color: #065f46 !important; color: #fff !important; }
+        html.theme-light .qa-signoff-banner, html.theme-paper .qa-signoff-banner { background: #dcfce7; color: #166534; border-color: #86efac; }
+        html.theme-light .director-panel, html.theme-paper .director-panel { background: #fffbeb !important; background-image: none !important; border-color: #fcd34d !important; }
+        html.theme-light .director-panel textarea, html.theme-paper .director-panel textarea { background: #fff !important; }
+        html.theme-light #director-send-btn, html.theme-paper #director-send-btn { background-color: #f59e0b !important; color: #1c1917 !important; }
+        html.theme-light .kanban-empty, html.theme-paper .kanban-empty { color: #475569; border-color: #cbd5e1; }
+        /* Textos de tono pálido pensados para fondo oscuro: en claro pasan a su tono oscuro */
+        html.theme-light .text-amber-200, html.theme-paper .text-amber-200,
+        html.theme-light .text-amber-300, html.theme-paper .text-amber-300 { color: #92400e !important; }
+        html.theme-light .text-sky-100, html.theme-paper .text-sky-100,
+        html.theme-light .text-sky-200, html.theme-paper .text-sky-200 { color: #075985 !important; }
+        html.theme-light .text-pink-300, html.theme-paper .text-pink-300,
+        html.theme-light .text-pink-400, html.theme-paper .text-pink-400 { color: #9d174d !important; }
+        html.theme-light .text-emerald-300, html.theme-paper .text-emerald-300 { color: #047857 !important; }
+        html.theme-light .text-purple-300, html.theme-paper .text-purple-300 { color: #6b21a8 !important; }
+        html.theme-light .text-indigo-300, html.theme-paper .text-indigo-300 { color: #3730a3 !important; }
+        html.theme-light [class*="text-amber-200"], html.theme-paper [class*="text-amber-200"],
+        html.theme-light [class*="text-amber-400"], html.theme-paper [class*="text-amber-400"] { color: #92400e !important; }
+        html.theme-light [class*="text-purple-200"], html.theme-paper [class*="text-purple-200"] { color: #6b21a8 !important; }
+        html.theme-light [class*="text-pink-300"], html.theme-paper [class*="text-pink-300"] { color: #9d174d !important; }
+        /* Banners con degradado oscuro: en claro pasan a superficie clara (los botones conservan su relleno) */
+        html.theme-light main :not(button):not(a)[class*="bg-gradient-to-r"], html.theme-paper main :not(button):not(a)[class*="bg-gradient-to-r"],
+        html.theme-light main :not(button):not(a)[class*="bg-gradient-to-br"], html.theme-paper main :not(button):not(a)[class*="bg-gradient-to-br"] { background-image: none !important; background-color: #ffffff !important; border-color: #cbd5e1 !important; }
+        html.theme-light footer, html.theme-paper footer { background-color: #ffffff !important; border-color: #cbd5e1 !important; }
+        html.theme-light footer .text-slate-500, html.theme-paper footer .text-slate-500 { color: #475569 !important; }
+
+        /* Superficies oscuras fuera del tablero (laboratorio, reuniones, equipo, legal): en claro pasan a superficie clara */
+        html.theme-light main :not(button):not(a)[class*="bg-slate-9"], html.theme-paper main :not(button):not(a)[class*="bg-slate-9"] { background-color: #f8fafc !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-slate-800"], html.theme-paper main :not(button):not(a)[class*="bg-slate-800"], html.theme-light main :not(button):not(a)[class*="bg-slate-700"], html.theme-paper main :not(button):not(a)[class*="bg-slate-700"] { background-color: #e2e8f0 !important; }
+        html.theme-light main [class*="border-slate-8"], html.theme-paper main [class*="border-slate-8"], html.theme-light main [class*="border-slate-7"], html.theme-paper main [class*="border-slate-7"], html.theme-light main [class*="border-slate-9"], html.theme-paper main [class*="border-slate-9"] { border-color: #cbd5e1 !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-emerald-950"], html.theme-paper main :not(button):not(a)[class*="bg-emerald-950"] { background-color: #dcfce7 !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-pink-950"], html.theme-paper main :not(button):not(a)[class*="bg-pink-950"] { background-color: #fdf2f8 !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-purple-950"], html.theme-paper main :not(button):not(a)[class*="bg-purple-950"] { background-color: #faf5ff !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-indigo-950"], html.theme-paper main :not(button):not(a)[class*="bg-indigo-950"] { background-color: #e0e7ff !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-amber-950"], html.theme-paper main :not(button):not(a)[class*="bg-amber-950"] { background-color: #fef3c7 !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-red-950"], html.theme-paper main :not(button):not(a)[class*="bg-red-950"] { background-color: #fee2e2 !important; }
+        html.theme-light main :not(button):not(a)[class*="bg-sky-950"], html.theme-paper main :not(button):not(a)[class*="bg-sky-950"] { background-color: #e0f2fe !important; }
+        html.theme-light main button[class*="bg-purple-950"], html.theme-paper main button[class*="bg-purple-950"], html.theme-light main button[class*="bg-slate-9"], html.theme-paper main button[class*="bg-slate-9"], html.theme-light main button[class*="bg-slate-800"], html.theme-paper main button[class*="bg-slate-800"] { background-color: #f1f5f9 !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+        html.theme-light main [class*="text-emerald-400"], html.theme-paper main [class*="text-emerald-400"] { color: #047857 !important; }
+        html.theme-light main [class*="text-pink-400"], html.theme-paper main [class*="text-pink-400"], html.theme-light main [class*="text-pink-300"], html.theme-paper main [class*="text-pink-300"] { color: #9d174d !important; }
+        html.theme-light main [class*="text-purple-400"], html.theme-paper main [class*="text-purple-400"], html.theme-light main [class*="text-purple-300"], html.theme-paper main [class*="text-purple-300"] { color: #6b21a8 !important; }
+        html.theme-light main [class*="text-indigo-400"], html.theme-paper main [class*="text-indigo-400"], html.theme-light main [class*="text-indigo-300"], html.theme-paper main [class*="text-indigo-300"] { color: #3730a3 !important; }
+        html.theme-light main [class*="text-sky-400"], html.theme-paper main [class*="text-sky-400"], html.theme-light main [class*="text-sky-300"], html.theme-paper main [class*="text-sky-300"] { color: #075985 !important; }
+        html.theme-light main [class*="text-red-400"], html.theme-paper main [class*="text-red-400"], html.theme-light main [class*="text-red-300"], html.theme-paper main [class*="text-red-300"] { color: #b91c1c !important; }
+        html.theme-light main [class*="text-slate-500"], html.theme-paper main [class*="text-slate-500"] { color: #475569 !important; }
+        html.theme-light main [class*="text-slate-100"], html.theme-paper main [class*="text-slate-100"] { color: #0f172a !important; }
+        /* Los botones con relleno de color conservan el texto blanco */
+        html.theme-light main button[class*="bg-indigo-6"], html.theme-paper main button[class*="bg-indigo-6"], html.theme-light main button[class*="bg-pink-6"], html.theme-paper main button[class*="bg-pink-6"], html.theme-light main button[class*="bg-emerald-6"], html.theme-paper main button[class*="bg-emerald-6"], html.theme-light main button[class*="bg-purple-6"], html.theme-paper main button[class*="bg-purple-6"], html.theme-light main button[class*="from-pink-6"], html.theme-paper main button[class*="from-pink-6"], html.theme-light main button[class*="from-indigo-6"], html.theme-paper main button[class*="from-indigo-6"], html.theme-light main button[class*="from-purple-6"], html.theme-paper main button[class*="from-purple-6"] { color: #ffffff !important; }
+        html.theme-light main button[class*="bg-indigo-6"] *, html.theme-paper main button[class*="bg-indigo-6"] *, html.theme-light main button[class*="bg-pink-6"] *, html.theme-paper main button[class*="bg-pink-6"] *, html.theme-light main button[class*="bg-emerald-6"] *, html.theme-paper main button[class*="bg-emerald-6"] *, html.theme-light main button[class*="bg-purple-6"] *, html.theme-paper main button[class*="bg-purple-6"] *, html.theme-light main button[class*="from-pink-6"] *, html.theme-paper main button[class*="from-pink-6"] *, html.theme-light main button[class*="from-indigo-6"] *, html.theme-paper main button[class*="from-indigo-6"] *, html.theme-light main button[class*="from-purple-6"] *, html.theme-paper main button[class*="from-purple-6"] * { color: #ffffff !important; }
+        /* Cifras del sprint: los tonos 400 no llegan a 4,5:1 sobre blanco */
+        html.theme-light #sprint-hero-banner .text-indigo-400, html.theme-paper #sprint-hero-banner .text-indigo-400 { color: #4338ca !important; }
+        html.theme-light #sprint-hero-banner .text-amber-400, html.theme-paper #sprint-hero-banner .text-amber-400 { color: #b45309 !important; }
+        html.theme-light #sprint-hero-banner .text-emerald-400, html.theme-paper #sprint-hero-banner .text-emerald-400 { color: #047857 !important; }
+        html.theme-light #sprint-hero-banner .text-purple-400, html.theme-paper #sprint-hero-banner .text-purple-400 { color: #7e22ce !important; }
+        html.theme-light #sprint-hero-banner .text-slate-500, html.theme-paper #sprint-hero-banner .text-slate-500 { color: #475569 !important; }
+        html.theme-light .sprint-stats-sep, html.theme-paper .sprint-stats-sep { background: #cbd5e1; }
+        #local-ai-track { margin-left: auto; flex: none; }
+        /* Interruptor de IA local: apagado = pista clara con borde; encendido = verde */
+        html.theme-light #local-ai-track, html.theme-paper #local-ai-track { box-shadow: inset 0 0 0 1px #94a3b8; }
+        html.theme-light #local-ai-track.bg-slate-700, html.theme-paper #local-ai-track.bg-slate-700 { background-color: #e2e8f0 !important; }
+        html.theme-light #local-ai-track.bg-slate-700 #local-ai-knob, html.theme-paper #local-ai-track.bg-slate-700 #local-ai-knob { background-color: #64748b; }
+
+        /* Cifras del sprint: fila en escritorio, cuadrícula 2×2 en móvil */
+        .sprint-stats { display: flex; align-items: center; gap: .6rem 1.5rem; flex-wrap: wrap; }
+        .sprint-stats > div:not(.sprint-stats-sep) { white-space: nowrap; }
+        .sprint-stats-sep { width: 1px; height: 1.75rem; background: #1e293b; flex: none; }
+        @media (max-width: 639px) {
+            .sprint-stats { display: grid; grid-template-columns: 1fr 1fr; }
+            .sprint-stats-sep { display: none; }
+        }
+
+        /* ===== Componentes del rediseño (no dependen de clases de Tailwind compiladas) ===== */
+
+        /* Avatares de rol: imagen de marca o, si no existe, el emoji del rol */
+        .role-avatar { display: inline-block; flex: none; border-radius: 28%; object-fit: cover; background: #0b1020; box-shadow: 0 0 0 1px rgba(148, 163, 184, .35); vertical-align: middle; }
+        .role-avatar-emoji { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 1; }
+        html.theme-light .role-avatar, html.theme-paper .role-avatar { box-shadow: 0 0 0 1px rgba(15, 23, 42, .18); }
+
+        /* Prioridad: color + icono + texto (nunca solo color) */
+        .prio-badge { display: inline-flex; align-items: center; gap: .25rem; padding: .05rem .4rem; border-radius: .375rem; border: 1px solid transparent; font-size: 10px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+        .prio-badge > span { font-size: 7px; letter-spacing: -1px; }
+        .prio-critica { background: #450a0a; color: #fecaca; border-color: rgba(248, 113, 113, .55); }
+        .prio-alta    { background: #431407; color: #fed7aa; border-color: rgba(251, 146, 60, .5); }
+        .prio-media   { background: #172554; color: #bfdbfe; border-color: rgba(96, 165, 250, .4); }
+        .prio-baja    { background: #1e293b; color: #cbd5e1; border-color: rgba(148, 163, 184, .35); }
+        html.theme-light .prio-critica, html.theme-paper .prio-critica { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        html.theme-light .prio-alta,    html.theme-paper .prio-alta    { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+        html.theme-light .prio-media,   html.theme-paper .prio-media   { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+        html.theme-light .prio-baja,    html.theme-paper .prio-baja    { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+
+        /* Botones de mover tarjeta: área cómoda con ratón y de 44 px en pantallas táctiles */
+        .card-move-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; font-size: 12px; }
+        .card-move-btn[disabled] { opacity: .3; cursor: not-allowed; }
+        @media (pointer: coarse), (max-width: 767px) { .card-move-btn { min-width: 44px; min-height: 44px; } }
+
+        /* Aviso de revisión rápida en la tarjeta */
+        .quick-review-note { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .45rem; border-radius: .5rem; font-size: 10px; font-weight: 700; background: #451a03; color: #fcd34d; border: 1px solid rgba(245, 158, 11, .4); }
+        html.theme-light .quick-review-note, html.theme-paper .quick-review-note { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+
+        /* Columna vacía */
+        .kanban-empty { margin: 0; padding: .9rem .5rem; text-align: center; font-size: 11px; color: #64748b; border: 1px dashed rgba(100, 116, 139, .35); border-radius: .75rem; }
+
+        /* Foco visible con teclado en todos los controles */
+        :where(a, button, input, select, textarea, summary, [tabindex], [role="switch"]):focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; border-radius: .5rem; }
+        html.theme-light :where(a, button, input, select, textarea, summary, [tabindex], [role="switch"]):focus-visible,
+        html.theme-paper :where(a, button, input, select, textarea, summary, [tabindex], [role="switch"]):focus-visible { outline-color: #4338ca; }
 
         /* Scrollbars finos para paneles */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -737,150 +948,147 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 </head>
 <body class="min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
-    <!-- Topbar & Header Principal -->
-    <header class="border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <div class="brand-logo-container h-10 w-10 p-1 bg-gradient-to-br from-indigo-500/20 via-purple-600/15 to-pink-500/10 border border-indigo-500/30 rounded-2xl shadow-inner flex items-center justify-center shrink-0">
-                <img id="header-brand-logo" src="assets/brand/symbol-agileforge-dark.png" alt="AgileForge Logo" class="brand-logo-img h-full w-full object-contain filter drop-shadow">
-            </div>
-            <div>
-                <h1 class="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
-                    AgileForge <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Scrum 3.0</span>
-                </h1>
-                <p class="text-[11px] text-slate-400">Command Center de Agentes IA · Suite de Ingeniería, Diseño UX y Compliance</p>
-            </div>
-        </div>
-
-        <div class="flex items-center gap-2 flex-wrap">
-            <!-- Alternar Modo Día / Noche Rápido -->
-            <button onclick="toggleDayNightMode()" id="day-night-toggle" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-xs transition group shadow-sm" title="Alternar Modo Día / Modo Noche">
-                <span id="day-night-icon" class="text-sm">🌙</span>
-                <span id="day-night-text" class="font-bold text-slate-200 group-hover:text-amber-300 font-mono text-[11px]" data-i18n="night_mode">Noche</span>
-            </button>
-
-            <!-- Selector de Idioma (Español / English) -->
-            <button onclick="toggleLanguage()" id="lang-toggle-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 text-xs transition group shadow-sm" title="Cambiar Idioma / Switch Language">
-                <span class="text-sm">🌐</span>
-                <span id="lang-btn-text" class="font-bold text-sky-400 group-hover:text-sky-300 font-mono text-[11px]">ES</span>
-            </button>
-
-            <!-- AgileForge Vista: panel de solo lectura en otra pestaña -->
-            <a href="vista.php" target="_blank" rel="noopener" id="vista-link" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-emerald-500/30 hover:border-emerald-400 text-xs text-emerald-300 transition group shadow-sm" data-i18n-title="view_btn_title" title="Abrir AgileForge Vista (solo lectura) en otra pestaña">
-                <span>👁️</span>
-                <span class="font-bold text-[11px]" data-i18n="view_btn">Vista</span>
+    <!-- Cabecera compacta: marca · proyecto · pestañas · acciones. Los ajustes viven en un panel aparte. -->
+    <header class="app-header border-b border-slate-800/80 bg-[#0b0f19]/90 backdrop-blur-md px-4 sm:px-6 py-2">
+        <div class="app-header-row">
+            <a href="./" class="app-brand" title="AgileForge">
+                <span class="brand-logo-container h-9 w-9 p-1 bg-gradient-to-br from-indigo-500/20 via-purple-600/15 to-pink-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-center shrink-0">
+                    <img id="header-brand-logo" src="assets/brand/symbol-agileforge-dark.png" alt="" class="brand-logo-img h-full w-full object-contain">
+                </span>
+                <span class="app-brand-text">
+                    <span class="font-extrabold text-base text-white tracking-tight leading-none">AgileForge</span>
+                    <span class="app-brand-sub text-[10px] text-slate-400 leading-tight" data-i18n="subtitle">Tu equipo de agentes de IA para Claude Code</span>
+                </span>
             </a>
 
-            <!-- Manual para Novatos -->
-            <button onclick="openBeginnerManualModal()" id="manual-novatos-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-indigo-500/30 hover:border-indigo-400 text-xs text-indigo-300 transition group shadow-sm" title="Abrir Manual de Inicio Rápido para Novatos (Alt+M)">
-                <span>📖</span>
-                <span class="hidden md:inline font-bold text-[11px]" data-i18n="manual_btn">Manual Novatos</span>
-            </button>
-
-            <!-- Command Palette Rápido (Ctrl+K) -->
-            <button onclick="openCommandPalette()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition group shadow-sm" title="Abrir Command Palette (Ctrl + K)">
-                <span>🔍</span>
-                <span class="hidden sm:inline text-[11px] text-slate-400" data-i18n="search_btn">Buscar</span>
-                <kbd class="hidden md:inline text-[9px] bg-slate-950 px-1.5 py-0.5 rounded border border-slate-700 font-mono text-slate-400">Ctrl K</kbd>
-            </button>
-
-            <!-- Selector de Tema Visual & Densidad -->
-            <button onclick="openThemeModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-pink-500/40 text-xs transition group shadow-sm" title="Personalizar Tema Visual y Ergonomía">
-                <span id="theme-btn-icon" class="text-sm">🎨</span>
-                <span id="theme-btn-text" class="font-bold text-slate-200 group-hover:text-pink-300 font-mono text-[11px]">Obsidian</span>
-            </button>
-
-            <!-- Selector de Motor IA Activo -->
-            <button onclick="openAiEngineModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/40 text-xs transition group shadow-sm" title="Configurar Motor IA y Proveedores API">
-                <span id="header-ai-icon" class="text-sm">🟣</span>
-                <div class="text-left">
-                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="ai_engine_lbl">Motor IA:</span>
-                    <span id="header-ai-model" class="font-bold text-white group-hover:text-purple-300 font-mono text-[11px] leading-tight">Cargando…</span>
-                </div>
-                <span class="text-[10px] text-slate-500 ml-0.5">⚙️</span>
-            </button>
-
-            <!-- Interruptor de IA Local (Ollama): se activa solo si se detecta una IA local con modelos -->
-            <button id="local-ai-toggle" type="button" role="switch" aria-checked="false" onclick="toggleLocalAi()"
-                    class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-xs transition group shadow-sm"
-                    title="Buscando IA local…">
-                <span class="text-sm">🦙</span>
-                <div class="text-left">
-                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="local_ai_lbl">IA local:</span>
-                    <span id="local-ai-label" class="font-bold font-mono text-[11px] leading-tight text-slate-400">Buscando…</span>
-                </div>
-                <span id="local-ai-track" class="relative inline-block w-8 h-[18px] rounded-full bg-slate-700 transition-colors" aria-hidden="true">
-                    <span id="local-ai-knob" class="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform"></span>
-                </span>
-            </button>
-
-            <!-- Selector de Jurisdicción Legal -->
-            <button onclick="openJurisdictionModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-xs transition group shadow-sm" title="Configurar País y Marco Legal">
-                <span id="jurisdiction-flag" class="text-sm">🇵🇪</span>
-                <div class="text-left">
-                    <span class="block text-[8px] uppercase tracking-wider text-slate-400 font-bold leading-none" data-i18n="jurisdiction_lbl">Jurisdicción:</span>
-                    <span id="jurisdiction-name" class="font-bold text-slate-200 group-hover:text-amber-300 font-mono text-[11px] leading-tight">Perú</span>
-                </div>
-                <span id="jurisdiction-regs-count" class="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-mono border border-amber-500/20">5 leyes</span>
-            </button>
-
-            <!-- Botón de Chat Lateral -->
-            <button onclick="toggleChatDrawer()" class="bg-slate-900 hover:bg-slate-800 text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 font-semibold text-xs px-3 py-2 rounded-xl transition flex items-center gap-2 shadow-sm">
-                <span>💬</span>
-                <span data-i18n="consult_btn">Consultar</span>
-                <span id="chat-badge" class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-            </button>
-
-            <!-- Botón Crear Misión / User Story -->
-            <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5">
-                <span>+</span> <span data-i18n="new_task_btn">Nueva Historia</span>
-            </button>
-        </div>
-    </header>
-
-    <!-- Barra de Navegación de Vistas Principales (Tabs) -->
-    <nav class="bg-[#090d16] border-b border-slate-800/80 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs overflow-x-auto">
-        <div class="flex items-center gap-1.5 sm:gap-2">
-            <button onclick="switchMainTab('kanban')" id="tab-btn-kanban" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-active">
-                <span>📌</span> <span data-i18n="tab_kanban">Tablero Scrum</span>
-            </button>
-            <button onclick="switchMainTab('ux')" id="tab-btn-ux" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>🎨</span> <span data-i18n="tab_ux">Laboratorio UX/UI & Diseño</span>
-                <span id="nav-ux-score" class="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20 font-mono">94%</span>
-            </button>
-            <button onclick="switchMainTab('legal')" id="tab-btn-legal" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>⚖️</span> <span data-i18n="tab_legal">Auditoría Legal</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">Compliance</span>
-            </button>
-            <button onclick="switchMainTab('meetings')" id="tab-btn-meetings" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>🎙️</span> <span data-i18n="tab_meetings">Sala de Reuniones & Consejos</span>
-                <span id="nav-meetings-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">0</span>
-            </button>
-            <button onclick="switchMainTab('team')" id="tab-btn-team" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
-                <span>👥</span> <span data-i18n="tab_team">Escuadrón & Multi-Skills</span>
-                <span id="nav-team-count" class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-mono">7</span>
-            </button>
-        </div>
-
-        <div class="flex items-center gap-3 text-[11px] text-slate-400 whitespace-nowrap">
-            <div class="flex items-center gap-1.5 text-slate-300">
-                <span class="text-slate-500 font-bold uppercase text-[9px]">Proyecto:</span>
-                <select id="project-selector-dropdown" onchange="handleSwitchProject(this.value)" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2 py-0.5 rounded-lg text-[11px] outline-none cursor-pointer hover:border-indigo-500">
+            <!-- Proyecto activo -->
+            <div class="app-project">
+                <label for="project-selector-dropdown" class="sr-only" data-i18n="project_lbl">Proyecto</label>
+                <select id="project-selector-dropdown" onchange="handleSwitchProject(this.value)" class="font-mono bg-slate-950 border border-slate-800 text-indigo-300 px-2 py-1.5 rounded-lg text-[11px] outline-none cursor-pointer hover:border-indigo-500" data-i18n-title="project_lbl" title="Proyecto">
                     <option value="default">AgileForge Default</option>
                 </select>
-                <button onclick="openNewProjectModal()" class="text-xs px-2 py-0.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-bold transition" title="Crear nuevo proyecto">+</button>
-                <button onclick="openImportWorkspaceModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition" title="Importar workspace existente con git log">📥</button>
-                <button onclick="openProjectSettingsModal()" class="text-xs px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold transition" title="Ajustes del proyecto (Firma humana)">⚙️</button>
+                <button onclick="openNewProjectModal()" class="hdr-icon-btn" data-i18n-title="project_new_tip" title="Crear nuevo proyecto" aria-label="Crear nuevo proyecto"><span aria-hidden="true">+</span></button>
+                <button onclick="openImportWorkspaceModal()" class="hdr-icon-btn" data-i18n-title="project_import_tip" title="Importar un proyecto existente (lee su historial de git)" aria-label="Importar un proyecto existente"><span aria-hidden="true">📥</span></button>
+                <button onclick="openProjectSettingsModal()" class="hdr-icon-btn" data-i18n-title="project_settings_tip" title="Ajustes del proyecto (firma humana)" aria-label="Ajustes del proyecto"><span aria-hidden="true">🛠️</span></button>
             </div>
-            <span class="hidden md:inline text-slate-500">|</span>
-            <div class="hidden lg:flex items-center gap-1.5 text-slate-400 text-[10px]">
-                <span class="text-slate-500 font-bold uppercase">Ruta:</span>
-                <span id="active-workspace-display" class="font-mono truncate max-w-xs text-slate-300">—</span>
-                <button onclick="openChangeWorkspaceModal()" class="text-slate-400 hover:text-white underline text-[10px]" title="Cambiar ruta de trabajo">✏️</button>
+
+            <!-- Pestañas de vistas -->
+            <nav class="app-tabs text-xs" aria-label="Vistas">
+                <button onclick="switchMainTab('kanban')" id="tab-btn-kanban" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-active">
+                    <span aria-hidden="true">📌</span> <span data-i18n="tab_kanban">Tablero</span>
+                </button>
+                <button onclick="switchMainTab('ux')" id="tab-btn-ux" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
+                    <span aria-hidden="true">🎨</span> <span data-i18n="tab_ux">Laboratorio UX</span>
+                    <span id="nav-ux-score" class="tab-count">0%</span>
+                </button>
+                <button onclick="switchMainTab('legal')" id="tab-btn-legal" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
+                    <span aria-hidden="true">⚖️</span> <span data-i18n="tab_legal">Legal</span>
+                </button>
+                <button onclick="switchMainTab('meetings')" id="tab-btn-meetings" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
+                    <span aria-hidden="true">🎙️</span> <span data-i18n="tab_meetings">Reuniones</span>
+                    <span id="nav-meetings-count" class="tab-count">0</span>
+                </button>
+                <button onclick="switchMainTab('team')" id="tab-btn-team" class="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition tab-inactive">
+                    <span aria-hidden="true">👥</span> <span data-i18n="tab_team">Equipo</span>
+                    <span id="nav-team-count" class="tab-count">0</span>
+                </button>
+            </nav>
+
+            <!-- Acciones -->
+            <div class="app-actions">
+                <button onclick="openCommandPalette()" class="hdr-icon-btn" title="Buscar (Ctrl + K)" data-i18n-title="search_tip" aria-label="Buscar">
+                    <span aria-hidden="true">🔍</span>
+                </button>
+                <button onclick="toggleChatDrawer()" class="hdr-icon-btn relative" title="Consultar a los agentes" data-i18n-title="consult_tip" aria-label="Consultar a los agentes">
+                    <span aria-hidden="true">💬</span>
+                    <span id="chat-badge" class="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+                </button>
+                <button onclick="openNewTaskModal()" class="btn-primary">
+                    <span aria-hidden="true">+</span> <span data-i18n="new_task_btn">Nueva historia</span>
+                </button>
+                <div class="relative">
+                    <button type="button" id="settings-menu-btn" onclick="toggleSettingsMenu()" class="hdr-icon-btn" aria-haspopup="true" aria-expanded="false" aria-controls="settings-menu" title="Ajustes" data-i18n-title="settings_btn" aria-label="Ajustes">
+                        <span aria-hidden="true">⚙️</span>
+                    </button>
+
+                    <!-- Panel de ajustes: los mismos controles de antes, con los mismos ids y handlers -->
+                    <div id="settings-menu" class="settings-menu hidden" role="group" aria-label="Ajustes">
+                        <p class="settings-menu-title" data-i18n="settings_appearance">Apariencia e idioma</p>
+                        <div class="settings-menu-grid">
+                            <button onclick="toggleDayNightMode()" id="day-night-toggle" class="settings-item" title="Alternar modo día / modo noche">
+                                <span id="day-night-icon" class="text-sm" aria-hidden="true">🌙</span>
+                                <span id="day-night-text" class="font-bold font-mono text-[11px]" data-i18n="night_mode">Noche</span>
+                            </button>
+                            <button onclick="toggleLanguage()" id="lang-toggle-btn" class="settings-item" title="Cambiar idioma / Switch language">
+                                <span class="text-sm" aria-hidden="true">🌐</span>
+                                <span id="lang-btn-text" class="font-bold font-mono text-[11px]">ES</span>
+                            </button>
+                            <button onclick="openThemeModal()" class="settings-item col-span-2" title="Personalizar tema visual y densidad">
+                                <span id="theme-btn-icon" class="text-sm" aria-hidden="true">🎨</span>
+                                <span class="settings-item-text">
+                                    <span class="settings-item-lbl" data-i18n="theme_btn">Tema</span>
+                                    <span id="theme-btn-text" class="font-bold font-mono text-[11px]">Obsidian</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <p class="settings-menu-title" data-i18n="settings_ai">Motor de IA</p>
+                        <div class="settings-menu-grid">
+                            <button onclick="openAiEngineModal()" class="settings-item col-span-2" title="Configurar motor de IA y proveedores">
+                                <span id="header-ai-icon" class="text-sm" aria-hidden="true">🟣</span>
+                                <span class="settings-item-text">
+                                    <span class="settings-item-lbl" data-i18n="ai_engine_lbl">Motor IA:</span>
+                                    <span id="header-ai-model" class="font-bold font-mono text-[11px]">Cargando…</span>
+                                </span>
+                            </button>
+                            <button id="local-ai-toggle" type="button" role="switch" aria-checked="false" onclick="toggleLocalAi()" class="settings-item col-span-2" title="Buscando IA local…">
+                                <span class="text-sm" aria-hidden="true">🦙</span>
+                                <span class="settings-item-text">
+                                    <span class="settings-item-lbl" data-i18n="local_ai_lbl">IA local:</span>
+                                    <span id="local-ai-label" class="font-bold font-mono text-[11px]">Buscando…</span>
+                                </span>
+                                <span id="local-ai-track" class="local-ai-track relative inline-block w-8 h-[18px] rounded-full bg-slate-700 transition-colors ml-auto" aria-hidden="true">
+                                    <span id="local-ai-knob" class="absolute top-[2px] left-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform"></span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <p class="settings-menu-title" data-i18n="settings_project">Proyecto</p>
+                        <div class="settings-menu-grid">
+                            <button onclick="openJurisdictionModal()" class="settings-item col-span-2" title="Configurar país y marco legal">
+                                <span id="jurisdiction-flag" class="text-sm" aria-hidden="true">🇵🇪</span>
+                                <span class="settings-item-text">
+                                    <span class="settings-item-lbl" data-i18n="jurisdiction_lbl">Jurisdicción:</span>
+                                    <span id="jurisdiction-name" class="font-bold font-mono text-[11px]">Perú</span>
+                                </span>
+                                <span id="jurisdiction-regs-count" class="hdr-chip ml-auto">0 leyes</span>
+                            </button>
+                            <div class="settings-item settings-item-static col-span-2">
+                                <span class="text-sm" aria-hidden="true">📁</span>
+                                <span class="settings-item-text min-w-0">
+                                    <span class="settings-item-lbl" data-i18n="workspace_lbl">Carpeta de trabajo:</span>
+                                    <span id="active-workspace-display" class="font-mono text-[11px] truncate block">—</span>
+                                </span>
+                                <button onclick="openChangeWorkspaceModal()" class="hdr-icon-btn ml-auto" title="Cambiar carpeta de trabajo" data-i18n-title="workspace_change_tip" aria-label="Cambiar carpeta de trabajo"><span aria-hidden="true">✏️</span></button>
+                            </div>
+                        </div>
+
+                        <p class="settings-menu-title" data-i18n="settings_help">Ayuda y vista</p>
+                        <div class="settings-menu-grid">
+                            <a href="vista.php" target="_blank" rel="noopener" id="vista-link" class="settings-item" data-i18n-title="view_btn_title" title="Abrir AgileForge Vista (solo lectura) en otra pestaña">
+                                <span aria-hidden="true">👁️</span>
+                                <span class="font-bold text-[11px]" data-i18n="view_btn">Vista</span>
+                            </a>
+                            <button onclick="openBeginnerManualModal()" id="manual-novatos-btn" class="settings-item" title="Abrir el manual de inicio rápido">
+                                <span aria-hidden="true">📖</span>
+                                <span class="font-bold text-[11px]" data-i18n="manual_btn">Manual</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <span class="hidden md:inline text-slate-500">|</span>
-            <span class="hidden md:inline"><strong class="text-emerald-400">DoD Cero Deuda</strong></span>
         </div>
-    </nav>
+    </header>
 
     <!-- Sprint Banner (Métricas Scrum & Barra de Progreso) -->
     <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5 pb-2">
@@ -897,15 +1105,15 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 </div>
 
                 <!-- Métricas Numéricas del Sprint -->
-                <div class="flex items-center gap-4 sm:gap-6 bg-slate-950/80 border border-slate-800/80 px-4 py-2.5 rounded-2xl">
+                <div class="sprint-stats bg-slate-950/80 border border-slate-800/80 px-4 py-2.5 rounded-2xl">
                     <div>
-                        <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Velocidad</span>
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider" data-i18n="sprint_points_lbl" data-i18n-title="sprint_points_tip" title="Puntos completados / puntos planificados para el sprint">Hechos / plan</span>
                         <div class="text-base font-extrabold text-indigo-400 font-mono flex items-baseline gap-1">
                             <span id="sprint-points-done">0</span>
                             <span class="text-xs text-slate-500">/ <span id="sprint-velocity">24</span> pts</span>
                         </div>
                     </div>
-                    <div class="w-px h-7 bg-slate-800"></div>
+                    <div class="sprint-stats-sep" aria-hidden="true"></div>
                     <div>
                         <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Días Restantes</span>
                         <div class="text-base font-extrabold text-amber-400 font-mono flex items-baseline gap-1">
@@ -913,19 +1121,19 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                             <span class="text-xs text-slate-500">días</span>
                         </div>
                     </div>
-                    <div class="w-px h-7 bg-slate-800"></div>
+                    <div class="sprint-stats-sep" aria-hidden="true"></div>
                     <div>
                         <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Cumplimiento DoD</span>
                         <div class="text-base font-extrabold text-emerald-400 font-mono" id="sprint-dod-pct">
                             0%
                         </div>
                     </div>
-                    <div class="w-px h-7 bg-slate-800"></div>
+                    <div class="sprint-stats-sep" aria-hidden="true"></div>
                     <div class="cursor-pointer hover:opacity-80 transition group" onclick="openCostsModal()" title="Ver auditoría contable de tokens y costos por agente">
                         <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider group-hover:text-purple-300">Inversión IA</span>
                         <div class="text-base font-extrabold text-purple-400 font-mono flex items-baseline gap-1">
-                            <span id="sprint-total-cost">$0.0000</span>
-                            <span class="text-xs text-slate-500 font-normal">(<span id="sprint-total-tokens">0</span> tok)</span>
+                            <span id="sprint-total-cost">$0.00</span>
+                            <span id="sprint-total-tokens-wrap" class="text-xs text-slate-500 font-normal">(<span id="sprint-total-tokens">0</span> tok)</span>
                         </div>
                     </div>
                 </div>
@@ -938,7 +1146,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                     <span id="progress-bar-text">0% completado</span>
                 </div>
                 <div class="w-full bg-slate-950/90 rounded-full h-2.5 overflow-hidden border border-slate-800">
-                    <div id="sprint-progress-bar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    <div id="sprint-progress-bar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
             </div>
         </div>
@@ -952,33 +1160,6 @@ $apiToken = \AgileForge\Bootstrap::getToken();
 
         <!-- VISTA 1: TABLERO KANBAN SCRUM (4 Columnas) -->
         <section id="view-kanban" class="space-y-4">
-            <!-- 👑 Director General: recibe instrucciones, decide, delega y actualiza el tablero -->
-            <div id="director-panel" class="hidden rounded-3xl border border-amber-500/30 bg-gradient-to-r from-amber-950/25 via-slate-950/90 to-slate-950/90 p-4 space-y-3 shadow-lg">
-                <div class="flex items-center justify-between gap-3 flex-wrap">
-                    <div class="flex items-center gap-2.5">
-                        <span class="text-2xl p-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">👑</span>
-                        <div>
-                            <h3 class="font-extrabold text-white text-sm" data-i18n="director_title">Director General · Jefe Máximo</h3>
-                            <p class="text-[11px] text-slate-400" data-i18n="director_subtitle">Dale una instrucción: revisa el tablero, decide, delega en los agentes y te rinde cuentas.</p>
-                        </div>
-                    </div>
-                    <button type="button" onclick="switchMainTab('team')" id="director-engine-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-slate-950 border-amber-500/40 text-amber-200">…</button>
-                </div>
-                <form id="director-form" onsubmit="sendDirectorInstruction(event)" class="flex flex-col sm:flex-row gap-2">
-                    <textarea id="director-input" rows="2" maxlength="8000" data-i18n-placeholder="director_placeholder"
-                              placeholder="Ej.: Prioriza lo necesario para lanzar reservas online esta semana y reparte el trabajo entre el equipo (Ctrl+Enter para enviar)"
-                              class="flex-1 px-3.5 py-2.5 rounded-2xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-amber-500 resize-y min-h-[44px]"></textarea>
-                    <button type="submit" id="director-send-btn" class="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 whitespace-nowrap" data-i18n="director_send">Dar instrucción</button>
-                </form>
-                <div class="flex flex-wrap gap-1.5 text-[10px]">
-                    <span class="text-slate-500" data-i18n="director_quick">Rápidas:</span>
-                    <button type="button" onclick="quickDirector('status')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_status">📊 Estado del sprint</button>
-                    <button type="button" onclick="quickDirector('backlog')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_backlog">🧭 Ordenar backlog</button>
-                    <button type="button" onclick="quickDirector('unblock')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_unblock">🚧 Desbloquear</button>
-                </div>
-                <div id="director-output" class="hidden p-3 rounded-2xl bg-slate-950/80 border border-slate-800"></div>
-            </div>
-
             <!-- Barra de Filtros Rápidos del Tablero -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 p-3 rounded-2xl">
                 <div class="flex items-center gap-2 flex-1">
@@ -1010,9 +1191,6 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         Cargando...
                     </span>
 
-                    <button onclick="openNewTaskModal()" class="text-xs px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center gap-1 shadow-sm whitespace-nowrap">
-                        <span>+</span> Nueva Historia
-                    </button>
                 </div>
             </div>
 
@@ -1028,7 +1206,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         </div>
                         <span id="col-count-backlog" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">0 pts</span>
                     </div>
-                    <div id="col-backlog" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <div id="col-backlog" class="p-3 space-y-3 overflow-y-auto flex-1">
                         <!-- Tarjetas dinámicas -->
                     </div>
                 </div>
@@ -1042,7 +1220,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         </div>
                         <span id="col-count-en_progreso" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-500/20">0 pts</span>
                     </div>
-                    <div id="col-en_progreso" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <div id="col-en_progreso" class="p-3 space-y-3 overflow-y-auto flex-1">
                         <!-- Tarjetas dinámicas -->
                     </div>
                 </div>
@@ -1056,7 +1234,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         </div>
                         <span id="col-count-revision" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-300 border border-purple-500/20">0 pts</span>
                     </div>
-                    <div id="col-revision" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <div id="col-revision" class="p-3 space-y-3 overflow-y-auto flex-1">
                         <!-- Tarjetas dinámicas -->
                     </div>
                 </div>
@@ -1070,12 +1248,45 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                         </div>
                         <span id="col-count-completada" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-500/20">0 pts</span>
                     </div>
-                    <div id="col-completada" class="p-3 space-y-3 overflow-y-auto flex-1 min-h-[350px]">
+                    <div id="col-completada" class="p-3 space-y-3 overflow-y-auto flex-1">
                         <!-- Tarjetas dinámicas -->
                     </div>
                 </div>
 
             </div>
+
+            <!-- 👑 Director General: recibe instrucciones, decide, delega y actualiza el tablero -->
+            <details id="director-panel" class="director-panel hidden rounded-3xl border border-amber-500/30 bg-gradient-to-r from-amber-950/25 via-slate-950/90 to-slate-950/90 shadow-lg">
+                <summary class="director-summary">
+                    <span class="flex items-center gap-2.5 min-w-0">
+                        <span class="inline-flex p-1 rounded-xl bg-amber-500/10 border border-amber-500/30" id="director-avatar-slot"><span aria-hidden="true">👑</span></span>
+                        <span class="min-w-0">
+                            <span class="block font-extrabold text-white text-sm" data-i18n="director_title">Director General</span>
+                            <span class="block text-[11px] text-slate-400 truncate" data-i18n="director_subtitle">Dale una instrucción: revisa el tablero, decide, delega en los agentes y te rinde cuentas.</span>
+                        </span>
+                    </span>
+                    <span class="flex items-center gap-2 flex-none">
+                        <span id="director-engine-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-slate-950 border-amber-500/40 text-amber-200">…</span>
+                        <span class="director-chevron" aria-hidden="true">▾</span>
+                    </span>
+                </summary>
+                <div class="director-body space-y-3">
+                <form id="director-form" onsubmit="sendDirectorInstruction(event)" class="flex flex-col sm:flex-row gap-2">
+                    <textarea id="director-input" rows="2" maxlength="8000" data-i18n-placeholder="director_placeholder"
+                              placeholder="Ej.: Prioriza lo necesario para lanzar reservas online esta semana y reparte el trabajo entre el equipo (Ctrl+Enter para enviar)"
+                              class="flex-1 px-3.5 py-2.5 rounded-2xl bg-slate-950 border border-slate-700 text-slate-100 text-xs outline-none focus:border-amber-500 resize-y min-h-[44px]"></textarea>
+                    <button type="submit" id="director-send-btn" class="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 whitespace-nowrap" data-i18n="director_send">Dar instrucción</button>
+                </form>
+                <div class="flex flex-wrap gap-1.5 text-[10px]">
+                    <span class="text-slate-500" data-i18n="director_quick">Rápidas:</span>
+                    <button type="button" onclick="quickDirector('status')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_status">📊 Estado del sprint</button>
+                    <button type="button" onclick="quickDirector('backlog')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_backlog">🧭 Ordenar backlog</button>
+                    <button type="button" onclick="quickDirector('unblock')" class="px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700" data-i18n="director_q_unblock">🚧 Desbloquear</button>
+                </div>
+                <div id="director-output" class="hidden p-3 rounded-2xl bg-slate-950/80 border border-slate-800"></div>
+                </div>
+            </details>
+
 
             <!-- Feed de Actividad en Vivo de Agentes IA (Trazabilidad MCP) -->
             <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
@@ -1136,66 +1347,66 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 </div>
             </div>
 
-            <!-- Consola de Acción y Mejoras Recomendadas en Vivo -->
+            <!-- Objetivos de diseño (declarados, no medidos: lo medido está en el escaneo del DOM y en el checklist) -->
             <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                     <div>
                         <h4 class="font-bold text-sm text-white flex items-center gap-2">
-                            <span>⚡</span> Consola de Optimización: Mejoras Aplicadas al Sistema en Tiempo Real
+                            <span aria-hidden="true">🎯</span> <span data-i18n="ux_goals_title">Objetivos de diseño del panel</span>
                         </h4>
-                        <p class="text-xs text-slate-400">The Visionary y Pixel Master verifican y aplican estos principios de diseño directamente en la interfaz.</p>
+                        <p class="text-xs text-slate-400" data-i18n="ux_goals_sub">Son metas, no mediciones. Lo que sí se mide está en el escaneo del DOM y en el checklist de abajo.</p>
                     </div>
-                    <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                        ✓ 6 Optimizaciones Activas
+                    <span class="text-[10px] font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded-full border border-slate-700" data-i18n="ux_goals_badge">
+                        6 objetivos
                     </span>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Contraste WCAG AAA</strong>
-                            <p class="text-[11px] text-slate-400">Ratio de contraste de texto superior a 15:1 para eliminar fatiga visual.</p>
+                            <strong class="text-white block" data-i18n="goal_contrast_t">Contraste legible</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_contrast_d">Objetivo: texto con contraste AA (4,5:1) en todos los temas.</p>
                         </div>
                     </div>
 
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Micro-interacciones Fluidas</strong>
-                            <p class="text-[11px] text-slate-400">Transiciones suaves de 200ms en botones, tabs y hover de tarjetas.</p>
+                            <strong class="text-white block" data-i18n="goal_motion_t">Transiciones breves</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_motion_d">Objetivo: transiciones de unos 200 ms en botones, pestañas y tarjetas.</p>
                         </div>
                     </div>
 
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Ergonomía Táctil Mobile-First</strong>
-                            <p class="text-[11px] text-slate-400">Áreas de clic mínimas de 44x44px conforme a estándares de accesibilidad.</p>
+                            <strong class="text-white block" data-i18n="goal_touch_t">Áreas de toque cómodas</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_touch_d">Objetivo: controles de al menos 44×44 px en pantallas táctiles.</p>
                         </div>
                     </div>
 
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Estética Anti-Slop</strong>
-                            <p class="text-[11px] text-slate-400">Elegancia tipo obsidian dark, eliminando saturaciones innecesarias.</p>
+                            <strong class="text-white block" data-i18n="goal_restraint_t">Estética sobria</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_restraint_d">Objetivo: color solo donde aporta significado; nada decorativo.</p>
                         </div>
                     </div>
 
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Heurística #1 (Estado del Sistema)</strong>
-                            <p class="text-[11px] text-slate-400">Banner de sprint en vivo, porcentaje de avance y badges de motor IA.</p>
+                            <strong class="text-white block" data-i18n="goal_status_t">Estado siempre visible</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_status_d">Objetivo: sprint, avance y motor de IA a la vista en todo momento.</p>
                         </div>
                     </div>
 
                     <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-start gap-2.5">
-                        <span class="text-emerald-400 text-base">✓</span>
+                        <span class="text-slate-500 text-base" aria-hidden="true">◎</span>
                         <div>
-                            <strong class="text-white block">Notificaciones Hápticas</strong>
-                            <p class="text-[11px] text-slate-400">Toasts flotantes con retroalimentación no invasiva para cada acción.</p>
+                            <strong class="text-white block" data-i18n="goal_feedback_t">Respuesta a cada acción</strong>
+                            <p class="text-[11px] text-slate-400" data-i18n="goal_feedback_d">Objetivo: un aviso breve y no invasivo después de cada acción.</p>
                         </div>
                     </div>
                 </div>
@@ -1253,7 +1464,7 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <div class="flex items-center gap-3">
                     <div class="text-right">
                         <span class="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">Blindaje Legal</span>
-                        <div id="legal-overall-score" class="text-2xl font-black text-amber-400 font-mono">Cargando...</div>
+                        <div id="legal-overall-score" class="text-2xl font-black text-amber-400 font-mono" data-i18n="legal_not_audited">Sin auditar</div>
                     </div>
                     <button onclick="runLegalWorkspaceAudit(true)" id="run-legal-audit-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 whitespace-nowrap">
                         <span>🔍</span> <span id="legal-audit-btn-text">Auditar Workspace Legal</span>
@@ -1473,15 +1684,13 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 </div>
                 <div>
                     <p class="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
-                        AgileForge <span class="text-xs text-indigo-400 font-normal">· Command Center Scrum 3.0</span>
+                        AgileForge
                     </p>
-                    <p class="text-[11px] text-slate-500">Suite de Agentes Autónomos, Métricas Scrum & Compliance Legal</p>
+                    <p class="text-[11px] text-slate-500" data-i18n="subtitle">Tu equipo de agentes de IA para Claude Code</p>
                 </div>
             </div>
             <div class="flex items-center gap-4 text-xs text-slate-500">
-                <span>Versión 3.0.0</span>
-                <span>•</span>
-                <span class="font-mono text-[11px]">AgileForge System</span>
+                <?php if ($afVersion !== ''): ?><span class="font-mono text-[11px]">v<?= htmlspecialchars($afVersion, ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
             </div>
         </div>
     </footer>
@@ -2546,6 +2755,8 @@ $apiToken = \AgileForge\Bootstrap::getToken();
                 <button onclick="closeTaskDetail()" class="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
             <div class="space-y-3 text-xs overflow-y-auto flex-1 pr-1">
+                <!-- Estado de la revisión (solo lectura): entrega del agente, verificación de QA y firma -->
+                <div id="detail-review-block" class="review-block hidden"></div>
                 <div class="grid grid-cols-3 gap-2.5">
                     <div>
                         <label class="block text-slate-400 uppercase font-bold text-[10px] mb-1" data-i18n="detail_agent">Agente</label>

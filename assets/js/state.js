@@ -86,6 +86,19 @@ export function localTime(sqlDate) {
 }
 
 /**
+ * Hora de un turno de reunión: el servidor la guarda como "HH:MM" en UTC, sin fecha.
+ * Se combina con la fecha de la reunión para mostrarla en la hora local, igual que el resto del panel.
+ */
+export function localClock(hhmm, sqlDateRef) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+    if (!m) return String(hhmm || '');
+    const day = String(sqlDateRef || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const d = new Date(`${day}T${m[1].padStart(2, '0')}:${m[2]}:00Z`);
+    if (isNaN(d.getTime())) return String(hhmm);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
  * Peticiones autenticadas al backend PHP con token de sesión
  */
 export async function apiFetch(endpoint, options = {}) {

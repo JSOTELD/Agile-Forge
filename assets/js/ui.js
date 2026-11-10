@@ -201,42 +201,98 @@ export function closeBeginnerManualModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-export function closeAllModals() {
-    const modals = [
-        'new-task-modal',
-        'task-detail-modal',
-        'edit-task-modal',
-        'skills-modal',
-        'skill-detail-modal',
-        'add-skill-modal',
-        'ai-engine-modal',
-        'costs-modal',
-        'change-workspace-modal',
-        'jurisdiction-modal',
-        'new-project-modal',
-        'import-workspace-modal',
-        'theme-modal',
-        'command-palette-modal',
-        'beginner-manual-modal'
-    ];
-    modals.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el.classList.contains('hidden')) {
-            el.classList.add('hidden');
-        }
-    });
+/** Modales del panel: cualquier capa fija cuyo id termina en "-modal". */
+function modalElements() {
+    return Array.from(document.querySelectorAll('.fixed[id$="-modal"]'));
+}
 
-    const chatDrawer = document.getElementById('chat-drawer');
-    if (chatDrawer && !chatDrawer.classList.contains('translate-x-full')) {
-        chatDrawer.classList.add('translate-x-full');
-    }
+function isVisibleModal(el) {
+    return !!el && !el.classList.contains('hidden');
+}
+
+export function closeAllModals() {
+    modalElements().forEach(el => {
+        if (isVisibleModal(el)) el.classList.add('hidden');
+    });
+}
+
+// Orden real de apertura (lo mantiene initModalA11y): el último abierto es el que está encima
+const openOrder = [];
+
+/** Cierra solo el modal que está encima (el último que se abrió). Devuelve true si cerró alguno. */
+export function closeTopModal() {
+    const open = modalElements().filter(isVisibleModal);
+    const top = [...openOrder].reverse().find(isVisibleModal) || open[open.length - 1];
+    if (!top) return false;
+    top.classList.add('hidden');
+    return true;
+}
+
+/**
+ * Accesibilidad de modales: papel de diálogo y devolución del foco.
+ * Al abrirse un modal se recuerda qué control tenía el foco; al cerrarse, el foco vuelve a ese control.
+ * Se observa la clase "hidden" para no tener que tocar cada función que abre o cierra un modal.
+ */
+export function initModalA11y() {
+    let lastOutside = null;
+    const insideOpenModal = (node) => !!(node && node.closest && node.closest('.fixed[id$="-modal"]:not(.hidden)'));
+    const remember = (ev) => {
+        const el = ev.target instanceof Element ? ev.target.closest('button, a, [tabindex], input, select, textarea') : null;
+        if (el && !insideOpenModal(el)) lastOutside = el;
+    };
+    document.addEventListener('focusin', remember);
+    document.addEventListener('pointerdown', remember, true);
+
+    const openers = new WeakMap();
+    const observer = new MutationObserver((records) => {
+        records.forEach((rec) => {
+            const modal = rec.target;
+            const wasHidden = String(rec.oldValue || '').split(/\s+/).includes('hidden');
+            const hidden = modal.classList.contains('hidden');
+            if (wasHidden && !hidden) {
+                openers.set(modal, lastOutside);
+                const at = openOrder.indexOf(modal);
+                if (at >= 0) openOrder.splice(at, 1);
+                openOrder.push(modal);
+                // Un modal abierto desde el panel de ajustes lo cierra: nunca quedan dos capas compitiendo
+                toggleSettingsMenu(false);
+            } else if (!wasHidden && hidden) {
+                const opener = openers.get(modal);
+                openers.delete(modal);
+                const at = openOrder.indexOf(modal);
+                if (at >= 0) openOrder.splice(at, 1);
+                if (opener && document.contains(opener) && !modalElements().some(isVisibleModal)) {
+                    // Si el control que lo abrió ya no se ve (estaba en el panel de ajustes), el foco va al botón de ajustes
+                    const target = opener.offsetParent !== null ? opener : document.getElementById('settings-menu-btn');
+                    if (target) target.focus({ preventScroll: true });
+                }
+            }
+        });
+    });
+    modalElements().forEach((modal) => {
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        const heading = modal.querySelector('h2, h3, h4');
+        if (heading) {
+            if (!heading.id) heading.id = `${modal.id}-title`;
+            modal.setAttribute('aria-labelledby', heading.id);
+        }
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    });
 }
 
 export function initKeyboardShortcuts() {
+    initModalA11y();
     document.addEventListener('keydown', (e) => {
         // Esc cierra modales
         if (e.key === 'Escape') {
-            closeAllModals();
+            // Primero el modal que está encima; si no hay ninguno, el panel de ajustes
+            if (closeTopModal()) return;
+            const menu = document.getElementById('settings-menu');
+            if (menu && !menu.classList.contains('hidden')) {
+                toggleSettingsMenu(false);
+                document.getElementById('settings-menu-btn')?.focus({ preventScroll: true });
+            }
             return;
         }
 
@@ -264,4 +320,32 @@ export function initKeyboardShortcuts() {
             openBeginnerManualModal();
         }
     });
+}
+
+
+/**
+ * Panel de ajustes de la cabecera: se abre y cierra con su botón, se cierra con Escape
+ * o al pulsar fuera, y devuelve el foco al botón.
+ */
+export function toggleSettingsMenu(force) {
+    const menu = document.getElementById('settings-menu');
+    const btn = document.getElementById('settings-menu-btn');
+    if (!menu || !btn) return;
+    const open = typeof force === 'boolean' ? force : menu.classList.contains('hidden');
+    menu.classList.toggle('hidden', !open);
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) {
+        const first = menu.querySelector('button, a');
+        if (first) first.focus({ preventScroll: true });
+    }
+}
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', (ev) => {
+        const menu = document.getElementById('settings-menu');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (ev.target.closest('#settings-menu') || ev.target.closest('#settings-menu-btn')) return;
+        toggleSettingsMenu(false);
+    });
+    if (typeof window !== 'undefined') window.toggleSettingsMenu = toggleSettingsMenu;
 }

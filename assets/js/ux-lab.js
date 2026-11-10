@@ -121,6 +121,15 @@ export function runResponsiveViewportScan() {
     };
 }
 
+/**
+ * Lista completa de heurísticas: las 10 de Nielsen, con el estado guardado donde exista.
+ * Una evaluación guardada con menos elementos no puede dar 100%: las que faltan cuentan como no cumplidas.
+ */
+function mergeHeuristics(saved) {
+    const byId = new Map((Array.isArray(saved) ? saved : []).map(h => [h.id, h]));
+    return DEFAULT_NIELSEN_HEURISTICS.map(d => ({ ...d, compliant: byId.has(d.id) ? !!byId.get(d.id).compliant : false }));
+}
+
 const DEFAULT_NIELSEN_HEURISTICS = [
     { id: 'h1', title: '1. Visibilidad del estado del sistema', desc: 'El sistema siempre mantiene informados a los usuarios mediante feedback apropiado (toasts, progreso en tiempo real).', compliant: true },
     { id: 'h2', title: '2. Correspondencia entre el sistema y el mundo real', desc: 'El sistema habla el lenguaje del equipo: tablero Scrum real, DoD, historias de usuario y actas de reunión.', compliant: true },
@@ -142,7 +151,7 @@ export function renderUxHonestView() {
     const respScan = runResponsiveViewportScan();
 
     const savedHeuristicsData = appData.ux_heuristics || {};
-    let heuristicsList = savedHeuristicsData.heuristics || DEFAULT_NIELSEN_HEURISTICS;
+    const heuristicsList = mergeHeuristics(savedHeuristicsData.heuristics);
 
     // Calcular score heurístico real
     const compliantCount = heuristicsList.filter(h => h.compliant).length;
@@ -185,7 +194,7 @@ export function renderUxHonestView() {
                     </div>
                     <div class="flex items-center gap-3">
                         <span class="text-xs font-mono font-bold text-pink-400 bg-pink-950/60 px-3 py-1 rounded-xl border border-pink-500/20">
-                            ${compliantCount} de 10 Cumplidas (${heuristicScore}%)
+                            <span id="heuristics-counter">${compliantCount} de ${heuristicsList.length} cumplidas (${heuristicScore}%)</span>
                         </span>
                         <button onclick="saveHeuristicEvaluation()" class="px-3 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs shadow transition">
                             💾 Guardar Evaluación
@@ -222,7 +231,7 @@ export function renderUxHonestView() {
 
 export function toggleHeuristicItem(id, isChecked) {
     let saved = appData.ux_heuristics || {};
-    let heuristics = saved.heuristics || DEFAULT_NIELSEN_HEURISTICS;
+    const heuristics = mergeHeuristics(saved.heuristics);
 
     const item = heuristics.find(h => h.id === id);
     if (item) item.compliant = isChecked;
@@ -240,11 +249,14 @@ export function toggleHeuristicItem(id, isChecked) {
 
     const navBadge = document.getElementById('nav-ux-score') || document.getElementById('nav-ux-badge');
     if (navBadge) navBadge.textContent = `${score}%`;
+
+    const counterEl = document.getElementById('heuristics-counter');
+    if (counterEl) counterEl.textContent = `${compliantCount} de ${heuristics.length} cumplidas (${score}%)`;
 }
 
 export async function saveHeuristicEvaluation() {
     let saved = appData.ux_heuristics || {};
-    let heuristics = saved.heuristics || DEFAULT_NIELSEN_HEURISTICS;
+    const heuristics = mergeHeuristics(saved.heuristics);
 
     const compliantCount = heuristics.filter(h => h.compliant).length;
     const score = Math.round((compliantCount / heuristics.length) * 100);
@@ -257,7 +269,7 @@ export async function saveHeuristicEvaluation() {
                 action: 'save_ux_heuristics',
                 score,
                 heuristics,
-                notes: `Evaluación de ${compliantCount}/10 heurísticas de Nielsen cumplidas.`
+                notes: `Evaluación de ${compliantCount}/${heuristics.length} heurísticas de Nielsen cumplidas.`
             })
         });
         const data = await res.json();
@@ -275,7 +287,7 @@ export async function saveHeuristicEvaluation() {
 export function exportUxReport() {
     const domScan = runDomAccessibilityScan();
     const respScan = runResponsiveViewportScan();
-    let heuristics = appData.ux_heuristics?.heuristics || DEFAULT_NIELSEN_HEURISTICS;
+    const heuristics = mergeHeuristics(appData.ux_heuristics?.heuristics);
     const compliant = heuristics.filter(h => h.compliant).length;
     const score = Math.round((compliant / heuristics.length) * 100);
 

@@ -3,7 +3,8 @@
  * Convocatoria de brainstorming, actas ADR y conversión de acuerdos al Backlog.
  */
 
-import { appData, apiFetch, escapeHtml, jsArg } from './state.js';
+import { appData, apiFetch, escapeHtml, jsArg, localTime, localClock } from './state.js';
+import { roleById, roleLabel, avatarFor } from './roles.js';
 import { showToast, switchMainTab } from './ui.js';
 import { richText, isPluginMode } from './director.js';
 import { t } from './i18n.js';
@@ -141,7 +142,7 @@ export function renderActiveMeeting(meeting) {
                             ${typeLabel}
                         </span>
                         <span class="text-xs font-mono text-slate-400 font-bold">${escapeHtml(meeting.id)}</span>
-                        <span class="text-slate-500 text-xs">· ${escapeHtml(meeting.created_at || 'Hoy')}</span>
+                        <span class="text-slate-500 text-xs">· ${escapeHtml(localTime(meeting.created_at) || 'Hoy')}</span>
                     </div>
                     <h3 class="font-extrabold text-lg text-white">${escapeHtml(meeting.title)}</h3>
                 </div>
@@ -169,8 +170,8 @@ export function renderActiveMeeting(meeting) {
                     const r = (appData.roles || []).find(x => x.id === pId);
                     return `
                         <span class="px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 flex items-center gap-1.5 font-medium whitespace-nowrap">
-                            <span>${escapeHtml(r ? r.avatar : '🤖')}</span>
-                            <span>${escapeHtml(r ? r.name.split(' ')[0] : pId)}</span>
+                            ${avatarFor(r || pId, 24)}
+                            <span title="${escapeHtml(pId)}">${escapeHtml(roleLabel(r || pId))}</span>
                             <span class="text-[9px] font-mono text-purple-300 bg-purple-950/60 px-1 py-0.2 rounded border border-purple-500/20">${escapeHtml(r?.engine?.ready ? r.engine.label : 'sin motor')}</span>
                         </span>
                     `;
@@ -185,17 +186,17 @@ export function renderActiveMeeting(meeting) {
                         <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2 hover:border-slate-700 transition">
                             <div class="flex items-center justify-between text-xs">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-xl">${escapeHtml(t.avatar)}</span>
+                                    ${avatarFor(roleById(t.role_id) || t.role_id, 40)}
                                     <div>
-                                        <span class="font-bold text-white">${escapeHtml(t.name)}</span>
-                                        <span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(t.alias)})</span>
+                                        <span class="font-bold text-white" title="${escapeHtml(t.role_id || '')}">${escapeHtml(roleById(t.role_id)?.name || t.name || roleLabel(t.role_id))}</span>
+                                        ${(t.alias || roleById(t.role_id)?.alias) ? `<span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(t.alias || roleById(t.role_id)?.alias)})</span>` : ''}
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-[9px] font-mono px-2 py-0.5 rounded bg-purple-950/70 border border-purple-500/30 text-purple-300">
-                                        🤖 ${escapeHtml(t.ai_model)}
-                                    </span>
-                                    <span class="text-slate-500 font-mono text-[10px]">${escapeHtml(t.timestamp)}</span>
+                                    ${t.ai_model ? `<span class="text-[9px] font-mono px-2 py-0.5 rounded bg-purple-950/70 border border-purple-500/30 text-purple-300">
+                                        <span aria-hidden="true">🤖</span> ${escapeHtml(t.ai_model)}
+                                    </span>` : ''}
+                                    <span class="text-slate-500 font-mono text-[10px]">${escapeHtml(localClock(t.timestamp, meeting.created_at))}</span>
                                 </div>
                             </div>
                             <div class="text-xs ${String(t.statement || '').startsWith('⚠️') ? 'text-amber-200' : 'text-slate-300'} leading-relaxed pl-7 border-l-2 border-indigo-500/30">
@@ -236,7 +237,7 @@ export function renderActiveMeeting(meeting) {
                                 <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                                     <div class="flex items-center justify-between text-[10px]">
                                         <span class="font-bold text-indigo-400">${item.story_points || 3} pts</span>
-                                        <span class="text-slate-400">${escapeHtml(r ? r.avatar : '🤖')} ${escapeHtml(r ? r.name.split(' ')[0] : item.assigned_to)}</span>
+                                        <span class="text-slate-400 inline-flex items-center gap-1">${avatarFor(r || item.assigned_to, 24)} ${escapeHtml(roleLabel(r || item.assigned_to))}</span>
                                     </div>
                                     <strong class="text-white block text-xs leading-snug">${escapeHtml(item.title)}</strong>
                                     <p class="text-[10px] text-slate-400 leading-tight">${escapeHtml(item.dod || '')}</p>
@@ -277,7 +278,7 @@ export function renderMeetingsHistory() {
                                 ${isConverted ? '✓ En Backlog' : 'Pendiente'}
                             </span>
                         </div>
-                        <span class="text-[10px] text-slate-500 font-mono">${escapeHtml(m.id)} · ${escapeHtml(m.created_at || '')} · ${(m.participants || []).length} agentes</span>
+                        <span class="text-[10px] text-slate-500 font-mono">${escapeHtml(m.id)} · ${escapeHtml(localTime(m.created_at))} · ${(m.participants || []).length} agentes</span>
                     </div>
                 </div>
 
@@ -321,8 +322,8 @@ export function populateMeetingParticipantsSelector() {
     container.innerHTML = roles.map(r => `
         <label class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 cursor-pointer text-xs select-none hover:border-slate-700" title="${escapeHtml(r.engine?.ready ? 'Responde con ' + r.engine.label : (isPluginMode() ? t('plugin_engine_hint') : 'Sin motor de IA'))}">
             <input type="checkbox" value="${escapeHtml(r.id)}" ${(firstRender ? ['project_manager', 'lead_architect', 'backend_architect'].includes(r.id) : prev.has(r.id)) ? 'checked' : ''} class="rounded border-slate-700 text-indigo-600 focus:ring-0">
-            <span>${escapeHtml(r.avatar)}</span>
-            <span class="font-medium text-slate-200">${escapeHtml(r.name.split(' ')[0])}</span>
+            ${avatarFor(r, 24)}
+            <span class="font-medium text-slate-200" title="${escapeHtml(r.id)}">${escapeHtml(roleLabel(r))}</span>
         </label>
     `).join('');
 }
