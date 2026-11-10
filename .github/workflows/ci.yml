@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           cd mcp-server && npm run build && npm run bundle && cd ..
-          if ! git diff --exit-code -- plugin/agileforge/server plugin/agileforge-vista/server; then
+          if ! git -c core.fileMode=false diff --exit-code -- plugin/agileforge/server plugin/agileforge-vista/server; then
             echo "::error::Los bundles no coinciden con mcp-server/src. Ejecuta 'npm run build && npm run bundle' en mcp-server y commitea."
             exit 1
           fi
