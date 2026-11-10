@@ -1,7 +1,7 @@
 {
   "name": "agileforge-vista",
   "displayName": "AgileForge Vista",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Vista de solo lectura del tablero AgileForge en Claude Code. / Read-only view of the AgileForge board in Claude Code.",
   "author": {
     "name": "JSOTELD",

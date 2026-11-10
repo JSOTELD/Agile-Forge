@@ -1,6 +1,6 @@
 {
   "name": "agileforge",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Multi-agent engineering team workspace and Model Context Protocol (MCP) server",
   "private": true,
   "type": "module",

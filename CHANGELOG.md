@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-11-10
+
 ### Español
 
 #### Añadido
@@ -31,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Se retiran del panel afirmaciones sin verificar («optimizaciones activas», insignias decorativas) y la inversión en IA muestra «No aplica» en modo plugin.
 - `update_human_signoff` con `enabled` nulo o vacío apagaba la firma humana; ahora se rechaza con 422.
 - Reuniones: horas de los turnos en UTC y turnos que mostraban el identificador del rol.
+- Los modales más altos que la ventana (p. ej. Motor de IA) quedaban cortados y no se podían desplazar.
 
 ### English
 
@@ -53,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 - Unverified claims removed from the panel ("active optimizations", decorative badges); AI spend shows "Not applicable" in plugin mode.
 - `update_human_signoff` with a null or empty `enabled` turned human sign-off off; it is now rejected with 422.
 - Meetings: turn times in UTC and turns showing the role identifier.
+- Modals taller than the window (e.g. AI engine) were clipped and could not be scrolled.
 
 ---
 
