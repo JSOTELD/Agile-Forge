@@ -14,11 +14,11 @@
         ]
     },
     "ai_engine": {
-        "active_provider": "anthropic",
-        "active_model": "claude-sonnet-5-5",
-        "provider_name": "Anthropic Claude",
-        "icon": "🟣",
-        "execution_mode": "cli",
+        "active_provider": "google",
+        "active_model": "gemini-4-hydrogen",
+        "provider_name": "Google Gemini",
+        "icon": "✨",
+        "execution_mode": "api",
         "role_routing_enabled": true
     },
     "sprint": {
@@ -35,8 +35,8 @@
             "name": "Director General & Estratega",
             "alias": "The Chief",
             "avatar": "👑",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-opus-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-4-argon",
             "description": "Liderazgo estratégico, priorización de backlog y asignación de valor de negocio.",
             "specialty": "Gestión estratégica, descomposición de valor y decisiones ejecutivas",
             "assigned_skills": ["director-toma-decisiones", "director-gestion-equipo", "director-priorizacion-valor", "context-sentinel"]
@@ -46,8 +46,8 @@
             "name": "Chief Software Architect",
             "alias": "Master Builder",
             "avatar": "📐",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-opus-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-4-argon",
             "description": "Diseño de sistemas, límites de capas, patrones arquitectónicos y ADRs.",
             "specialty": "Clean Architecture, límites de dominio y contratos técnicos",
             "assigned_skills": ["codebase-design", "domain-modeling", "clean-code"]
@@ -57,8 +57,8 @@
             "name": "Backend Architect & Database Engineer",
             "alias": "Core Engine",
             "avatar": "⚙️",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-sonnet-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-4-hydrogen",
             "description": "APIs REST, lógica transaccional, persistencia SQL y prevención de inyecciones.",
             "specialty": "APIs seguras, SQL/PDO transaccional e idempotencia",
             "assigned_skills": ["api-design-patterns", "database-optimization", "security-hardening", "clean-code"]
@@ -68,8 +68,8 @@
             "name": "Frontend & UI/UX Specialist",
             "alias": "Pixel Forge",
             "avatar": "🎨",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-sonnet-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-4-hydrogen",
             "description": "Interfaces web, componentes responsivos, accesibilidad y diseño de interacción.",
             "specialty": "Diseño responsivo, accesibilidad WCAG y experiencia de usuario",
             "assigned_skills": ["ui-polish", "design-system", "responsive-design"]
@@ -79,8 +79,8 @@
             "name": "QA, Pentester & Reliability Engineer",
             "alias": "The Guardian",
             "avatar": "🛡️",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-sonnet-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-4-hydrogen",
             "description": "Auditoría de DoD, pruebas automatizadas, análisis de seguridad y dictámenes técnicos.",
             "specialty": "Testing E2E, verificación de mutación y auditoría de seguridad",
             "assigned_skills": ["webapp-testing", "security-hardening", "context-sentinel"]
@@ -90,8 +90,8 @@
             "name": "Director Creativo & Innovador",
             "alias": "Idea Spark",
             "avatar": "💡",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-sonnet-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-3.8-flash",
             "description": "Propuestas de producto, validación de valor para el usuario y dirección de concepto.",
             "specialty": "Innovación de producto y conceptualización",
             "assigned_skills": ["creative-product-innovator", "ui-polish"]
@@ -101,8 +101,8 @@
             "name": "Legal & Compliance Counsel",
             "alias": "Lex Veritas",
             "avatar": "⚖️",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-sonnet-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-3.8-flash",
             "description": "Revisión de privacidad, protección de datos personales y términos de servicio.",
             "specialty": "Privacidad, cumplimiento normativo y contratos",
             "assigned_skills": ["compliance-sentinel", "legal-frameworks"]
@@ -112,8 +112,8 @@
             "name": "Project Manager & Scrum Master",
             "alias": "Scrum Pilot",
             "avatar": "⏱️",
-            "ai_provider": "anthropic",
-            "ai_model": "claude-haiku-5-5",
+            "ai_provider": "google",
+            "ai_model": "gemini-3.8-flash",
             "description": "Seguimiento de sprint, facilitación de dailies y desbloqueo de impedimentos.",
             "specialty": "Facilitación ágil, cadencia y métricas de flujo",
             "assigned_skills": ["agile-project-manager", "context-sentinel"]

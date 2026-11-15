@@ -33,6 +33,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Grafos del Curador de grafos (graphify y vault de Obsidian): se regeneran y la bitácora copia datos del tablero
+graphify-out/
+.agileforge/vault/
+
 # Archivos de prueba y scratch temporal
 scratch/
 test-*.json

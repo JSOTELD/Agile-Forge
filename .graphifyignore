@@ -1,0 +1,19 @@
+# Generado por el Curador de grafos desde .agileforge/grafos.md - no editar a mano
+graphify-out/
+.agileforge/vault/codigo/
+.agileforge/vault/.obsidian/
+.agileforge/vault/.agileforge-bitacora.json
+plugin/agileforge/server/
+plugin/agileforge-vista/server/
+mcp-server/dist/
+mcp-server/package.json
+mcp-server/package-lock.json
+mcp-server/tsconfig.json
+package.json
+package-lock.json
+.github/
+.claude-plugin/
+assets/css/app.css
+assets/brand/
+assets/fonts/
+data/

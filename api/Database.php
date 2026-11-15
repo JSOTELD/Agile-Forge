@@ -746,6 +746,11 @@ SQL;
             return stripos($model, 'haiku') !== false ? 'claude-haiku-5-5'
                 : (stripos($model, 'opus') !== false ? 'claude-opus-5-5' : 'claude-sonnet-5-5');
         }
+        if ($providerId === 'google') {
+            return stripos($model, 'argon') !== false ? 'gemini-4-argon'
+                : (stripos($model, 'hydrogen') !== false ? 'gemini-4-hydrogen'
+                : (stripos($model, '3.8') !== false ? 'gemini-3.8-flash' : (string)($provider['default_model'] ?? 'gemini-4-hydrogen')));
+        }
         return (string)($provider['default_model'] ?? $model);
     }
 

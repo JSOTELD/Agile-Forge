@@ -6,7 +6,7 @@ avatar: "📐"
 description: "Diseño de sistemas, límites de capas, patrones arquitectónicos y ADRs."
 specialty: "Clean Architecture, límites de dominio y contratos técnicos"
 agent: chief-architect
-model: opus
+model: gemini-4-argon
 effort: high
 color: blue
 capabilities:

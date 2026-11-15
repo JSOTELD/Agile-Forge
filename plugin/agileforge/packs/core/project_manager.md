@@ -6,7 +6,7 @@ avatar: "⏱️"
 description: "Seguimiento de sprint, facilitación de dailies y desbloqueo de impedimentos."
 specialty: "Facilitación ágil, cadencia y métricas de flujo"
 agent: project-manager
-model: haiku
+model: gemini-3.8-flash
 effort: low
 color: yellow
 capabilities:

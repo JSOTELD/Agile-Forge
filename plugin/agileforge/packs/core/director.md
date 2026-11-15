@@ -6,7 +6,7 @@ avatar: "👑"
 description: "Liderazgo estratégico, priorización de backlog y asignación de valor de negocio."
 specialty: "Gestión estratégica, descomposición de valor y decisiones ejecutivas"
 agent: director
-model: claude-fable-5-2
+model: gemini-4-argon
 effort: high
 color: purple
 capabilities:

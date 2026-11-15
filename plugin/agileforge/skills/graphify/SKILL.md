@@ -1,23 +1,17 @@
 ---
 name: graphify
-title: "Graphify Dependency Mapper"
-description: "Mapea grafos de dependencias y previene referencias circulares. Úsala antes de modificar o desacoplar módulos para predecir el impacto del cambio."
+title: "Graphify (alias antiguo)"
+description: "Alias antiguo (ADR-005). Para consultar el grafo de conocimiento de graphify usa la skill knowledge-graph; para construirlo o actualizarlo, /agileforge:grafo; para mapear dependencias sin grafo, dependency-mapping."
 category: engineering
 level: Principal
 status: active
 tags: ["AgileForge","engineering"]
 ---
 
-# Graphify Dependency Mapper
+# Graphify (alias antiguo)
 
-> **Especialidad:** `graphify` | **Categoría:** engineering | **Nivel:** Principal | **Estado:** ACTIVE
+Este identificador se conserva por compatibilidad: en la base, `graphify` se reasigna a `dependency-mapping` (ADR-005).
 
-Habilidad técnica especializada dentro del catálogo del ecosistema AgileForge.
-
-## Mapeo de Dependencias y Grafo de Componentes
-1. **Rastreo de Impacto**: Antes de modificar un módulo, mapear todas las dependencias entrantes y salientes para predecir efectos secundarios.
-2. **Aislamiento de Módulos**: Prohibir referencias circulares entre controladores y componentes frontend.
-
-## Criterio de Verificación
-- Todo entregable generado con esta skill debe satisfacer la Definition of Done (DoD).
-- La evidencia debe registrarse mediante la herramienta MCP `submit_for_review`.
+- **Consultar el grafo** (`graphify-out/graph.json`): skill `knowledge-graph` (`graphify query`, `graphify path`, `graphify explain`).
+- **Construirlo, actualizarlo y exportar la bibliografía a Obsidian:** el Curador de grafos, `/agileforge:grafo`.
+- **Sin grafo:** skill `dependency-mapping` (grep y lectura de imports).

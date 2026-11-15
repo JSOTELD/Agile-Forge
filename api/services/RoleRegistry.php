@@ -36,7 +36,7 @@ final class RoleRegistry
     /** Capacidades de un rol de la base que no tiene archivo (comportamiento previo al registro). */
     public const DEFAULT_CAPABILITIES = ['can_claim_tasks', 'can_submit_evidence'];
 
-    public const MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable', 'inherit'];
+    public const MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable', 'argon', 'hydrogen', 'flash', 'inherit'];
     public const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
     public const COLORS = ['red', 'green', 'blue', 'purple', 'yellow', 'cyan', 'orange', 'pink'];
 
@@ -327,8 +327,8 @@ final class RoleRegistry
         }
         if (isset($data['model'])) {
             $model = $data['model'];
-            if (!is_string($model) || !(in_array($model, self::MODEL_ALIASES, true) || preg_match('/^claude-[a-z0-9.-]+$/', $model))) {
-                $e[] = '«model» debe ser sonnet, opus, haiku, fable, inherit o un ID claude-….';
+            if (!is_string($model) || !(in_array($model, self::MODEL_ALIASES, true) || preg_match('/^(claude|gemini)-[a-z0-9.-]+$/', $model))) {
+                $e[] = '«model» debe ser sonnet, opus, haiku, fable, argon, hydrogen, flash, inherit o un ID gemini-… / claude-….';
             }
         }
         if (isset($data['effort']) && !in_array($data['effort'], self::EFFORTS, true)) {

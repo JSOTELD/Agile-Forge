@@ -6,7 +6,7 @@ avatar: "🛡️"
 description: "Auditoría de DoD, pruebas automatizadas, análisis de seguridad y dictámenes técnicos."
 specialty: "Testing E2E, verificación de mutación y auditoría de seguridad"
 agent: qa-security
-model: sonnet
+model: gemini-4-hydrogen
 effort: high
 color: red
 capabilities:

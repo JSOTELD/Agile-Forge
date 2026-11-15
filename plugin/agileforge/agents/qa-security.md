@@ -1,7 +1,7 @@
 ---
 name: qa-security
 description: "QA, Pentester & Reliability Engineer. Úsalo para auditar historias en revisión contra su DoD, reproducir la evidencia y dictaminar (approve / request_changes). Es el único agente que dictamina."
-model: sonnet
+model: gemini-4-hydrogen
 effort: high
 color: red
 tools:
@@ -22,6 +22,7 @@ disallowedTools:
   - Edit
   - Write
 skills:
+  - knowledge-graph
   - webapp-testing
   - e2e-playwright-lean
   - mutation-verifier

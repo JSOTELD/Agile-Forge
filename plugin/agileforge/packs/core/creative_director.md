@@ -6,8 +6,8 @@ avatar: "💡"
 description: "Propuestas de producto, validación de valor para el usuario y dirección de concepto."
 specialty: "Innovación de producto y conceptualización"
 agent: creative-director
-model: sonnet
-effort: low
+model: gemini-3.8-flash
+effort: medium
 color: pink
 capabilities:
   - can_claim_tasks

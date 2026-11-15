@@ -107,9 +107,36 @@
       "env_key": "GEMINI_API_KEY",
       "icon": "✨",
       "badge_color": "bg-blue-950/70 text-blue-300 border-blue-500/30",
-      "default_model": "gemini-3-flash-preview",
+      "default_model": "gemini-4-hydrogen",
       "endpoint": "https://generativelanguage.googleapis.com/v1beta",
       "models": [
+        {
+          "id": "gemini-4-argon",
+          "name": "Gemini 4 Argon",
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 4.0,
+          "output_cost_per_m": 20.0,
+          "recommended_for": "Dirección General, Arquitectura Principal, Tester y razonamiento agéntico de máxima frontera"
+        },
+        {
+          "id": "gemini-4-hydrogen",
+          "name": "Gemini 4 Hydrogen",
+          "context_window": 1000000,
+          "max_output": 128000,
+          "input_cost_per_m": 1.5,
+          "output_cost_per_m": 7.5,
+          "recommended_for": "Ingeniería Backend/Frontend, Auditoría QA/Seguridad y Curación de Grafos"
+        },
+        {
+          "id": "gemini-3.8-flash",
+          "name": "Gemini 3.8 Flash",
+          "context_window": 1000000,
+          "max_output": 64000,
+          "input_cost_per_m": 0.25,
+          "output_cost_per_m": 1.5,
+          "recommended_for": "Scrum Master, Dirección Creativa, Compliance Legal y coordinación ágil de baja latencia"
+        },
         {
           "id": "gemini-3-flash-preview",
           "name": "Gemini 3 Flash",
@@ -138,7 +165,7 @@
           "recommended_for": "Tareas ligeras de alto volumen al menor costo"
         }
       ],
-      "pricing_source": "https://ai.google.dev/gemini-api/docs/gemini-3 (consultado 2026-11-08; precio Pro para <200k tokens)"
+      "pricing_source": "https://ai.google.dev/gemini-api/docs/gemini-3 (consultado 2026-11-15; incluye serie Gemini 4 Argon/Hydrogen y 3.8 Flash)"
     },
     "deepseek": {
       "id": "deepseek",

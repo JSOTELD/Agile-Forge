@@ -41,7 +41,7 @@ graph TD
    - **Control** (completo): 21 herramientas validadas con `zod` (locks de tareas, entregas con evidencia, actas de reunión, ADR, sprints). **Vista** (solo lectura): 10 herramientas. Otras dos, `director_instruction` y `ask_agent`, solo se registran con `AGILEFORGE_ENGINE_TOOLS=on`.
    - Recursos URI nativos: `agileforge://sprint/current`, `agileforge://task/{id}`, `agileforge://roles`.
 4. **Plugins oficiales para Claude Code (`plugin/agileforge/` y `plugin/agileforge-vista/`)**
-   - **AgileForge Control:** 8 subagentes (**Director General**, Project Manager, Director Creativo, Arquitecto Jefe, Frontend Master, Backend Master, QA Sentinel y Asesor Legal), 27 skills en archivos `SKILL.md` reales, 7 comandos de barra y un hook `SessionStart` con resumen del sprint.
+   - **AgileForge Control:** 10 subagentes (**Director General**, Project Manager, Director Creativo, Arquitecto Jefe, Frontend Master, Backend Master, QA Sentinel, Asesor Legal, Tester y Curador de grafos), 33 skills en archivos `SKILL.md` reales, 9 comandos de barra y un hook `SessionStart` con resumen del sprint.
    - **AgileForge Vista:** solo lectura, con el agente `observador` y 5 comandos.
 5. **Frontend web modular (módulos ES nativos)**
    - `app.js`, `state.js`, `ui.js`, `kanban.js`, `chat.js`, `meetings.js`, `director.js`, `bindings.js`, `skills.js`, `ux-lab.js`, `projects.js`, `legal.js`, `local-ai.js`, `i18n.js`.
@@ -139,11 +139,12 @@ Cada agente tiene su propio modelo y esfuerzo, para usar el modelo caro solo don
 | legal-compliance | sonnet | low |
 | project-manager | haiku | low |
 | Tester (v0, experimental) | opus | high |
+| Curador de grafos (v0, experimental) | sonnet | medium |
 | observador (Vista) | haiku | low |
 
 ### Comandos
 
-- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <tipo> <tema>`, `/agileforge:director <instrucción>`, `/agileforge:equipo`, `/agileforge:probar [alcance]` (Tester, v0, experimental).
+- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <tipo> <tema>`, `/agileforge:director <instrucción>`, `/agileforge:equipo`, `/agileforge:probar [alcance]` (Tester, v0, experimental), `/agileforge:grafo [acción]` (Curador de grafos, v0, experimental: grafo de graphify para los agentes y vault de Obsidian como bibliografía).
 - **Vista:** `/agileforge-vista:estado`, `/agileforge-vista:tablero`, `/agileforge-vista:reuniones`, `/agileforge-vista:decisiones`, `/agileforge-vista:actividad`.
 
 ### Gobernanza: quién puede completar una historia

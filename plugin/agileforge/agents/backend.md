@@ -1,7 +1,7 @@
 ---
 name: backend
 description: "Backend Architect & Database Engineer. Úsalo para endpoints REST, controladores, repositorios, SQL/PDO, transacciones, validación de entradas y seguridad del servidor."
-model: sonnet
+model: gemini-4-hydrogen
 effort: medium
 color: green
 tools:
@@ -22,6 +22,7 @@ tools:
   - mcp__plugin_agileforge_board__list_memories
   - mcp__plugin_agileforge_board__get_memory
 skills:
+  - knowledge-graph
   - api-design-patterns
   - database-optimization
   - security-hardening

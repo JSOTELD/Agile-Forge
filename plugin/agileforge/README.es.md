@@ -56,6 +56,7 @@ Opcional: `AGILEFORGE_ENGINE_TOOLS=on` registra además `director_instruction` y
 | `/agileforge:director <instrucción>` | El hilo principal actúa como Director: decide, registra, crea y delega |
 | `/agileforge:equipo [agente]` | Agentes con modelo, esfuerzo y especialidad |
 | `/agileforge:probar [alcance]` | Tester (v0, experimental): intenta romper las reglas de negocio en un entorno desechable y registra cada bug confirmado (`[BUG]…`) |
+| `/agileforge:grafo [acción]` | Curador de grafos (v0, experimental): `estado`, `construir`, `actualizar`, `bitacora`, `consultar "<pregunta>"`, `fuente <url>`. Mantiene el grafo de graphify que consultan los agentes y un vault de Obsidian que sirve de bibliografía del proyecto |
 
 Para una sesión entera como Director (opus/high, delega con la herramienta Agent): `claude --agent agileforge:director`.
 
@@ -72,14 +73,30 @@ Para una sesión entera como Director (opus/high, delega con la herramienta Agen
 | legal-compliance | legal_counsel | sonnet | low |
 | project-manager | project_manager | haiku | low |
 | Tester (v0, experimental) | — | opus | high |
+| graph-curator (v0, experimental) | — | sonnet | medium |
 
-Solo backend, frontend y chief-architect editan archivos. QA ejecuta comandos de verificación pero no edita. El Tester no es un rol del tablero: solo escribe pruebas en la carpeta que permite su receta (`.agileforge/testing.md`), nunca toca código fuente ni datos reales, y no toma, entrega ni aprueba historias. **Gobernanza:** `claim_task` antes de editar; la entrega va con evidencia (`submit_for_review`); nadie aprueba su propio trabajo; solo QA (`review_task`) o el humano desde la web pasan una historia a `completada`.
+Solo backend, frontend y chief-architect editan archivos. QA ejecuta comandos de verificación pero no edita. El Tester no es un rol del tablero: solo escribe pruebas en la carpeta que permite su receta (`.agileforge/testing.md`), nunca toca código fuente ni datos reales, y no toma, entrega ni aprueba historias. El Curador de grafos tampoco es un rol del tablero: solo escribe `graphify-out/`, el vault y `.graphifyignore` (ver [Grafos de conocimiento](#grafos-de-conocimiento-curador-de-grafos)). **Gobernanza:** `claim_task` antes de editar; la entrega va con evidencia (`submit_for_review`); nadie aprueba su propio trabajo; solo QA (`review_task`) o el humano desde la web pasan una historia a `completada`.
 
 **Cambiar modelo o esfuerzo:**
 
 - Para una tarea concreta: pídelo ("delega en backend con opus"); Claude pasa `model`/`effort` a esa invocación.
 - Para todos los subagentes: `CLAUDE_CODE_SUBAGENT_MODEL` (con `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` se impone al frontmatter) y `CLAUDE_CODE_EFFORT_LEVEL`.
 - De forma permanente: en un clon local, edita `model:` y `effort:` en `plugin/agileforge/agents/<agente>.md`, instala desde ese marketplace local y ejecuta `/reload-plugins`. No edites la caché de plugins: se sobrescribe al actualizar.
+
+## Grafos de conocimiento (Curador de grafos)
+
+`/agileforge:grafo` mantiene dos grafos del proyecto abierto, hechos con [graphify](https://github.com/Graphify-Labs/graphify) (`uv tool install graphifyy`):
+
+| grafo | para quién | dónde |
+|---|---|---|
+| **Grafo de la IA** | los agentes, que lo consultan (`graphify query`, `path`, `explain`) en vez de leer archivos | `graphify-out/` (`graph.json`, `GRAPH_REPORT.md`, `wiki/index.md`) |
+| **Grafo bibliográfico** | personas: un vault de Obsidian con todo lo que se hizo | `.agileforge/vault/`: `codigo/` (graphify), `bitacora/` (historias, ADR, reuniones, sprints, memoria y roles del tablero), `fuentes/` (fichas bibliográficas), `notas/` (tuyas) |
+
+- El código se analiza en local con tree-sitter: **0 tokens** por defecto (`GRAPHIFY_BACKEND=none`). Los documentos solo entran al grafo de la IA si la receta elige un motor (`ollama` lo mantiene en local).
+- **Windows, repo de AgileForge:** doble clic en `bin\grafo-instalar.cmd` instala graphify si falta (uv, pipx o pip), añade su carpeta al PATH del usuario, te muestra la receta para que la apruebes tú y construye los dos grafos sin gastar tokens (registro en `data\logs\grafo-instalar.log`).
+- Necesita una receta aprobada, `.agileforge/grafos.md` (plantilla: `templates/grafos.md`); sin ella, el curador propone un borrador y se detiene.
+- `scripts/bitacora.mjs` vuelca el tablero al vault: solo lectura (basta el token de vista), incremental, y nunca sobrescribe notas que no generó él o que alguien editó.
+- La skill `knowledge-graph` indica a los demás agentes que consulten el grafo antes de buscar con grep; el curador deja una nota breve "Mapa del grafo (graphify)" en la memoria del equipo.
 
 ## Avisos
 

@@ -1,7 +1,7 @@
 ---
 name: frontend
 description: "Frontend & UI/UX Specialist. Úsalo para vistas, componentes, estilos, interacción, responsive y accesibilidad de la interfaz."
-model: sonnet
+model: gemini-4-hydrogen
 effort: medium
 color: cyan
 tools:
@@ -22,6 +22,7 @@ tools:
   - mcp__plugin_agileforge_board__list_memories
   - mcp__plugin_agileforge_board__get_memory
 skills:
+  - knowledge-graph
   - ui-polish
   - design-system
   - accessibility-wcag
