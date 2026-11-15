@@ -362,7 +362,9 @@ if ($method === 'POST') {
             }
             $ws = $repo->getSetting('active_workspace', dirname(__DIR__));
             $juris = $repo->getSetting('jurisdiction', ['country_name' => 'Perú', 'flag' => '🇵🇪']);
-            $isLegal = ($task['assigned_to'] ?? '') === 'legal_counsel';
+            // RFC-001: el prompt de auditoría legal lo decide la capacidad del rol, no su ID
+            $isLegal = \AgileForge\Services\RoleRegistry::forProject($repo->resolveProject($task['project_id'] ?? null) ?: null)
+                ->has((string)($task['assigned_to'] ?? ''), 'can_audit_compliance');
 
             if ($isLegal) {
                 $prompt = sprintf(

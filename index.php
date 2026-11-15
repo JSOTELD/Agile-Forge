@@ -723,6 +723,10 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
         }
         .tab-count { font-size: 10px; padding: 0 .4rem; border-radius: 9999px; font-family: 'JetBrains Mono', ui-monospace, monospace; background: rgba(148, 163, 184, .16); color: #cbd5e1; }
         .tab-active .tab-count { background: rgba(255, 255, 255, .22); color: #fff; }
+        .cap-chip { font-size: 10px; padding: .1rem .45rem; border-radius: .4rem; background: rgba(99, 102, 241, .12); border: 1px solid rgba(129, 140, 248, .28); color: #c7d2fe; }
+        .cap-chip-none { background: rgba(148, 163, 184, .1); border-color: rgba(148, 163, 184, .25); color: #94a3b8; }
+        html.theme-light .cap-chip, html.theme-paper .cap-chip { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+        html.theme-light .cap-chip-none, html.theme-paper .cap-chip-none { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
         .hdr-icon-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 .45rem; border-radius: .7rem; background: rgba(15, 23, 42, .9); border: 1px solid #1e293b; color: #cbd5e1; font-size: 13px; font-weight: 700; transition: border-color .15s, background .15s; flex: none; }
         .hdr-icon-btn:hover { background: #1e293b; border-color: rgba(129, 140, 248, .5); }
         @media (pointer: coarse) { .hdr-icon-btn { min-width: 44px; height: 44px; } }

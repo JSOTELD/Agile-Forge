@@ -12,7 +12,10 @@ namespace AgileForge\Controllers;
 use AgileForge\Bootstrap;
 use AgileForge\Database;
 use AgileForge\Repository;
+use AgileForge\Services\BoardService;
 use PDO;
+
+require_once dirname(__DIR__) . '/services/BoardService.php';
 
 class ProjectController
 {
@@ -182,7 +185,13 @@ class ProjectController
 
             if ($exitCode === 0 && !empty($output)) {
                 $points = [2, 3, 5, 3, 2];
-                $roles = ['backend_architect', 'frontend_master', 'lead_architect', 'qa_security_guard'];
+                // Se reparten entre los roles que pueden tomar historias (RFC-001), sin el que dictamina
+                $board = new BoardService($this->repo);
+                $reg = $board->registry();
+                $roles = array_values(array_filter(
+                    $reg->allWith('can_claim_tasks', $board->roleIds()),
+                    fn($r) => !$reg->has($r, 'can_review_tasks')
+                )) ?: [$board->defaultAssignee()];
 
                 foreach ($output as $idx => $line) {
                     $parts = explode('|', $line, 2);
@@ -211,12 +220,19 @@ class ProjectController
 
         // Si no hay commits git o la carpeta no es repo git, crear tareas mínimas de arranque
         if (empty($suggestedTasks)) {
+            $board = $board ?? new BoardService($this->repo);
+            $roleIds = $board->roleIds();
+            $architect = $board->roleWith('can_record_adr', 'lead_architect');
+            if ($architect === null || !$board->registry()->has($architect, 'can_claim_tasks')) {
+                $architect = $board->defaultAssignee();
+            }
+            $frontend = in_array('frontend_master', $roleIds, true) ? 'frontend_master' : $board->defaultAssignee();
             $suggestedTasks = [
                 [
                     'id'              => 'US-201',
                     'title'           => "Auditoría de estructura y dependencias de {$name}",
                     'story_points'    => 3,
-                    'assigned_to'     => 'lead_architect',
+                    'assigned_to'     => $architect,
                     'priority'        => 'alta',
                     'status'          => 'backlog',
                     'user_story'      => "Como arquitecto requiero auditar los archivos y dependencias del workspace importado.",
@@ -228,7 +244,7 @@ class ProjectController
                     'id'              => 'US-202',
                     'title'           => "Revisión de accesibilidad y diseño visual",
                     'story_points'    => 2,
-                    'assigned_to'     => 'frontend_master',
+                    'assigned_to'     => $frontend,
                     'priority'        => 'media',
                     'status'          => 'backlog',
                     'user_story'      => "Como diseñador frontend requiero chequear ergonomía y cumplimiento WCAG.",

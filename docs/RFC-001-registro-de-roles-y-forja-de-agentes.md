@@ -4,6 +4,7 @@
 - **Fecha:** 2026-11-09
 - **Autores:** David & Equipo de Arquitectura AgileForge
 - **Referencia:** ADR-003, ADR-004, ADR-005, RFC-002
+- **Implementación:** fase 1 entregada (2026-11-10). Ver «Estado de la fase 1» al final.
 
 ---
 
@@ -278,3 +279,23 @@ Para evitar sobrecarga de contexto, dispersión en reuniones y contención de bl
 | **Fase 2: Forja y Templado con Sandbox UUID** | Validador Nivel 1, runner de sandbox aislado en `data/sandbox-<uuid>.sqlite` con MCP `board-sandbox` independiente, bypass web con auditoría. | Alta | 5-6 días |
 | **Fase 3: Armería, Web UI y Aleaciones** | Gestor visual de la Armería en panel web, límite de escuadrón activo, importador/exportador de packs de agentes. | Media | 4 días |
 | **Total Estimado** | | | **13-15 días** |
+
+---
+
+## 9. Estado de la fase 1 (2026-11-10)
+
+**Hecho**
+- Pack core en `plugin/agileforge/packs/core/` con los 8 roles y sus IDs reales; roles del proyecto en `.agileforge/roles/`, que sustituyen al core solo en ese proyecto.
+- `api/services/RoleRegistry.php`: lectura del frontmatter, lista cerrada de 9 capacidades y validación de nivel 1 (id, nombre, capacidades, modelo, esfuerzo, color, herramientas, skills del catálogo, claves escritas por error).
+- Reglas por capacidad: tomar (`can_claim_tasks`), entregar (`can_submit_evidence`), dictaminar (`can_review_tasks`; aprobar además `can_approve_dod`), prompt legal (`can_audit_compliance`), historias sin asignar y moderación de reuniones (`can_facilitate_sprint`), orden del equipo (`can_orchestrate`), importación de workspace y participantes por defecto.
+- Las capacidades llegan al panel (`roles[].capabilities`, `role_registry`), al brief del rol y se ven en la pestaña Equipo.
+- `bin/roles.php list | validate | agents`: el generador escribe `.claude/agents/<id>.md` con lista explícita de herramientas y el prefijo MCP del entorno.
+- El Director se siembra desde `packs/core/director.md`.
+
+**Cambio de comportamiento:** el Director ya no puede tomar ni entregar historias por MCP (no tiene `can_claim_tasks` ni `can_submit_evidence`), y pedir cambios exige `can_review_tasks`, igual que aprobar. En el tablero real nunca se dio ninguno de los dos casos.
+
+**Pendiente (fases 2 y 3)**
+- El Director sigue identificado por su id en el chat y en su panel (`DirectorService::ROLE_ID`): es un servicio propio, no solo un rol.
+- Dar de alta en el tablero un rol nuevo del proyecto (Armería) y el límite de agentes activos.
+- Forja y templado en sandbox, y aviso de packs de terceros en el panel.
+- Plantillas de reunión del panel con IDs del core (son sugerencias; se filtran por los roles que existen).

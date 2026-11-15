@@ -36,6 +36,28 @@ const PRIORITY_LABELS = {
 
 const SAFE_ID = /^[a-z0-9_]+$/;
 
+// RFC-001: lo que un rol puede hacer viene de sus capacidades (archivos de rol), no de su ID
+export const CAPABILITY_LABELS = {
+    can_claim_tasks: 'Toma historias',
+    can_submit_evidence: 'Entrega a revisión',
+    can_review_tasks: 'Dictamina',
+    can_approve_dod: 'Aprueba la DoD',
+    can_record_adr: 'Registra ADR',
+    can_facilitate_sprint: 'Facilita el sprint',
+    can_forge_agents: 'Forja agentes',
+    can_audit_compliance: 'Audita cumplimiento',
+    can_orchestrate: 'Orquesta el equipo',
+};
+
+export function roleCan(roleOrId, capability) {
+    const role = typeof roleOrId === 'string' ? roleById(roleOrId) : roleOrId;
+    return !!role && Array.isArray(role.capabilities) && role.capabilities.includes(capability);
+}
+
+export function capabilityLabel(cap) {
+    return t(`cap_${cap}`, CAPABILITY_LABELS[cap] || cap);
+}
+
 export function roleById(roleId) {
     return (appData.roles || []).find(r => r.id === roleId) || null;
 }

@@ -583,12 +583,21 @@ SQL;
              VALUES ('director', ?, 'The Chief', '👑', 'anthropic', 'claude-opus-5-5', ?, ?, ?)"
         );
         $skills = ['director-toma-decisiones', 'director-gestion-equipo', 'director-priorizacion-valor', 'agile-project-manager', 'context-sentinel'];
-        $stmt->execute([
-            'Director General (Jefe Máximo)',
-            'Recibe tus instrucciones, decide prioridades, delega en los agentes especialistas, registra las decisiones y te rinde cuentas.',
-            'Dirección estratégica, toma de decisiones, priorización por valor, delegación y control del equipo de agentes',
-            json_encode($skills, JSON_UNESCAPED_UNICODE),
-        ]);
+        $name = 'Director General (Jefe Máximo)';
+        $description = 'Recibe tus instrucciones, decide prioridades, delega en los agentes especialistas, registra las decisiones y te rinde cuentas.';
+        $specialty = 'Dirección estratégica, toma de decisiones, priorización por valor, delegación y control del equipo de agentes';
+        // RFC-001: los datos salen del pack core (plugin/agileforge/packs/core/director.md) si está disponible
+        try {
+            require_once __DIR__ . '/services/RoleRegistry.php';
+            [$def] = \AgileForge\Services\RoleRegistry::parseFile(\AgileForge\Services\RoleRegistry::corePackDir() . '/director.md');
+            $name = is_string($def['name'] ?? null) && $def['name'] !== '' ? $def['name'] : $name;
+            $description = is_string($def['description'] ?? null) ? $def['description'] : $description;
+            $specialty = is_string($def['specialty'] ?? null) ? $def['specialty'] : $specialty;
+            $skills = is_array($def['skills'] ?? null) && $def['skills'] ? array_values($def['skills']) : $skills;
+        } catch (\Throwable $e) {
+            // sin pack: valores de siempre
+        }
+        $stmt->execute([$name, $description, $specialty, json_encode($skills, JSON_UNESCAPED_UNICODE)]);
         $rs = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES ('director', ?)");
         foreach ($skills as $sk) {
             $rs->execute([$sk]);

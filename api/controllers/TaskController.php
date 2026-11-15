@@ -12,6 +12,7 @@ use AgileForge\Bootstrap;
 use AgileForge\Database;
 use AgileForge\Repository;
 use AgileForge\Services\BoardService;
+use AgileForge\Services\RoleRegistry;
 use PDO;
 
 require_once dirname(__DIR__) . '/services/BoardService.php';
@@ -25,6 +26,24 @@ class TaskController
     {
         $this->repo = new Repository();
         $this->board = new BoardService($this->repo);
+    }
+
+    /** Registro de roles del proyecto de la historia (RFC-001): las reglas se deciden por capacidades. */
+    private function registryFor(array $task): RoleRegistry
+    {
+        try {
+            $proj = $this->repo->resolveProject($task['project_id'] ?? null);
+        } catch (\InvalidArgumentException $e) {
+            $proj = $this->repo->getActiveProject();
+        }
+        return RoleRegistry::forProject($proj ?: null);
+    }
+
+    /** Roles del tablero con la capacidad, para los mensajes de error. */
+    private function rolesWith(RoleRegistry $reg, string $capability): string
+    {
+        $ids = $reg->allWith($capability, $this->board->roleIds());
+        return $ids ? implode(', ', $ids) : 'ninguno';
     }
 
     public function list(array $filters = []): void
@@ -164,7 +183,7 @@ class TaskController
         if ($status === 'completada' && $client !== 'web') {
             Bootstrap::fail(
                 'Transición rechazada: pasar a "completada" requiere aprobación humana desde la web (client: "web") '
-                . 'o review_task con decision "approve" del rol qa_security_guard.',
+                . 'o review_task con decision "approve" de un rol con la capacidad can_review_tasks.',
                 403
             );
         }
@@ -247,6 +266,14 @@ class TaskController
             }
         }
 
+        // RFC-001: tomar historias es una capacidad del rol (el Director orquesta, no ejecuta)
+        if ($client !== 'web') {
+            $reg = $this->registryFor($task);
+            if (!$reg->has($roleKey, 'can_claim_tasks')) {
+                Bootstrap::fail("El rol '{$roleKey}' no tiene la capacidad can_claim_tasks: no puede tomar historias (pueden: {$this->rolesWith($reg, 'can_claim_tasks')}).", 403);
+            }
+        }
+
         $res = $this->repo->claimTask($id, $roleKey, $client);
         if (!$res['success']) {
             Bootstrap::jsonResponse(['error' => $res['error']], $res['code'] ?? 400);
@@ -273,6 +300,13 @@ class TaskController
             $activeId = (string)($activeProj['id'] ?? 'default');
             if (($task['project_id'] ?? '') !== $activeId) {
                 Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
+        if ($client !== 'web') {
+            $reg = $this->registryFor($task);
+            if (!$reg->has($roleKey, 'can_submit_evidence')) {
+                Bootstrap::fail("El rol '{$roleKey}' no tiene la capacidad can_submit_evidence: no puede entregar a revisión.", 403);
             }
         }
 
@@ -347,7 +381,7 @@ class TaskController
             Bootstrap::fail('Decisión inválida. Debe ser "approve" o "request_changes"', 422);
         }
         if ($reviewerRole === '') {
-            Bootstrap::fail('reviewer_role es obligatorio (para aprobar: qa_security_guard).', 422);
+            Bootstrap::fail('reviewer_role es obligatorio (un rol con la capacidad can_review_tasks, p. ej. qa_security_guard).', 422);
         }
 
         $task = $this->repo->getTask($id);
@@ -356,6 +390,15 @@ class TaskController
         }
         if (($task['status'] ?? '') !== 'revision') {
             Bootstrap::fail("La historia está en '{$task['status']}': solo se revisa una historia en estado 'revision' (entrégala antes con submit_for_review).", 409);
+        }
+
+        // RFC-001: dictaminar (aprobar o pedir cambios) es una capacidad, no un ID fijo
+        $reg = $this->registryFor($task);
+        if (!$reg->has($reviewerRole, 'can_review_tasks')) {
+            Bootstrap::fail("El rol '{$reviewerRole}' no tiene la capacidad can_review_tasks: no puede dictaminar (pueden: {$this->rolesWith($reg, 'can_review_tasks')}).", 403);
+        }
+        if ($decision === 'approve' && !$reg->has($reviewerRole, 'can_approve_dod')) {
+            Bootstrap::fail("El rol '{$reviewerRole}' no tiene la capacidad can_approve_dod: puede pedir cambios pero no aprobar.", 403);
         }
 
         $humanSignoff = $this->repo->isHumanSignoffEnabled($task['project_id'] ?? null);
@@ -369,9 +412,6 @@ class TaskController
         if ($decision === 'approve') {
             if (!empty($task['review_evidence']['qa_approved'])) {
                 Bootstrap::fail('Ya está aprobada por QA', 409);
-            }
-            if ($reviewerRole !== 'qa_security_guard') {
-                Bootstrap::fail("Solo el rol qa_security_guard puede aprobar una historia (revisor indicado: '{$reviewerRole}').", 403);
             }
             if (in_array($reviewerRole, $this->repo->getLockRoles($id), true)) {
                 Bootstrap::fail("El revisor '{$reviewerRole}' tomó o entregó esta historia: no puede aprobar su propio trabajo.", 403);
@@ -453,7 +493,7 @@ class TaskController
             }
         }
 
-        $result = Database::transaction(function (PDO $pdo) use ($id, $decision, $checklist, $reviewerRole, $newStatus, $humanSignoff, $verificationClean, $elapsedSeconds) {
+        $result = Database::transaction(function (PDO $pdo) use ($id, $decision, $checklist, $reviewerRole, $newStatus, $humanSignoff, $verificationClean, $elapsedSeconds, $reg) {
             $task = $this->repo->getTask($id);
             if (!$task) {
                 return ['error' => 'Tarea no encontrada', 'code' => 404];
@@ -462,8 +502,8 @@ class TaskController
                 return ['error' => "La historia está en '{$task['status']}': solo se revisa una historia en estado 'revision' (entrégala antes con submit_for_review).", 'code' => 409];
             }
             if ($decision === 'approve') {
-                if ($reviewerRole !== 'qa_security_guard') {
-                    return ['error' => "Solo el rol qa_security_guard puede aprobar una historia (revisor indicado: '{$reviewerRole}').", 'code' => 403];
+                if (!$reg->has($reviewerRole, 'can_review_tasks') || !$reg->has($reviewerRole, 'can_approve_dod')) {
+                    return ['error' => "El rol '{$reviewerRole}' no puede aprobar historias.", 'code' => 403];
                 }
                 if (in_array($reviewerRole, $this->repo->getLockRoles($id), true)) {
                     return ['error' => "El revisor '{$reviewerRole}' tomó o entregó esta historia: no puede aprobar su propio trabajo.", 'code' => 403];
@@ -753,7 +793,11 @@ class TaskController
             Bootstrap::fail('El contenido del comentario no puede superar los 5000 caracteres', 422);
         }
 
-        $role = trim((string)($input['role'] ?? 'project_manager'));
+        $role = trim((string)($input['role'] ?? ''));
+        if ($role === '') {
+            // Sin rol indicado: comenta quien facilita el sprint
+            $role = $this->registryFor($task)->firstWith('can_facilitate_sprint', $this->board->roleIds(), 'project_manager') ?? 'project_manager';
+        }
         // Bug 7: rol existente
         if (!$this->repo->roleExists($role)) {
             Bootstrap::fail("El rol '{$role}' no existe", 422);

@@ -6,7 +6,7 @@
 import { appData, apiFetch, escapeHtml, jsArg, localTime } from './state.js';
 import { showToast } from './ui.js';
 import { t as tr } from './i18n.js';
-import { roleLabel, avatarFor, statusLabel, priorityLabel, normalizePriority } from './roles.js';
+import { roleLabel, avatarFor, statusLabel, priorityLabel, normalizePriority, roleCan } from './roles.js';
 
 const STATUS_ORDER = ['backlog', 'en_progreso', 'revision', 'completada'];
 
@@ -101,7 +101,7 @@ export function renderKanban() {
         const nextStatus = STATUS_ORDER[STATUS_ORDER.indexOf(t.status) + 1];
         const backLabel = prevStatus ? `${tr('move_to', 'Mover a')} ${statusLabel(prevStatus)}` : tr('move_none_back', 'No hay estado anterior');
         const fwdLabel = nextStatus ? `${tr('move_to', 'Mover a')} ${statusLabel(nextStatus)}` : tr('move_none_fwd', 'No hay estado siguiente');
-        const isLegal = t.assigned_to === 'legal_counsel';
+        const isLegal = roleCan(t.assigned_to, 'can_audit_compliance');
         const aiModel = t.ai_model || role?.ai_model || globalModel || '';
         // El chip de modelo solo aporta cuando esta historia NO usa el motor global
         const showModelChip = !!aiModel && aiModel !== globalModel;

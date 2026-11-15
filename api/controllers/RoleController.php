@@ -162,6 +162,8 @@ class RoleController
         }, $rawMemories);
 
         $systemPrompt = "Eres {$role['name']} ({$role['alias']}) en AgileForge. Tu especialidad es {$role['specialty']}. Opera bajo la normativa de {$jurisdiction['country_name']} {$jurisdiction['flag']}.";
+        $caps = \AgileForge\Services\RoleRegistry::forProject($this->repo->getActiveProject() ?: null)->capabilities($role['id']);
+        $systemPrompt .= ' Capacidades en el tablero: ' . ($caps ? implode(', ', $caps) : 'ninguna (solo lectura y comentarios)') . '.';
         if (!empty($compactMemories)) {
             $systemPrompt .= "\n\nMemoria contextual previa del rol en este proyecto:\n";
             foreach ($compactMemories as $cm) {
@@ -182,6 +184,8 @@ class RoleController
             'legal_jurisdiction' => $jurisdiction,
             'memories'           => $compactMemories,
             'system_prompt'      => $systemPrompt,
+            // RFC-001: lo que este rol puede hacer en el tablero
+            'capabilities'       => $caps,
         ];
 
         Bootstrap::jsonResponse(['success' => true, 'brief' => $brief]);

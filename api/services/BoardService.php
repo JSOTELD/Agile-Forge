@@ -15,6 +15,8 @@ use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 
+require_once __DIR__ . '/RoleRegistry.php';
+
 class BoardService
 {
     public const STATUSES = ['backlog', 'en_progreso', 'revision', 'completada'];
@@ -90,6 +92,32 @@ class BoardService
         return $this->pdo->query("SELECT id FROM roles ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) ?: [];
     }
 
+    /** Registro de roles del proyecto activo (RFC-001). */
+    public function registry(): RoleRegistry
+    {
+        return RoleRegistry::forProject($this->repo->getActiveProject() ?: null);
+    }
+
+    /** Rol del tablero con la capacidad; $preferred gana si la tiene. */
+    public function roleWith(string $capability, ?string $preferred = null): ?string
+    {
+        return $this->registry()->firstWith($capability, $this->roleIds(), $preferred);
+    }
+
+    /** A quién va una historia sin asignar: quien facilita el sprint; si no hay, el primero que puede tomarla. */
+    public function defaultAssignee(): string
+    {
+        return $this->roleWith('can_facilitate_sprint', 'project_manager')
+            ?? $this->roleWith('can_claim_tasks')
+            ?? 'project_manager';
+    }
+
+    /** Quien orquesta el equipo (el Director en el pack core). */
+    public function orchestratorRole(): ?string
+    {
+        return $this->roleWith('can_orchestrate', 'director');
+    }
+
     public function role(string $roleId): ?array
     {
         $stmt = $this->pdo->prepare("SELECT * FROM roles WHERE id = ?");
@@ -153,7 +181,10 @@ class BoardService
         if (mb_strlen($title) > 200) {
             throw new InvalidArgumentException('El título de la historia no puede superar los 200 caracteres');
         }
-        $assigned = trim((string)($in['assigned_to'] ?? 'project_manager'));
+        $assigned = trim((string)($in['assigned_to'] ?? ''));
+        if ($assigned === '') {
+            $assigned = $this->defaultAssignee();
+        }
         $matched = $this->matchRoleId($assigned);
         if ($matched === null) {
             throw new InvalidArgumentException("El rol '{$assigned}' no existe");
