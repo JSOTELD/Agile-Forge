@@ -163,6 +163,24 @@
           "input_cost_per_m": 0.25,
           "output_cost_per_m": 1.5,
           "recommended_for": "Tareas ligeras de alto volumen al menor costo"
+        },
+        {
+          "id": "gemini-2.5-pro",
+          "name": "Gemini 2.5 Pro",
+          "context_window": 1000000,
+          "max_output": 64000,
+          "input_cost_per_m": 1.25,
+          "output_cost_per_m": 10.0,
+          "recommended_for": "Razonamiento profundo y compatibilidad con flujos Gemini 2.5 Pro"
+        },
+        {
+          "id": "gemini-2.5-flash",
+          "name": "Gemini 2.5 Flash",
+          "context_window": 1000000,
+          "max_output": 64000,
+          "input_cost_per_m": 0.3,
+          "output_cost_per_m": 2.5,
+          "recommended_for": "Ejecución rápida y económica con compatibilidad Gemini 2.5 Flash"
         }
       ],
       "pricing_source": "https://ai.google.dev/gemini-api/docs/gemini-3 (consultado 2026-11-15; incluye serie Gemini 4 Argon/Hydrogen y 3.8 Flash)"

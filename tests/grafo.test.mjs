@@ -159,8 +159,112 @@ test('curador de grafos: no toca historias, su comando y su plantilla existen', 
   assert.match(read(ROOT, '.gitignore'), /^\.agileforge\/vault\/$/m, 'el vault (copia del tablero) no se publica');
   assert.match(read(ROOT, '.gitignore'), /^graphify-out\/$/m);
   assert.equal(normalizeRole('chief_architect'), 'lead_architect');
+  assert.equal(normalizeRole('chief-architect'), 'lead_architect');
   assert.equal(normalizeRole('backend'), 'backend_architect');
   assert.equal(normalizeRole('frontend'), 'frontend_master');
   assert.equal(normalizeRole('qa_security'), 'qa_security_guard');
+  assert.equal(normalizeRole('qa-security'), 'qa_security_guard');
   assert.equal(normalizeRole('legal_compliance'), 'legal_counsel');
+});
+
+test('M1 y BUG-09: bitacora.mjs normaliza alias en memorias/comentarios/turnos, evita rol unknown roto y filtra por proyecto', async () => {
+  const before = await api('GET', 'index.php/state');
+  const origProject = before.json.current_project?.id || 'default';
+  const projRes = await action('create_project', { name: 'Proyecto Bitácora Aislado ' + Date.now(), path: ROOT, client: 'web' });
+  assert.equal(projRes.status, 200);
+  const projId = projRes.json.project_id;
+  assert.ok(projId);
+
+  const vault = tmpVault();
+  try {
+    await action('switch_project', { project_id: projId });
+    const t = await newTask({ project_id: projId, title: 'Historia alias bitácora' });
+    const memRes = await api('POST', 'index.php/memories', {
+      project_id: projId,
+      role_id: 'lead_architect',
+      title: 'Memoria con alias legado',
+      content: 'Contenido técnico de la memoria para bitácora.',
+      node_type: 'architecture',
+      importance: 8,
+    });
+    assert.ok([200, 201].includes(memRes.status), memRes.text);
+    const memId = memRes.json.memory.id;
+
+    const meetStart = await action('start_meeting', {
+      project_id: projId,
+      topic: 'Reunión con turno unknown y alias',
+      participants: ['director', 'lead_architect'],
+    });
+    assert.equal(meetStart.status, 200);
+    const meetId = meetStart.json.meeting?.id || meetStart.json.id;
+    await action('close_meeting', {
+      meeting_id: meetId,
+      summary: 'Resumen de reunión con alias',
+      resolution: 'Usar roles canónicos',
+      action_items: [{ title: 'Revisar alias', assigned_to: 'lead_architect', story_points: 2 }],
+    });
+
+    // Decisión dentro de este proyecto y otra decisión en default para comprobar aislamiento ?project=
+    const adrProj = await api('POST', 'index.php/decisions', {
+      project_id: projId,
+      title: 'ADR exclusivo proyecto bitácora',
+      decision: 'Aislamiento por proyecto en Obsidian',
+      status: 'accepted',
+    });
+    assert.equal(adrProj.status, 201);
+    const adrProjId = adrProj.json.decision.id;
+
+    const adrDefault = await api('POST', 'index.php/decisions', {
+      project_id: 'default',
+      title: 'ADR ajeno en default',
+      decision: 'No debe filtrarse al proyecto actual',
+      status: 'accepted',
+    });
+    assert.equal(adrDefault.status, 201);
+    const adrDefaultId = adrDefault.json.decision.id;
+
+    // Simular datos legados en SQLite temporal con alias (chief-architect, qa-security) y role_id 'unknown'
+    if (process.env.AGILEFORGE_DB_PATH) {
+      const { DatabaseSync } = await import('node:sqlite');
+      const db = new DatabaseSync(process.env.AGILEFORGE_DB_PATH);
+      db.prepare('UPDATE agent_memories SET role_id = ? WHERE id = ?').run('chief-architect', memId);
+      db.prepare('INSERT INTO comments (id, task_id, author_role, author_name, avatar, content) VALUES (?, ?, ?, ?, ?, ?)').run(
+        'COM-ALIAS-' + Date.now(), t.id, 'qa-security', 'QA Legacy', '🛡️', 'Comentario con alias legado'
+      );
+      db.prepare('INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+        meetId, 1, 'unknown', 'Invitado', 'unknown', '🤖', 'local', 'Turno sin rol canónico', '12:00'
+      );
+      db.prepare('INSERT INTO meeting_turns (meeting_id, turn_index, role_id, name, alias, avatar, ai_model, statement, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+        meetId, 2, 'chief-architect', 'Arquitecto', 'Arch', '🏛️', 'gemini-4-argon', 'Turno con alias legado', '12:01'
+      );
+      db.prepare('UPDATE meetings SET action_items_json = ? WHERE id = ?').run(
+        JSON.stringify([{ title: 'Revisar alias', assigned_to: 'chief-architect', story_points: 2 }]),
+        meetId
+      );
+      db.close();
+    }
+
+    const r = bitacora(['--vault', vault, '--root', ROOT]);
+    assert.equal(r.code, 0, r.out);
+
+    const memMd = read(vault, 'bitacora', 'memoria', `${memId}.md`);
+    assert.match(memMd, /^rol:\s*"?lead_architect"?$/m, 'frontmatter rol debe normalizar chief-architect a lead_architect');
+    assert.match(memMd, /\[\[bitacora\/roles\/lead_architect\|/);
+
+    const storyMd = read(vault, 'bitacora', 'historias', `${t.id}.md`);
+    assert.match(storyMd, /\[\[bitacora\/roles\/qa_security_guard\|/, 'comentario qa-security debe normalizarse a qa_security_guard');
+
+    const meetMd = read(vault, 'bitacora', 'reuniones', `${meetId}.md`);
+    assert.match(meetMd, /\[\[bitacora\/roles\/lead_architect\|/, 'acuerdo y turno chief-architect normalizan a lead_architect');
+    assert.doesNotMatch(meetMd, /\[\[bitacora\/roles\/unknown\|/, 'unknown no debe generar wikilink roto');
+    assert.ok(meetMd.includes('`unknown`'), 'unknown debe renderizarse como código plano');
+    assert.ok(!fs.existsSync(path.join(vault, 'bitacora', 'roles', 'unknown.md')), 'no debe existir roles/unknown.md');
+
+    // Aislamiento de decisiones: el vault del proyecto actual tiene su ADR y no el de default
+    assert.ok(fs.existsSync(path.join(vault, 'bitacora', 'decisiones', `${adrProjId}.md`)));
+    assert.ok(!fs.existsSync(path.join(vault, 'bitacora', 'decisiones', `${adrDefaultId}.md`)));
+  } finally {
+    await action('switch_project', { project_id: origProject });
+    fs.rmSync(path.dirname(vault), { recursive: true, force: true });
+  }
 });

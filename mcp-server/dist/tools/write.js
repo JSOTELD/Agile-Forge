@@ -137,6 +137,7 @@ export function registerWriteTools(server, c) {
             decision: z.string().min(10),
             consequences: z.string().min(10),
             status: z.enum(['proposed', 'accepted', 'rejected', 'deprecated']).default('accepted'),
+            project_id: z.string().optional().describe('ID del proyecto (por defecto el activo)'),
         },
         annotations: WRITE,
     }, (a) => post('decisions', a));

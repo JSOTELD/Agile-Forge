@@ -127,7 +127,7 @@ class BoardService
         return $row ?: null;
     }
 
-    /** Busca un rol por id exacto o por nombre/alias aproximado (útil para lo que escribe una IA). */
+    /** Busca un rol por id exacto, slug de agente/alias legado o nombre aproximado (útil para lo que escribe una IA). */
     public function matchRoleId(string $text): ?string
     {
         $text = trim($text);
@@ -135,15 +135,50 @@ class BoardService
             return null;
         }
         $roles = $this->pdo->query("SELECT id, name, alias FROM roles")->fetchAll();
+        $idsByLow = [];
         foreach ($roles as $r) {
-            if (strcasecmp($r['id'], $text) === 0) {
-                return $r['id'];
+            $idsByLow[mb_strtolower((string)$r['id'])] = (string)$r['id'];
+            if (strcasecmp((string)$r['id'], $text) === 0) {
+                return (string)$r['id'];
             }
         }
-        $needle = mb_strtolower($text);
+
+        $low = mb_strtolower($text);
+        $snake = str_replace('-', '_', $low);
+        if (isset($idsByLow[$snake])) {
+            return $idsByLow[$snake];
+        }
+
+        $legacyMap = [
+            'chief-architect'   => 'lead_architect',
+            'chief_architect'   => 'lead_architect',
+            'backend'           => 'backend_architect',
+            'frontend'          => 'frontend_master',
+            'qa-security'       => 'qa_security_guard',
+            'qa_security'       => 'qa_security_guard',
+            'legal-compliance'  => 'legal_counsel',
+            'legal_compliance'  => 'legal_counsel',
+            'creative-director' => 'creative_director',
+            'project-manager'   => 'project_manager',
+        ];
+        if (isset($legacyMap[$low]) && isset($idsByLow[$legacyMap[$low]])) {
+            return $idsByLow[$legacyMap[$low]];
+        }
+
+        try {
+            foreach ($this->registry()->all() as $regId => $regRole) {
+                $agentSlug = mb_strtolower(trim((string)($regRole['agent'] ?? '')));
+                if ($agentSlug !== '' && $agentSlug === $low && isset($idsByLow[mb_strtolower((string)$regId)])) {
+                    return $idsByLow[mb_strtolower((string)$regId)];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Si el registro en archivos no está disponible, se continúa con la coincidencia de BD
+        }
+
         foreach ($roles as $r) {
-            if (str_contains(mb_strtolower($r['name'] . ' ' . $r['alias'] . ' ' . $r['id']), $needle)) {
-                return $r['id'];
+            if (str_contains(mb_strtolower($r['name'] . ' ' . $r['alias'] . ' ' . $r['id']), $low)) {
+                return (string)$r['id'];
             }
         }
         return null;
@@ -256,6 +291,25 @@ class BoardService
             throw new InvalidArgumentException("La historia {$id} no existe");
         }
 
+        if ($client !== 'web') {
+            $activeId = $this->activeProjectId();
+            if (!empty($task['project_id']) && (string)$task['project_id'] !== $activeId) {
+                throw new InvalidArgumentException("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'.");
+            }
+            $ev = is_array($task['review_evidence'] ?? null)
+                ? $task['review_evidence']
+                : (json_decode((string)($task['review_evidence_json'] ?? ''), true) ?: []);
+            if (($task['status'] ?? '') === 'revision' && !empty($ev['qa_approved'])) {
+                throw new InvalidArgumentException('Aprobada por QA: espera la firma humana en el panel');
+            }
+            if (!empty($task['locked_by'])) {
+                $lockedAt = Repository::utcTimestamp($task['locked_at'] ?? null) ?? time();
+                if ((time() - $lockedAt) < 1800 && ($actor === null || $actor === '' || $actor !== $task['locked_by'])) {
+                    throw new InvalidArgumentException("La historia está bloqueada por el rol: {$task['locked_by']}");
+                }
+            }
+        }
+
         $set = [];
         $params = [];
         $changes = [];
@@ -302,6 +356,9 @@ class BoardService
             }
             if ($st === 'completada' && !$allowComplete) {
                 throw new InvalidArgumentException('Marcar una historia como completada requiere tu aprobación desde el tablero.');
+            }
+            if ($st === 'revision' && $client !== 'web') {
+                throw new InvalidArgumentException('No se puede mover directamente a revisión sin evidencia: usa submit_for_review con las pruebas ejecutadas.');
             }
             $set[] = 'status = ?';
             $params[] = $st;

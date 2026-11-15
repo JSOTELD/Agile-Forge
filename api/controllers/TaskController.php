@@ -310,18 +310,36 @@ class TaskController
             }
         }
 
-        $filesChanged = $evidence['files_changed'] ?? [];
+        $rawFiles = $evidence['files_changed'] ?? [];
+        if (!is_array($rawFiles)) {
+            Bootstrap::fail('evidence.files_changed debe ser una lista de rutas de archivo.', 422);
+        }
+        $filesChanged = [];
+        foreach ($rawFiles as $f) {
+            if (!is_string($f) || trim($f) === '') {
+                Bootstrap::fail('evidence.files_changed debe contener solo cadenas de texto no vacías.', 422);
+            }
+            $filesChanged[] = trim($f);
+        }
         $summary = trim((string)($evidence['summary'] ?? ''));
-        $testsRun = (array)($evidence['tests_run'] ?? []);
+        $rawTests = $evidence['tests_run'] ?? null;
 
-        if (empty($testsRun)) {
+        if (!is_array($rawTests) || empty($rawTests)) {
             Bootstrap::fail('Se requiere evidencia de pruebas ejecutadas (evidence.tests_run no puede estar vacío).', 422);
+        }
+        $testsRun = [];
+        foreach ($rawTests as $t) {
+            if (!is_string($t) || trim($t) === '') {
+                Bootstrap::fail('evidence.tests_run debe contener solo cadenas de texto no vacías.', 422);
+            }
+            $testsRun[] = trim($t);
         }
 
         if (mb_strlen($summary) < 20) {
             Bootstrap::fail('El resumen de entrega (evidence.summary) debe tener al menos 20 caracteres.', 422);
         }
 
+        $evidence['files_changed'] = $filesChanged;
         $evidence['tests_run'] = $testsRun;
         $evidence['summary'] = $summary;
 
@@ -374,7 +392,7 @@ class TaskController
      * Si human_signoff está inactivo, pasa directo a "completada".
      * request_changes devuelve a "en_progreso" manteniendo el lock del desarrollador.
      */
-    public function review(string $id, string $decision, array $checklist, string $reviewerRole, ?array $verification = null): void
+    public function review(string $id, string $decision, array $checklist, string $reviewerRole, ?array $verification = null, string $client = 'mcp'): void
     {
         $reviewerRole = trim($reviewerRole);
         if (!in_array($decision, ['approve', 'request_changes'], true)) {
@@ -388,6 +406,16 @@ class TaskController
         if (!$task) {
             Bootstrap::fail('Tarea no encontrada', 404);
         }
+
+        // Bug 5: OTRO PROYECTO
+        if ($client !== 'web') {
+            $activeProj = $this->repo->getActiveProject();
+            $activeId = (string)($activeProj['id'] ?? 'default');
+            if (($task['project_id'] ?? '') !== $activeId) {
+                Bootstrap::fail("La historia '{$id}' pertenece al proyecto '{$task['project_id']}', no al proyecto activo '{$activeId}'. Cambia de proyecto o usa el panel web.", 409);
+            }
+        }
+
         if (($task['status'] ?? '') !== 'revision') {
             Bootstrap::fail("La historia está en '{$task['status']}': solo se revisa una historia en estado 'revision' (entrégala antes con submit_for_review).", 409);
         }
@@ -682,15 +710,37 @@ class TaskController
             }
         }
 
+        $realWs = realpath($cleanWs);
+        $realWsNorm = $realWs !== false ? rtrim(str_replace('\\', '/', $realWs), '/') : $cleanWs;
+        $realApp = realpath(dirname(__DIR__, 2));
+        $realAppNorm = $realApp !== false ? rtrim(str_replace('\\', '/', $realApp), '/') : rtrim(str_replace('\\', '/', dirname(__DIR__, 2)), '/');
+
         $missing = [];
         foreach ($files as $file) {
             $norm = str_replace('\\', '/', trim((string)$file));
-            // Los agentes suelen reportar rutas absolutas: si está dentro del workspace se pasa a relativa;
-            // si es absoluta y existe en disco, también vale como evidencia
-            if ($norm !== '' && (preg_match('#^[A-Za-z]:/#', $norm) || str_starts_with($norm, '/'))) {
+            if ($norm === '') {
+                continue;
+            }
+            if (str_contains($norm, '..') || str_contains($norm, "\0")) {
+                $missing[] = $norm;
+                continue;
+            }
+            // Solo aceptar rutas absolutas si caen estrictamente dentro del workspace del proyecto o de la raíz de la app
+            if (preg_match('#^[A-Za-z]:/#', $norm) || str_starts_with($norm, '/')) {
                 if (strcasecmp(substr($norm, 0, strlen($cleanWs) + 1), $cleanWs . '/') === 0) {
                     $norm = substr($norm, strlen($cleanWs) + 1);
-                } elseif (file_exists($norm)) {
+                } elseif (strcasecmp(substr($norm, 0, strlen($realWsNorm) + 1), $realWsNorm . '/') === 0) {
+                    $norm = substr($norm, strlen($realWsNorm) + 1);
+                } else {
+                    $realAbs = realpath($norm);
+                    if ($realAbs !== false && file_exists($realAbs)) {
+                        $realAbsNorm = str_replace('\\', '/', $realAbs);
+                        if (strcasecmp(substr($realAbsNorm, 0, strlen($realWsNorm) + 1), $realWsNorm . '/') === 0
+                            || strcasecmp(substr($realAbsNorm, 0, strlen($realAppNorm) + 1), $realAppNorm . '/') === 0) {
+                            continue;
+                        }
+                    }
+                    $missing[] = $norm;
                     continue;
                 }
             }
@@ -699,6 +749,16 @@ class TaskController
 
             $fullPath = $cleanWs . '/' . $norm;
             $existsOnDisk = file_exists($fullPath);
+            if ($existsOnDisk && $realWs !== false) {
+                $realFile = realpath($fullPath);
+                if ($realFile !== false) {
+                    $realFileNorm = str_replace('\\', '/', $realFile);
+                    if (strcasecmp(substr($realFileNorm, 0, strlen($realWsNorm) + 1), $realWsNorm . '/') !== 0
+                        && strcasecmp($realFileNorm, $realWsNorm) !== 0) {
+                        $existsOnDisk = false;
+                    }
+                }
+            }
             $existsInGit = isset($gitChangedFiles[$norm]);
 
             if (!$existsOnDisk && !$existsInGit) {

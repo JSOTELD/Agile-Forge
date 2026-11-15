@@ -52,10 +52,23 @@ class SettingController
         $countryCode = strtoupper(trim((string)($input['country_code'] ?? 'PE')));
         $countryName = trim((string)($input['country_name'] ?? 'Perú'));
         $flag = trim((string)($input['flag'] ?? '🇵🇪'));
+        if (array_key_exists('regulations', $input) && $input['regulations'] !== null && !is_array($input['regulations'])) {
+            Bootstrap::fail('El campo "regulations" debe ser una lista de cadenas de texto.', 422);
+        }
         $regulations = is_array($input['regulations'] ?? null) ? $input['regulations'] : [];
         $autoDetected = !empty($input['auto_detected']);
 
-        $cleanRegs = array_values(array_unique(array_filter(array_map('trim', $regulations))));
+        $trimmed = [];
+        foreach ($regulations as $reg) {
+            if (!is_string($reg)) {
+                Bootstrap::fail('Todos los elementos de "regulations" deben ser cadenas de texto.', 422);
+            }
+            $t = trim($reg);
+            if ($t !== '') {
+                $trimmed[] = $t;
+            }
+        }
+        $cleanRegs = array_values(array_unique($trimmed));
 
         $jurisdiction = [
             'country_code'  => $countryCode,
@@ -374,7 +387,19 @@ class SettingController
         $flag = $e($juris['flag'] ?? '');
         $regs = array_map($e, array_slice(is_array($juris['regulations'] ?? null) ? $juris['regulations'] : [], 0, 6));
         $regsList = $regs ? implode('', array_map(static fn($r) => "\n            <li>{$r}</li>", $regs)) : "\n            <li>La normativa vigente de protección de datos y defensa del consumidor.</li>";
-        $ws = (string)($project['path'] ?? $this->repo->getSetting('active_workspace', dirname(__DIR__, 2)));
+        if (array_key_exists('workspace', $input) && $input['workspace'] !== null && !is_string($input['workspace'])) {
+            Bootstrap::fail('El campo "workspace" debe ser una cadena de texto.', 422);
+        }
+        $rawWs = is_string($input['workspace'] ?? null) && trim($input['workspace']) !== ''
+            ? trim($input['workspace'])
+            : trim((string)($project['path'] ?? $this->repo->getSetting('active_workspace', dirname(__DIR__, 2))));
+        $appRoot = dirname(__DIR__, 2);
+        $isAbsWs = $rawWs !== '' && (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $rawWs);
+        if (!$isAbsWs) {
+            $ws = ($rawWs === '' || $rawWs === '.') ? $appRoot : $appRoot . DIRECTORY_SEPARATOR . ltrim($rawWs, './\\');
+        } else {
+            $ws = $rawWs;
+        }
 
         $filename = $types[$docType];
         if ($docType === 'terminos') {
@@ -472,6 +497,12 @@ HTML;
         $saved = false;
         $savedPath = null;
         if ($saveToWorkspace) {
+            try {
+                $ws = Bootstrap::validateWorkspacePath($ws);
+                Bootstrap::assertNotEngineCriticalDir($ws);
+            } catch (\InvalidArgumentException $ex) {
+                Bootstrap::fail($ex->getMessage(), 422, ['content' => $generated, 'filename' => $filename]);
+            }
             if (!is_dir($ws) || !is_writable($ws)) {
                 Bootstrap::fail("No puedo escribir en la carpeta del proyecto: {$ws}", 422, ['content' => $generated, 'filename' => $filename]);
             }
@@ -537,6 +568,352 @@ HTML;
             'project_id' => $projectId,
             'enabled'    => $enabled,
             'setting'    => $this->repo->getSetting('human_signoff')
+        ]);
+    }
+
+    /**
+     * Resuelve la carpeta del workspace del proyecto activo (o appRoot si es '.' o vacío).
+     */
+    private function resolveWorkspaceRoot(?array $project = null): string
+    {
+        $project = $project ?? $this->repo->getActiveProject();
+        $appRoot = dirname(__DIR__, 2);
+        $raw = trim((string)($project['path'] ?? $this->repo->getSetting('active_workspace', $appRoot)));
+        if ($raw === '' || $raw === '.') {
+            return $appRoot;
+        }
+        $isAbs = (bool)preg_match('#^([A-Za-z]:[\\\\/]|[\\\\/])#', $raw);
+        return $isAbs ? $raw : $appRoot . DIRECTORY_SEPARATOR . ltrim($raw, './\\');
+    }
+
+    /**
+     * M5 Backend: Endpoint ligero y solo-lectura de salud/frescura de grafos
+     * (graphify-out/GRAPH_REPORT.md, .agileforge/grafos.md y .agileforge/vault/.agileforge-bitacora.json).
+     */
+    public function graphHealth(): void
+    {
+        $project = $this->repo->getActiveProject();
+        $wsRaw = $this->resolveWorkspaceRoot($project);
+        $wsExists = false;
+        $ws = $wsRaw;
+        try {
+            $ws = Bootstrap::validateWorkspacePath($wsRaw);
+            $wsExists = true;
+        } catch (\InvalidArgumentException $e) {
+            $wsExists = false;
+        }
+
+        // 1. Receta (.agileforge/grafos.md)
+        $recipeExists = false;
+        $recipeStatus = null;
+        $recipeProject = null;
+        if ($wsExists) {
+            $recipePath = $ws . DIRECTORY_SEPARATOR . '.agileforge' . DIRECTORY_SEPARATOR . 'grafos.md';
+            if (is_file($recipePath) && is_readable($recipePath)) {
+                $recipeExists = true;
+                $head = (string)@file_get_contents($recipePath, false, null, 0, 4096);
+                if (preg_match('/^estado:\s*([a-zA-Z0-9_-]+)/m', $head, $m)) {
+                    $recipeStatus = strtolower($m[1]);
+                }
+                if (preg_match('/Proyecto del tablero:\*?\*?\s*`?([A-Za-z0-9_.-]+)`?/iu', $head, $m)) {
+                    $recipeProject = $m[1];
+                }
+            }
+        }
+
+        // 2. Grafo de código (graphify-out/GRAPH_REPORT.md + graph.json)
+        $reportExists = false;
+        $graphJsonExists = false;
+        $graphUpdatedAt = null;
+        $reportDate = null;
+        $builtCommit = null;
+        $headCommit = null;
+        $commitsBehind = null;
+        $stale = null;
+        $clusterOnly = false;
+        $nodes = null;
+        $edges = null;
+        $communities = null;
+
+        if ($wsExists) {
+            $reportPath = $ws . DIRECTORY_SEPARATOR . 'graphify-out' . DIRECTORY_SEPARATOR . 'GRAPH_REPORT.md';
+            $graphJsonPath = $ws . DIRECTORY_SEPARATOR . 'graphify-out' . DIRECTORY_SEPARATOR . 'graph.json';
+            $graphJsonExists = is_file($graphJsonPath);
+            if ($graphJsonExists) {
+                $mtime = @filemtime($graphJsonPath);
+                if ($mtime !== false) {
+                    $graphUpdatedAt = gmdate('Y-m-d\TH:i:s\Z', $mtime);
+                }
+            }
+
+            if (is_file($reportPath) && is_readable($reportPath)) {
+                $reportExists = true;
+                $head = (string)@file_get_contents($reportPath, false, null, 0, 4096);
+                if (preg_match('/\(\s*(\d{4}-\d{2}-\d{2})\s*\)/', $head, $m)) {
+                    $reportDate = $m[1];
+                }
+                $clusterOnly = str_contains($head, 'cluster-only mode');
+                if (preg_match('/([\d,]+)\s+nodes\s+[·\-]\s+([\d,]+)\s+edges\s+[·\-]\s+([\d,]+)\s+communities/u', $head, $m)) {
+                    $nodes = (int)str_replace(',', '', $m[1]);
+                    $edges = (int)str_replace(',', '', $m[2]);
+                    $communities = (int)str_replace(',', '', $m[3]);
+                }
+                if (preg_match('/Built from commit:\s*`?([0-9a-fA-F]{6,40})`?/i', $head, $m)) {
+                    $builtCommit = strtolower($m[1]);
+                }
+                if ($graphUpdatedAt === null) {
+                    $rMtime = @filemtime($reportPath);
+                    if ($rMtime !== false) {
+                        $graphUpdatedAt = gmdate('Y-m-d\TH:i:s\Z', $rMtime);
+                    }
+                }
+            }
+
+            if (is_dir($ws . DIRECTORY_SEPARATOR . '.git') && function_exists('exec')) {
+                $out = [];
+                $code = 0;
+                @exec('git -C ' . escapeshellarg($ws) . ' rev-parse --short HEAD 2>&1', $out, $code);
+                if ($code === 0 && !empty($out[0]) && preg_match('/^[0-9a-f]{6,40}$/i', trim($out[0]))) {
+                    $headCommit = strtolower(trim($out[0]));
+                }
+                if ($reportExists && $builtCommit !== null && $headCommit !== null) {
+                    $same = str_starts_with($headCommit, $builtCommit) || str_starts_with($builtCommit, $headCommit);
+                    if ($same) {
+                        $stale = false;
+                        $commitsBehind = 0;
+                    } else {
+                        $stale = true;
+                        $cntOut = [];
+                        $cntCode = 0;
+                        @exec('git -C ' . escapeshellarg($ws) . ' rev-list --count ' . escapeshellarg($builtCommit) . '..HEAD 2>&1', $cntOut, $cntCode);
+                        if ($cntCode === 0 && isset($cntOut[0]) && is_numeric(trim($cntOut[0]))) {
+                            $commitsBehind = (int)trim($cntOut[0]);
+                        }
+                    }
+                } elseif ($reportExists) {
+                    $stale = false;
+                }
+            } elseif ($reportExists) {
+                $stale = false;
+            }
+        }
+
+        // 3. Bóveda Obsidian (.agileforge/vault/)
+        $vaultExists = false;
+        $indexExists = false;
+        $vaultProject = null;
+        $vaultGeneratedAt = null;
+        $vaultRenderer = null;
+        $vaultNotesCount = 0;
+        $codeNotesCount = 0;
+
+        if ($wsExists) {
+            $vaultDir = $ws . DIRECTORY_SEPARATOR . '.agileforge' . DIRECTORY_SEPARATOR . 'vault';
+            $vaultExists = is_dir($vaultDir);
+            if ($vaultExists) {
+                $indexExists = is_file($vaultDir . DIRECTORY_SEPARATOR . 'bitacora' . DIRECTORY_SEPARATOR . '_indice.md');
+                $manifestPath = $vaultDir . DIRECTORY_SEPARATOR . '.agileforge-bitacora.json';
+                if (is_file($manifestPath) && is_readable($manifestPath) && filesize($manifestPath) <= 5 * 1024 * 1024) {
+                    $manifest = json_decode((string)@file_get_contents($manifestPath), true);
+                    if (is_array($manifest)) {
+                        $vaultProject = is_string($manifest['project'] ?? null) ? $manifest['project'] : null;
+                        $vaultGeneratedAt = is_string($manifest['generated_at'] ?? null) ? $manifest['generated_at'] : null;
+                        $vaultRenderer = isset($manifest['renderer']) ? (int)$manifest['renderer'] : null;
+                        $vaultNotesCount = is_array($manifest['files'] ?? null) ? count($manifest['files']) : 0;
+                    }
+                }
+                $codigoDir = $vaultDir . DIRECTORY_SEPARATOR . 'codigo';
+                if (is_dir($codigoDir)) {
+                    try {
+                        $it = new \FilesystemIterator($codigoDir, \FilesystemIterator::SKIP_DOTS);
+                        foreach ($it as $entry) {
+                            if ($entry->isFile() && strtolower($entry->getExtension()) === 'md') {
+                                $codeNotesCount++;
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        $codeNotesCount = 0;
+                    }
+                }
+            }
+        }
+
+        $overall = 'missing';
+        if ($reportExists) {
+            $overall = ($stale === true || !$indexExists) ? 'stale' : 'fresh';
+        } elseif ($vaultExists && $indexExists) {
+            $overall = 'stale';
+        }
+
+        Bootstrap::jsonResponse([
+            'success'          => true,
+            'status'           => $overall,
+            'project_id'       => (string)($project['id'] ?? 'default'),
+            'workspace_exists' => $wsExists,
+            'recipe'           => [
+                'exists'  => $recipeExists,
+                'status'  => $recipeStatus,
+                'project' => $recipeProject,
+            ],
+            'code_graph'       => [
+                'exists'            => $reportExists,
+                'graph_json_exists' => $graphJsonExists,
+                'updated_at'        => $graphUpdatedAt,
+                'report_date'       => $reportDate,
+                'built_commit'      => $builtCommit,
+                'head_commit'       => $headCommit,
+                'commits_behind'    => $commitsBehind,
+                'stale'             => $stale,
+                'cluster_only'      => $clusterOnly,
+                'nodes'             => $nodes,
+                'edges'             => $edges,
+                'communities'       => $communities,
+            ],
+            'vault'            => [
+                'exists'           => $vaultExists,
+                'index_exists'     => $indexExists,
+                'project'          => $vaultProject,
+                'generated_at'     => $vaultGeneratedAt,
+                'renderer'         => $vaultRenderer,
+                'notes_count'      => $vaultNotesCount,
+                'code_notes_count' => $codeNotesCount,
+            ],
+        ]);
+    }
+
+    /**
+     * M5 Backend: Dispara la sincronización incremental de bitacora.mjs solo desde el panel web (client: "web").
+     * Pasa AGILEFORGE_VIEW_TOKEN por variables de entorno del proceso hijo sin exponerlo en logs ni respuestas JSON.
+     */
+    public function syncBitacora(array $input): void
+    {
+        $client = (string)($input['client'] ?? '');
+        if ($client !== 'web') {
+            Bootstrap::fail('Sincronizar la bitácora requiere acceso desde el panel web (client: "web").', 403);
+        }
+
+        if (!function_exists('proc_open')) {
+            Bootstrap::fail('proc_open() no está habilitado en este entorno PHP para ejecutar bitacora.mjs.', 501);
+        }
+
+        $project = $this->repo->getActiveProject();
+        if (!empty($input['project_id']) && is_string($input['project_id'])) {
+            try {
+                $project = $this->repo->resolveProject(trim($input['project_id']));
+            } catch (\InvalidArgumentException $e) {
+                Bootstrap::fail($e->getMessage(), 404);
+            }
+        }
+
+        $wsRaw = $this->resolveWorkspaceRoot($project);
+        try {
+            $ws = Bootstrap::validateWorkspacePath($wsRaw);
+            Bootstrap::assertNotEngineCriticalDir($ws);
+        } catch (\InvalidArgumentException $e) {
+            Bootstrap::fail($e->getMessage(), 422);
+        }
+
+        $appRoot = dirname(__DIR__, 2);
+        $script = $appRoot . DIRECTORY_SEPARATOR . 'plugin' . DIRECTORY_SEPARATOR . 'agileforge' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'bitacora.mjs';
+        if (!is_file($script)) {
+            Bootstrap::fail('No se encontró el script bitacora.mjs.', 500);
+        }
+
+        $vaultPath = $ws . DIRECTORY_SEPARATOR . '.agileforge' . DIRECTORY_SEPARATOR . 'vault';
+        $projectId = (string)($project['id'] ?? 'default');
+        $nodeBin = trim((string)(getenv('AGILEFORGE_NODE') ?: 'node')) ?: 'node';
+
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '127.0.0.1');
+        $scriptDir = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/api/tasks.php'))), '/');
+        $apiUrl = "{$scheme}://{$host}{$scriptDir}";
+
+        $viewToken = Bootstrap::viewToken();
+        $apiToken = Bootstrap::getToken();
+        $tokenForScript = $viewToken !== '' ? $viewToken : $apiToken;
+
+        $allEnv = getenv();
+        $childEnv = is_array($allEnv) ? array_merge($allEnv, $_ENV) : $_ENV;
+        foreach (['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TMPDIR', 'TMP', 'TEMP', 'HOME', 'USERPROFILE'] as $k) {
+            $v = getenv($k);
+            if ($v !== false && !isset($childEnv[$k])) {
+                $childEnv[$k] = $v;
+            }
+        }
+        unset($childEnv['AGILEFORGE_API_TOKEN']);
+        $childEnv['AGILEFORGE_API_URL'] = $apiUrl;
+        $childEnv['AGILEFORGE_BITACORA_INTERVAL_MS'] = '0';
+        if ($viewToken !== '') {
+            $childEnv['AGILEFORGE_VIEW_TOKEN'] = $viewToken;
+        } elseif ($apiToken !== '') {
+            $childEnv['AGILEFORGE_API_TOKEN'] = $apiToken;
+        }
+
+        $singleThreadServer = php_sapi_name() === 'cli-server' && (int)(getenv('PHP_CLI_SERVER_WORKERS') ?: 0) < 2;
+        if ($singleThreadServer) {
+            $nullDev = PHP_OS_FAMILY === 'Windows' ? 'nul' : '/dev/null';
+            if (PHP_OS_FAMILY === 'Windows') {
+                $cmd = 'start /B "" ' . escapeshellarg($nodeBin) . ' ' . escapeshellarg($script)
+                    . ' --vault ' . escapeshellarg($vaultPath)
+                    . ' --project ' . escapeshellarg($projectId)
+                    . ' --root ' . escapeshellarg($ws);
+                $proc = @proc_open($cmd, [0 => ['file', $nullDev, 'r'], 1 => ['file', $nullDev, 'w'], 2 => ['file', $nullDev, 'w']], $pipes, $appRoot, $childEnv);
+            } else {
+                $cmd = escapeshellarg($nodeBin) . ' ' . escapeshellarg($script)
+                    . ' --vault ' . escapeshellarg($vaultPath)
+                    . ' --project ' . escapeshellarg($projectId)
+                    . ' --root ' . escapeshellarg($ws)
+                    . ' >/dev/null 2>&1 &';
+                $proc = @proc_open($cmd, [0 => ['file', $nullDev, 'r'], 1 => ['file', $nullDev, 'w'], 2 => ['file', $nullDev, 'w']], $pipes, $appRoot, $childEnv);
+            }
+            if (is_resource($proc)) {
+                @proc_close($proc);
+            }
+            Bootstrap::jsonResponse([
+                'success'    => true,
+                'queued'     => true,
+                'project_id' => $projectId,
+                'vault'      => $vaultPath,
+                'message'    => 'Sincronización de bitácora iniciada en segundo plano.',
+            ]);
+        }
+
+        $cmdArr = [$nodeBin, $script, '--vault', $vaultPath, '--project', $projectId, '--root', $ws];
+        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $proc = @proc_open($cmdArr, $descriptors, $pipes, $appRoot, $childEnv);
+        if (!is_resource($proc)) {
+            Bootstrap::fail('No se pudo iniciar node para ejecutar bitacora.mjs.', 500);
+        }
+        @fclose($pipes[0]);
+        $stdout = (string)stream_get_contents($pipes[1]);
+        $stderr = (string)stream_get_contents($pipes[2]);
+        @fclose($pipes[1]);
+        @fclose($pipes[2]);
+        $exitCode = proc_close($proc);
+
+        $scrub = static function (string $s) use ($tokenForScript, $apiToken, $viewToken): string {
+            foreach (array_filter([$tokenForScript, $apiToken, $viewToken]) as $sec) {
+                $s = str_replace($sec, '***', $s);
+            }
+            return trim($s);
+        };
+
+        $outClean = $scrub($stdout);
+        $errClean = $scrub($stderr);
+        if ($exitCode !== 0) {
+            Bootstrap::fail(
+                'Error al sincronizar la bitácora' . ($errClean !== '' ? ": {$errClean}" : ''),
+                500,
+                ['exit_code' => $exitCode, 'output' => $outClean]
+            );
+        }
+
+        Bootstrap::jsonResponse([
+            'success'    => true,
+            'queued'     => false,
+            'project_id' => $projectId,
+            'vault'      => $vaultPath,
+            'output'     => $outClean,
         ]);
     }
 }

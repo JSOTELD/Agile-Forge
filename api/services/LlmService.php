@@ -84,6 +84,29 @@ class LlmService
                 return (string)$m['id'];
             }
         }
+        if ($providerId === 'google' && $model !== '') {
+            $low = strtolower($model);
+            $googleAliases = [
+                'argon'                  => 'gemini-4-argon',
+                'gemini-4-argon'         => 'gemini-4-argon',
+                'hydrogen'               => 'gemini-4-hydrogen',
+                'gemini-4-hydrogen'      => 'gemini-4-hydrogen',
+                'flash'                  => 'gemini-3.8-flash',
+                'gemini-3.8-flash'       => 'gemini-3.8-flash',
+                'gemini-3.1-pro-preview' => 'gemini-3.1-pro-preview',
+                'gemini-3.1-pro'         => 'gemini-3.1-pro-preview',
+                'gemini-3.1-flash-lite'  => 'gemini-3.1-flash-lite',
+                'gemini-3-flash-preview' => 'gemini-3-flash-preview',
+                'gemini-3-flash'         => 'gemini-3-flash-preview',
+                'gemini-2.5-pro'         => 'gemini-2.5-pro',
+                'gemini-2.5-flash'       => 'gemini-2.5-flash',
+            ];
+            foreach ($googleAliases as $prefix => $canonical) {
+                if ($low === $prefix || str_starts_with($low, $prefix . '-')) {
+                    return $canonical;
+                }
+            }
+        }
         return (string)($p['default_model'] ?? ($p['models'][0]['id'] ?? $model));
     }
 
@@ -276,8 +299,8 @@ class LlmService
                     ];
                 }
                 $payload = ['contents' => $contents, 'generationConfig' => ['maxOutputTokens' => $maxTokens]];
-                if (str_starts_with($modelId, 'gemini-3')) {
-                    // Gemini 3 "piensa" por defecto y ese razonamiento consume el límite de salida
+                if (str_starts_with($modelId, 'gemini-3') || str_starts_with($modelId, 'gemini-4')) {
+                    // Gemini 3/4 "piensa" por defecto y ese razonamiento consume el límite de salida
                     $payload['generationConfig']['thinkingConfig'] = ['thinkingLevel' => 'low'];
                 }
                 if ($systemPrompt !== '') {
@@ -291,7 +314,8 @@ class LlmService
                     }
                 }
                 $inputTokens = (int)($res['usageMetadata']['promptTokenCount'] ?? 0);
-                $outputTokens = (int)($res['usageMetadata']['candidatesTokenCount'] ?? 0);
+                $outputTokens = (int)($res['usageMetadata']['candidatesTokenCount'] ?? 0)
+                    + (int)($res['usageMetadata']['thoughtsTokenCount'] ?? 0);
                 break;
 
             case 'ollama':
@@ -401,6 +425,79 @@ class LlmService
         return trim($text);
     }
 
+    /**
+     * Llamada directa a la API generateContent de Google Gemini (usada por el Director con functionDeclarations nativas).
+     * Reintenta una vez ante saturación (429/503/529).
+     */
+    public function googleRaw(string $modelId, array $payload, int $timeout = 120): array
+    {
+        $apiKey = $this->apiKey('google');
+        if ($apiKey === '') {
+            throw new RuntimeException('Falta la clave de API de Google Gemini (GEMINI_API_KEY). Agrégala en Motor IA → Claves de API.');
+        }
+        $modelId = $this->normalizeModel('google', $modelId);
+        $endpoint = rtrim((string)($this->providerConfig('google')['endpoint'] ?? 'https://generativelanguage.googleapis.com/v1beta'), '/');
+        $url = "{$endpoint}/models/{$modelId}:generateContent";
+        $headers = [
+            'Content-Type: application/json',
+            'x-goog-api-key: ' . $apiKey,
+        ];
+
+        try {
+            return $this->httpPost($url, $payload, $headers, $timeout);
+        } catch (RuntimeException $e) {
+            if (preg_match('/HTTP (429|529|503)/', $e->getMessage())) {
+                sleep(2);
+                return $this->httpPost($url, $payload, $headers, $timeout);
+            }
+            throw $e;
+        }
+    }
+
+    /** Alias de compatibilidad para googleRaw(). */
+    public function geminiRaw(string $modelId, array $payload, int $timeout = 120): array
+    {
+        return $this->googleRaw($modelId, $payload, $timeout);
+    }
+
+    /** Extrae el texto visible (excluyendo bloques de pensamiento y functionCall) de una respuesta de Gemini. */
+    public function googleText(array $res): string
+    {
+        $text = '';
+        foreach ($res['candidates'][0]['content']['parts'] ?? [] as $part) {
+            if (empty($part['thought']) && !isset($part['functionCall']) && isset($part['text'])) {
+                $text .= (string)$part['text'];
+            }
+        }
+        $text = (string)preg_replace('/<think>.*?<\/think>/s', '', $text);
+        return trim($text);
+    }
+
+    /** Alias de compatibilidad para googleText(). */
+    public function geminiText(array $res): string
+    {
+        return $this->googleText($res);
+    }
+
+    /** Extrae las llamadas a función (functionCall) de una respuesta de Gemini. */
+    public function googleFunctionCalls(array $res): array
+    {
+        $calls = [];
+        foreach ($res['candidates'][0]['content']['parts'] ?? [] as $part) {
+            if (isset($part['functionCall']) && is_array($part['functionCall'])) {
+                $fc = $part['functionCall'];
+                $name = (string)($fc['name'] ?? '');
+                if ($name !== '') {
+                    $calls[] = [
+                        'name' => $name,
+                        'args' => is_array($fc['args'] ?? null) ? $fc['args'] : [],
+                    ];
+                }
+            }
+        }
+        return $calls;
+    }
+
     /** Prueba rápida de conexión con un proveedor (respuesta mínima). */
     public function testProvider(string $providerId, ?string $model = null): array
     {
@@ -408,7 +505,7 @@ class LlmService
         $t0 = microtime(true);
         $res = $this->chat($providerId, $model, 'Responde solo con la palabra: listo', [
             ['role' => 'user', 'content' => '¿Estás disponible?'],
-        ], ['max_tokens' => 20, 'timeout' => 45, 'metadata' => ['agent_role' => 'system', 'context_source' => 'connection_test']]);
+        ], ['max_tokens' => 128, 'timeout' => 45, 'metadata' => ['agent_role' => 'system', 'context_source' => 'connection_test']]);
         $seconds = round(microtime(true) - $t0, 1);
         $elapsedMs = round((microtime(true) - $t0) * 1000);
         return [
@@ -460,6 +557,28 @@ class LlmService
                 $costIn = ($inTokens / 1_000_000) * (float)($m['input_cost_per_m'] ?? 0.0);
                 $costOut = ($outTokens / 1_000_000) * (float)($m['output_cost_per_m'] ?? 0.0);
                 return round($costIn + $costOut, 6);
+            }
+        }
+        if ($providerId === 'google') {
+            $low = strtolower(trim($modelId));
+            $fallbackRates = [
+                'gemini-4-argon'         => [4.00, 20.00],
+                'gemini-4-hydrogen'      => [1.50, 7.50],
+                'gemini-3.8-flash'       => [0.25, 1.50],
+                'gemini-3.1-pro-preview' => [2.00, 12.00],
+                'gemini-3.1-pro'         => [2.00, 12.00],
+                'gemini-3.1-flash-lite'  => [0.25, 1.50],
+                'gemini-3-flash-preview' => [0.50, 3.00],
+                'gemini-3-flash'         => [0.50, 3.00],
+                'gemini-2.5-pro'         => [1.25, 10.00],
+                'gemini-2.5-flash'       => [0.30, 2.50],
+            ];
+            foreach ($fallbackRates as $prefix => [$inRate, $outRate]) {
+                if ($low === $prefix || str_starts_with($low, $prefix . '-')) {
+                    $costIn = ($inTokens / 1_000_000) * $inRate;
+                    $costOut = ($outTokens / 1_000_000) * $outRate;
+                    return round($costIn + $costOut, 6);
+                }
             }
         }
         return 0.0;

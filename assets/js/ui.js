@@ -286,14 +286,45 @@ export function initKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
         // Esc cierra modales
         if (e.key === 'Escape') {
-            // Primero el modal que está encima; si no hay ninguno, el panel de ajustes
+            // Primero el modal que está encima; luego popover de grafos o ajustes
             if (closeTopModal()) return;
+            const graphPop = document.getElementById('graph-health-popover');
+            if (graphPop && !graphPop.classList.contains('hidden')) {
+                toggleGraphHealthPopover(false);
+                document.getElementById('graph-health-pill')?.focus({ preventScroll: true });
+                return;
+            }
             const menu = document.getElementById('settings-menu');
             if (menu && !menu.classList.contains('hidden')) {
                 toggleSettingsMenu(false);
                 document.getElementById('settings-menu-btn')?.focus({ preventScroll: true });
             }
             return;
+        }
+
+        // WCAG AA: Focus Trap para modales activos (Tab / Shift+Tab loop)
+        if (e.key === 'Tab') {
+            const openModals = modalElements().filter(isVisibleModal);
+            const activeModal = [...openOrder].reverse().find(isVisibleModal) || openModals[openModals.length - 1];
+            if (activeModal) {
+                const focusable = Array.from(activeModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                    .filter(el => el.offsetParent !== null || el.getClientRects().length > 0);
+                if (focusable.length > 0) {
+                    const firstEl = focusable[0];
+                    const lastEl = focusable[focusable.length - 1];
+                    if (e.shiftKey) {
+                        if (document.activeElement === firstEl || !activeModal.contains(document.activeElement)) {
+                            e.preventDefault();
+                            lastEl.focus();
+                        }
+                    } else {
+                        if (document.activeElement === lastEl || !activeModal.contains(document.activeElement)) {
+                            e.preventDefault();
+                            firstEl.focus();
+                        }
+                    }
+                }
+            }
         }
 
         // Ctrl+K o Cmd+K: Búsqueda rápida en Kanban
@@ -343,9 +374,151 @@ export function toggleSettingsMenu(force) {
 if (typeof document !== 'undefined') {
     document.addEventListener('click', (ev) => {
         const menu = document.getElementById('settings-menu');
-        if (!menu || menu.classList.contains('hidden')) return;
-        if (ev.target.closest('#settings-menu') || ev.target.closest('#settings-menu-btn')) return;
-        toggleSettingsMenu(false);
+        if (menu && !menu.classList.contains('hidden')) {
+            if (!ev.target.closest('#settings-menu') && !ev.target.closest('#settings-menu-btn')) {
+                toggleSettingsMenu(false);
+            }
+        }
+        const pop = document.getElementById('graph-health-popover');
+        if (pop && !pop.classList.contains('hidden')) {
+            if (!ev.target.closest('#graph-health-popover') && !ev.target.closest('#graph-health-pill')) {
+                toggleGraphHealthPopover(false);
+            }
+        }
     });
     if (typeof window !== 'undefined') window.toggleSettingsMenu = toggleSettingsMenu;
+}
+
+/**
+ * Indicador Ligero de Salud de Grafos (M5): Graphify + Bóveda Obsidian
+ */
+export function toggleGraphHealthPopover(force) {
+    const pop = document.getElementById('graph-health-popover');
+    const pill = document.getElementById('graph-health-pill');
+    if (!pop || !pill) return;
+    const open = typeof force === 'boolean' ? force : pop.classList.contains('hidden');
+    pop.classList.toggle('hidden', !open);
+    pill.setAttribute('aria-expanded', String(open));
+    if (open) {
+        toggleSettingsMenu(false);
+        refreshGraphHealth();
+        const first = pop.querySelector('button, a');
+        if (first) first.focus({ preventScroll: true });
+    }
+}
+
+export async function refreshGraphHealth() {
+    const indicator = document.getElementById('graph-health-indicator');
+    const statusBadge = document.getElementById('graph-health-badge-status');
+    const statNodes = document.getElementById('graph-stat-nodes');
+    const statEdges = document.getElementById('graph-stat-edges');
+    const statComms = document.getElementById('graph-stat-communities');
+    const statCommit = document.getElementById('graph-stat-commit');
+    const statVault = document.getElementById('graph-stat-vault');
+    const label = document.getElementById('graph-health-label');
+
+    try {
+        const res = await apiFetch('api/tasks.php?action=graph_health');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const codeGraph = data.code_graph || {};
+        const vault = data.vault || {};
+
+        const hasReport = !!codeGraph.exists;
+        const nodes = hasReport && codeGraph.nodes !== null && codeGraph.nodes !== undefined ? codeGraph.nodes : '—';
+        const edges = hasReport && codeGraph.edges !== null && codeGraph.edges !== undefined ? codeGraph.edges : '—';
+        const comms = hasReport && codeGraph.communities !== null && codeGraph.communities !== undefined ? codeGraph.communities : '—';
+        const commit = codeGraph.built_commit || '';
+        const head = codeGraph.head_commit || '';
+        const commitsBehind = codeGraph.commits_behind || 0;
+        const status = data.status || (hasReport ? (codeGraph.stale ? 'stale' : 'fresh') : 'missing');
+
+        if (statNodes) statNodes.textContent = String(nodes);
+        if (statEdges) statEdges.textContent = String(edges);
+        if (statComms) statComms.textContent = String(comms);
+        if (statCommit) {
+            statCommit.textContent = commit
+                ? `Commit: ${commit}${head ? ` (HEAD: ${head.slice(0, 7)})` : ''}${codeGraph.cluster_only ? ' [cluster-only]' : ''}`
+                : 'Commit: —';
+        }
+
+        const vaultNotes = vault.exists ? (vault.notes_count ?? 0) : '—';
+        const vaultCodeNotes = vault.code_notes_count ? ` (${vault.code_notes_count} código)` : '';
+        const vaultDate = vault.generated_at ? new Date(vault.generated_at).toLocaleString() : (vault.index_exists ? 'Al día' : '—');
+        if (statVault) {
+            statVault.textContent = vault.exists
+                ? `Notas: ${vaultNotes}${vaultCodeNotes} · Actualizado: ${vaultDate}`
+                : 'Bóveda: Sin inicializar';
+        }
+
+        if (status === 'fresh') {
+            if (indicator) indicator.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+            if (statusBadge) {
+                statusBadge.textContent = '🟢 Al día';
+                statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-300';
+            }
+            if (label) label.textContent = 'Grafo al día';
+        } else if (status === 'stale') {
+            if (indicator) indicator.className = 'w-2 h-2 rounded-full bg-amber-400 shrink-0';
+            if (statusBadge) {
+                statusBadge.textContent = '🟡 Desactualizado';
+                statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950/60 border border-amber-500/30 text-amber-300';
+            }
+            if (label) label.textContent = commitsBehind ? `Grafo: ${commitsBehind} detrás` : 'Grafo desactualizado';
+        } else {
+            if (indicator) indicator.className = 'w-2 h-2 rounded-full bg-slate-500 shrink-0';
+            if (statusBadge) {
+                statusBadge.textContent = '⚪ Sin reporte';
+                statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+            }
+            if (label) label.textContent = 'Sin grafo';
+        }
+    } catch (err) {
+        if (indicator) indicator.className = 'w-2 h-2 rounded-full bg-slate-500 shrink-0';
+        if (statusBadge) {
+            statusBadge.textContent = '⚪ Sin reporte';
+            statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400';
+        }
+        if (label) label.textContent = 'Sin grafo';
+        if (statNodes) statNodes.textContent = '—';
+        if (statEdges) statEdges.textContent = '—';
+        if (statComms) statComms.textContent = '—';
+        if (statCommit) statCommit.textContent = 'Commit: —';
+        if (statVault) statVault.textContent = 'Bóveda: —';
+    }
+}
+
+export async function syncBitacoraAction() {
+    const btn = document.getElementById('graph-sync-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> Sincronizando…';
+    }
+    try {
+        const res = await apiFetch('api/tasks.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'sync_bitacora', client: 'web' })
+        });
+        const data = await res.json().catch(() => ({ success: false, error: 'Sin respuesta JSON' }));
+        if (data.success) {
+            showToast('Bitácora Sincronizada', data.message || 'Se actualizaron las notas en Obsidian (.agileforge/vault)', 'success', 3500);
+            await refreshGraphHealth();
+        } else {
+            showToast('Sincronización', data.error || 'No se pudo sincronizar la bitácora', 'warning', 4000);
+        }
+    } catch (err) {
+        showToast('Error', 'Fallo al sincronizar bitácora', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>🔄</span> Sincronizar Bitácora';
+        }
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.toggleGraphHealthPopover = toggleGraphHealthPopover;
+    window.refreshGraphHealth = refreshGraphHealth;
+    window.syncBitacoraAction = syncBitacoraAction;
 }

@@ -311,7 +311,7 @@ class Repository
 
     private function getRecentDecisions(string $projectId): array
     {
-        $stmt = $this->db->prepare("SELECT id, title, context, decision, consequences, status, created_at FROM decisions WHERE project_id = ? OR project_id = 'default' ORDER BY created_at DESC LIMIT 20");
+        $stmt = $this->db->prepare("SELECT id, title, context, decision, consequences, status, created_at FROM decisions WHERE project_id = ? ORDER BY created_at DESC LIMIT 20");
         $stmt->execute([$projectId]);
         return $stmt->fetchAll() ?: [];
     }
@@ -547,6 +547,10 @@ class Repository
             $sql .= " AND priority = ?";
             $params[] = $filters['priority'];
         }
+        if (!empty($filters['project'])) {
+            $sql .= " AND project_id = ?";
+            $params[] = trim((string)$filters['project']);
+        }
 
         $sql .= " ORDER BY created_at DESC";
         $stmt = $this->db->prepare($sql);
@@ -608,7 +612,7 @@ class Repository
             if ($note) {
                 $cStmt = $pdo->prepare("INSERT INTO comments (id, task_id, author_role, author_name, avatar, content) VALUES (?, ?, ?, ?, ?, ?)");
                 $cStmt->execute([
-                    'COM-' . uniqid(),
+                    'COM-' . uniqid('', true),
                     $id,
                     $roleKey ?? 'system',
                     $roleKey ?? 'AgileForge System',
@@ -701,15 +705,27 @@ class Repository
 
     public function addComment(string $taskId, string $authorRole, string $authorName, string $avatar, string $content): string
     {
-        $id = 'COM-' . uniqid();
+        $id = 'COM-' . uniqid('', true);
         $stmt = $this->db->prepare("INSERT INTO comments (id, task_id, author_role, author_name, avatar, content) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$id, $taskId, $authorRole, $authorName, $avatar, $content]);
+        $this->db->prepare("UPDATE tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute([$taskId]);
         return $id;
     }
 
     public function recordDecision(string $id, string $title, string $context, string $decision, string $consequences, string $status = 'accepted', ?string $projectId = null): void
     {
         $projectId = ($projectId !== null && trim($projectId) !== '') ? trim($projectId) : (string)($this->getActiveProject()['id'] ?? 'default');
+        $chk = $this->db->prepare("SELECT project_id FROM decisions WHERE id = ?");
+        $chk->execute([$id]);
+        $existingProj = $chk->fetchColumn();
+        $chk->closeCursor();
+        if ($existingProj !== false && (string)$existingProj !== '' && (string)$existingProj !== $projectId) {
+            throw new \RuntimeException(
+                "La decisión '{$id}' pertenece al proyecto '{$existingProj}' y no puede sobrescribirse desde '{$projectId}'.",
+                409
+            );
+        }
+
         $stmt = $this->db->prepare(
             "INSERT INTO decisions (id, project_id, code, title, context, decision, consequences, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -903,13 +919,13 @@ class Repository
         return $out;
     }
 
-    /** Decisiones (ADR) en forma compacta. Incluye las del proyecto y las globales ('default'). */
+    /** Decisiones (ADR) en forma compacta del proyecto especificado. */
     public function getCompactDecisions(?string $projectId = null, int $limit = 10, int $clip = 280): array
     {
         $pid = (string)($this->resolveProject($projectId)['id'] ?? 'default');
         $stmt = $this->db->prepare(
             "SELECT id, title, decision, status, created_at FROM decisions
-             WHERE project_id = ? OR project_id = 'default' OR project_id IS NULL ORDER BY created_at DESC, rowid DESC LIMIT " . max(1, min(200, $limit))
+             WHERE project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT " . max(1, min(200, $limit))
         );
         $stmt->execute([$pid]);
         $out = [];

@@ -27,8 +27,17 @@ class DecisionController
     public function list(array $query = []): void
     {
         $limit = isset($query['limit']) && is_numeric($query['limit']) ? max(1, min(200, (int)$query['limit'])) : null;
+        $projectFilter = isset($query['project']) ? trim((string)$query['project']) : '';
         $pdo = Database::getPdo();
-        $stmt = $pdo->query("SELECT * FROM decisions ORDER BY created_at DESC, rowid DESC" . ($limit ? " LIMIT {$limit}" : ''));
+        $sql = "SELECT * FROM decisions";
+        $params = [];
+        if ($projectFilter !== '') {
+            $sql .= " WHERE project_id = ?";
+            $params[] = $projectFilter;
+        }
+        $sql .= " ORDER BY created_at DESC, rowid DESC" . ($limit ? " LIMIT {$limit}" : '');
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $decisions = $stmt->fetchAll();
         Bootstrap::jsonResponse(['success' => true, 'count' => count($decisions), 'decisions' => $decisions]);
     }
@@ -52,7 +61,12 @@ class DecisionController
 
         if (!empty($input['id'])) {
             $id = trim((string)$input['id']);
-            $this->repo->recordDecision($id, $title, $context, $decision, $consequences, $status, $projectId !== '' ? $projectId : null);
+            try {
+                $this->repo->recordDecision($id, $title, $context, $decision, $consequences, $status, $projectId !== '' ? $projectId : null);
+            } catch (\RuntimeException $e) {
+                $code = $e->getCode();
+                Bootstrap::fail($e->getMessage(), ($code >= 400 && $code < 600) ? $code : 409);
+            }
         } else {
             // ID secuencial: un ID aleatorio podía coincidir con uno existente y sobrescribirlo
             $id = (new \AgileForge\Services\BoardService($this->repo))->recordDecision($title, $context, $decision, $consequences, $status, $projectId !== '' ? $projectId : null);

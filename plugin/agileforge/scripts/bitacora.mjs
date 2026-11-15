@@ -43,6 +43,10 @@ export const normalizeRole = (id) => {
   const k = String(id ?? '').trim();
   return ROLE_ALIASES[k] || k;
 };
+const CANONICAL_ROLES = new Set([
+  'director', 'lead_architect', 'backend_architect', 'frontend_master',
+  'qa_security_guard', 'project_manager', 'creative_director', 'legal_counsel',
+]);
 const FOLDERS = { US: 'historias', ADR: 'decisiones', MEET: 'reuniones', MEM: 'memoria' };
 const STATUS_LABEL = { backlog: 'Backlog', en_progreso: 'En progreso', revision: 'En revisión', completada: 'Completada' };
 const STATUS_ORDER = ['en_progreso', 'revision', 'backlog', 'completada'];
@@ -272,7 +276,9 @@ function frontmatter(fields, tags) {
 
 const roleLink = (ctx, rawId) => {
   const id = normalizeRole(rawId);
-  return id && ROLE_RE.test(id) ? `[[bitacora/roles/${id}|${alias(ctx.roleName(id), 60)}]]` : mdText(rawId || '—');
+  if (!id || !ROLE_RE.test(id)) return mdText(rawId || '—');
+  if (!CANONICAL_ROLES.has(id) && !ctx.roles.has(id)) return `\`${id.replace(/`/g, "'")}\``;
+  return `[[bitacora/roles/${id}|${alias(ctx.roleName(id), 60)}]]`;
 };
 const noteLink = (kind, id, label) => `[[bitacora/${FOLDERS[kind]}/${id}|${label ? alias(label) : id}]]`;
 
@@ -353,7 +359,8 @@ function storyNote(ctx, t) {
   if (Array.isArray(t.comments) && t.comments.length) {
     out.push('## Comentarios', '');
     for (const c of t.comments.slice(-50)) {
-      const who = c.author_role && ROLE_RE.test(c.author_role) ? roleLink(ctx, c.author_role) : mdText(c.author_name || c.author_role || '—');
+      const authRole = normalizeRole(c.author_role);
+      const who = authRole && ROLE_RE.test(authRole) ? roleLink(ctx, authRole) : mdText(c.author_name || c.author_role || '—');
       out.push(`- ${mdText(c.created_at)} · ${who}: ${text(c.content, t.id).replace(/\n+/g, ' ')}`);
     }
     out.push('');
@@ -385,23 +392,30 @@ function meetingNote(ctx, m) {
   const items = Array.isArray(m.action_items) ? m.action_items : [];
   if (items.length) {
     out.push('## Acuerdos', '');
-    for (const a of items.slice(0, 40)) out.push(`- ${oneLine(a.title, 200)}${a.assigned_to ? ` → ${roleLink(ctx, a.assigned_to)}` : ''}${a.story_points ? ` (${Number(a.story_points) || 0} pts)` : ''}`);
+    for (const a of items.slice(0, 40)) {
+      const assignedRole = a.assigned_to ? normalizeRole(a.assigned_to) : '';
+      out.push(`- ${oneLine(a.title, 200)}${assignedRole ? ` → ${roleLink(ctx, assignedRole)}` : ''}${a.story_points ? ` (${Number(a.story_points) || 0} pts)` : ''}`);
+    }
     out.push('');
   }
   const turns = Array.isArray(m.turns) ? m.turns : [];
   if (turns.length) {
     out.push('## Turnos', '');
-    for (const tr of turns.slice(0, 80)) out.push(`- ${tr.role_id && ROLE_RE.test(tr.role_id) ? roleLink(ctx, tr.role_id) : mdText(tr.name || '—')}: ${text(tr.statement, m.id).replace(/\n+/g, ' ')}`);
+    for (const tr of turns.slice(0, 80)) {
+      const trRole = normalizeRole(tr.role_id);
+      out.push(`- ${trRole && ROLE_RE.test(trRole) ? roleLink(ctx, trRole) : mdText(tr.name || '—')}: ${text(tr.statement, m.id).replace(/\n+/g, ' ')}`);
+    }
     out.push('');
   }
   return out.join('\n');
 }
 
 function memoryNote(ctx, m) {
-  const out = [frontmatter({ id: m.id, tipo: 'memoria', titulo: m.title, clase: m.node_type, rol: m.role_id, importancia: Number(m.importance_score) || 0, proyecto: m.project_id || ctx.project.id, actualizada: m.updated_at || m.created_at },
+  const role = normalizeRole(m.role_id);
+  const out = [frontmatter({ id: m.id, tipo: 'memoria', titulo: m.title, clase: m.node_type, rol: role, importancia: Number(m.importance_score) || 0, proyecto: m.project_id || ctx.project.id, actualizada: m.updated_at || m.created_at },
     ['agileforge/memoria', `memoria/${m.node_type || 'nota'}`])];
   out.push(`# ${m.id} · ${oneLine(m.title, 200)}`, '');
-  out.push(`**Tipo:** ${mdText(m.node_type || '—')} · **Rol:** ${m.role_id === 'all' ? 'todo el equipo' : roleLink(ctx, m.role_id)} · **Importancia:** ${Number(m.importance_score) || 0}/10`, '');
+  out.push(`**Tipo:** ${mdText(m.node_type || '—')} · **Rol:** ${role === 'all' ? 'todo el equipo' : roleLink(ctx, role)} · **Importancia:** ${Number(m.importance_score) || 0}/10`, '');
   out.push(text(m.content_text, m.id), '');
   return out.join('\n');
 }
@@ -666,26 +680,27 @@ export async function run(argv = process.argv.slice(2), env = process.env) {
     for (const r of rolesResp?.roles || []) if (r?.id) roles.set(r.id, { name: r.name, description: r.description });
     for (const t of ov.tasks || []) if (t.assigned_to && !roles.has(t.assigned_to) && t.role_name) roles.set(t.assigned_to, { name: t.role_name });
 
-    const all = (await api.get('tasks')).tasks || [];
+    const all = (await api.get('tasks', { project: project.id })).tasks || [];
     const tasks = all.filter((t) => sameProject(project.id, t.project_id) && ID_RE.test(String(t.id || '')));
-    const decisions = ((await api.get('decisions', { limit: 200 })).decisions || [])
+    const decisions = ((await api.get('decisions', { project: project.id, limit: 200 })).decisions || [])
       .filter((d) => sameProject(project.id, d.project_id) && ID_RE.test(String(d.code || d.id || '')));
-    const meetings = ((await api.get('meetings', { limit: 100 })).meetings || [])
+    const meetings = ((await api.get('meetings', { project: project.id, limit: 100 })).meetings || [])
       .filter((m) => sameProject(project.id, m.project_id) && ID_RE.test(String(m.id || '')));
     const memories = ((await api.get('memories', { project: project.id, limit: 100, active_only: 1 }, { optional: true }))?.memories || [])
       .filter((m) => ID_RE.test(String(m.id || '')));
 
-    const roleIds = [...new Set([
+    const candidateRoleIds = [...new Set([
       ...tasks.map((t) => normalizeRole(t.assigned_to)),
       ...meetings.flatMap((m) => (Array.isArray(m.participants) ? m.participants.map(normalizeRole) : [])),
       ...memories.map((m) => normalizeRole(m.role_id)).filter((r) => r !== 'all'),
     ])].filter((r) => r && ROLE_RE.test(r)).sort();
     // Sin /roles (token de vista): el nombre sale del brief del rol, que sí está en su lista blanca
-    for (const r of roleIds) {
+    for (const r of candidateRoleIds) {
       if (roles.get(r)?.description || (rolesResp && roles.has(r))) continue;
       const b = (await api.get(`roles/${encodeURIComponent(r)}/brief`, undefined, { optional: true }))?.brief;
       if (b?.name) roles.set(r, { name: b.name, description: b.description });
     }
+    const roleIds = candidateRoleIds.filter((r) => CANONICAL_ROLES.has(r) || roles.has(r));
 
     if (!o.dryRun) fs.mkdirSync(vault, { recursive: true });
     const manifest = loadManifest(vault);

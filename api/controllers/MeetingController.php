@@ -20,6 +20,19 @@ use PDO;
 
 class MeetingController
 {
+    private const ROLE_SLUG_ALIASES = [
+        'chief-architect'   => 'lead_architect',
+        'chief_architect'   => 'lead_architect',
+        'backend'           => 'backend_architect',
+        'frontend'          => 'frontend_master',
+        'qa-security'       => 'qa_security_guard',
+        'qa_security'       => 'qa_security_guard',
+        'legal-compliance'  => 'legal_counsel',
+        'legal_compliance'  => 'legal_counsel',
+        'creative-director' => 'creative_director',
+        'project-manager'   => 'project_manager',
+    ];
+
     private Repository $repo;
     private EngineService $engines;
     private BoardService $board;
@@ -29,6 +42,25 @@ class MeetingController
         $this->repo = new Repository();
         $this->engines = new EngineService($this->repo);
         $this->board = new BoardService($this->repo);
+    }
+
+    private function resolveRoleAlias(string $raw): ?string
+    {
+        $clean = trim($raw);
+        if ($clean === '') {
+            return null;
+        }
+        $matched = $this->board->matchRoleId($clean);
+        if ($matched !== null) {
+            return $matched;
+        }
+        $lower = strtolower($clean);
+        $mapped = self::ROLE_SLUG_ALIASES[$lower] ?? str_replace('-', '_', $lower);
+        $matchedMapped = $this->board->matchRoleId($mapped);
+        if ($matchedMapped !== null) {
+            return $matchedMapped;
+        }
+        return $this->repo->roleExists($mapped) ? $mapped : null;
     }
 
     public function list(array $query = []): void
@@ -45,8 +77,17 @@ class MeetingController
             Bootstrap::jsonResponse(['success' => true, 'count' => count($meetings), 'meetings' => $meetings], 200, false);
         }
 
+        $projectFilter = isset($query['project']) ? trim((string)$query['project']) : '';
         $pdo = Database::getPdo();
-        $stmt = $pdo->query("SELECT * FROM meetings ORDER BY created_at DESC, rowid DESC" . ($limit ? " LIMIT {$limit}" : ''));
+        $sql = "SELECT * FROM meetings";
+        $params = [];
+        if ($projectFilter !== '') {
+            $sql .= " WHERE project_id = ?";
+            $params[] = $projectFilter;
+        }
+        $sql .= " ORDER BY created_at DESC, rowid DESC" . ($limit ? " LIMIT {$limit}" : '');
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $meetings = [];
         while ($row = $stmt->fetch()) {
             $row['participants'] = json_decode($row['participants_json'] ?? '[]', true);
@@ -87,10 +128,30 @@ class MeetingController
             Bootstrap::jsonResponse(['error' => 'El tema o tópico de la reunión es obligatorio'], 422);
         }
 
+        if (array_key_exists('id', $input) && $input['id'] !== null && !is_string($input['id'])) {
+            Bootstrap::fail('El campo "id" debe ser una cadena de texto.', 422);
+        }
         $givenId = !empty($input['id']) && preg_match('/^[A-Za-z0-9_-]{2,40}$/', (string)$input['id']) ? trim((string)$input['id']) : null;
         $title = trim((string)($input['title'] ?? "Reunión: {$topic}"));
         $participants = is_array($input['participants'] ?? null) ? $input['participants']
             : array_values(array_unique(array_filter([$this->board->roleWith('can_facilitate_sprint', 'project_manager'), $this->board->roleWith('can_record_adr', 'lead_architect')])));
+
+        $normalizedParticipants = [];
+        foreach ($participants as $p) {
+            if (is_string($p)) {
+                $resolved = $this->resolveRoleAlias($p);
+                $normalizedParticipants[] = $resolved ?? trim($p);
+            } elseif (is_array($p) && isset($p['id']) && is_string($p['id'])) {
+                $resolved = $this->resolveRoleAlias($p['id']);
+                if ($resolved !== null) {
+                    $p['id'] = $resolved;
+                }
+                $normalizedParticipants[] = $p;
+            } else {
+                $normalizedParticipants[] = $p;
+            }
+        }
+        $participants = $normalizedParticipants;
 
         $partIds = self::participantIds($participants);
         if (empty($partIds)) {
@@ -103,17 +164,34 @@ class MeetingController
         }
 
         $projectId = trim((string)($input['project_id'] ?? $this->repo->getActiveProject()['id'] ?? 'default'));
+        if ($projectId === '' || !$this->repo->projectExists($projectId)) {
+            Bootstrap::fail("El proyecto '{$projectId}' no existe", 422);
+        }
 
         // ID calculado dentro de la transacción BEGIN IMMEDIATE (H4)
         $id = '';
-        Database::transaction(function (PDO $pdo) use (&$id, $givenId, $projectId, $title, $type, $topic, $participants) {
+        $txRes = Database::transaction(function (PDO $pdo) use (&$id, $givenId, $projectId, $title, $type, $topic, $participants) {
+            if ($givenId !== null) {
+                $chk = $pdo->prepare("SELECT 1 FROM meetings WHERE id = ?");
+                $chk->execute([$givenId]);
+                $exists = (bool)$chk->fetchColumn();
+                $chk->closeCursor();
+                if ($exists) {
+                    return ['error' => "La reunión '{$givenId}' ya existe", 'code' => 409];
+                }
+            }
             $id = $givenId ?? BoardService::nextId($pdo, 'meetings', 'MEET-');
             $stmt = $pdo->prepare(
                 "INSERT INTO meetings (id, project_id, title, type, topic, participants_json, summary, resolution, action_items_json, converted)
                  VALUES (?, ?, ?, ?, ?, ?, '', '', '[]', 0)"
             );
             $stmt->execute([$id, $projectId, $title, $type, $topic, json_encode($participants, JSON_UNESCAPED_UNICODE)]);
+            return ['ok' => true];
         });
+
+        if (isset($txRes['error'])) {
+            Bootstrap::fail($txRes['error'], (int)$txRes['code']);
+        }
 
         $this->show($id);
     }
@@ -198,23 +276,52 @@ class MeetingController
 
     public function close(string $meetingId, array $input): void
     {
-        $this->requireMeeting($meetingId);
         $summary = trim((string)($input['summary'] ?? ''));
         $resolution = trim((string)($input['resolution'] ?? ''));
+        if (array_key_exists('action_items', $input) && $input['action_items'] !== null && !is_array($input['action_items'])) {
+            Bootstrap::fail('El campo "action_items" debe ser un arreglo.', 422);
+        }
         $actionItems = is_array($input['action_items'] ?? null) ? $input['action_items'] : [];
 
+        $cleanItems = [];
         foreach ($actionItems as $item) {
-            if (!empty($item['assigned_to'])) {
-                $assigned = trim((string)$item['assigned_to']);
-                if (!$this->repo->roleExists($assigned)) {
-                    Bootstrap::fail("El rol asignado '{$assigned}' en los acuerdos no existe", 422);
+            if (!is_array($item)) {
+                Bootstrap::fail('Cada elemento de "action_items" debe ser un objeto.', 422);
+            }
+            if (array_key_exists('assigned_to', $item) && $item['assigned_to'] !== null && $item['assigned_to'] !== '') {
+                if (!is_string($item['assigned_to'])) {
+                    Bootstrap::fail('El campo "action_items[].assigned_to" debe ser una cadena de texto.', 422);
+                }
+                $assigned = trim($item['assigned_to']);
+                if ($assigned !== '') {
+                    $matched = $this->resolveRoleAlias($assigned);
+                    if ($matched === null || !$this->repo->roleExists($matched)) {
+                        Bootstrap::fail("El rol asignado '{$assigned}' en los acuerdos no existe", 422);
+                    }
+                    $item['assigned_to'] = $matched;
                 }
             }
+            $cleanItems[] = $item;
         }
 
-        $pdo = Database::getPdo();
-        $stmt = $pdo->prepare("UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $stmt->execute([$summary, $resolution, json_encode($actionItems, JSON_UNESCAPED_UNICODE), $meetingId]);
+        $res = Database::transaction(function (PDO $pdo) use ($meetingId, $summary, $resolution, $cleanItems) {
+            $chk = $pdo->prepare("SELECT 1 FROM meetings WHERE id = ?");
+            $chk->execute([$meetingId]);
+            $found = (bool)$chk->fetchColumn();
+            $chk->closeCursor();
+            if (!$found) {
+                return ['error' => 'Reunión no encontrada', 'code' => 404];
+            }
+            $stmt = $pdo->prepare(
+                "UPDATE meetings SET summary = ?, resolution = ?, action_items_json = ?, closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            );
+            $stmt->execute([$summary, $resolution, json_encode($cleanItems, JSON_UNESCAPED_UNICODE), $meetingId]);
+            return ['ok' => true];
+        });
+
+        if (isset($res['error'])) {
+            Bootstrap::fail($res['error'], (int)$res['code']);
+        }
 
         Bootstrap::jsonResponse(['success' => true, 'meeting_id' => $meetingId, 'closed' => true]);
     }
@@ -252,7 +359,7 @@ class MeetingController
         if (!array_filter($engines, static fn(array $e) => !empty($e['ready']))) {
             Bootstrap::fail(
                 'Ningún participante tiene motor de IA en la web, así que la reunión no se creó. '
-                . 'Convócala desde Claude Code con /reunion (plugin AgileForge Control), o agrega una clave en Motor IA / activa la IA local.',
+                . 'Convócala desde Claude Code / Antigravity con /reunion (plugin AgileForge Control), o agrega una clave en Motor IA / activa la IA local.',
                 409
             );
         }
@@ -622,7 +729,7 @@ class MeetingController
 
         $message = count($createdTasks) . " historias creadas en el Backlog a partir de los acuerdos";
         if (!empty($reassignedRoles)) {
-            $message .= " (" . count($reassignedRoles) . " roles inválidos reasignados a project_manager)";
+            $message .= " (" . count($reassignedRoles) . " roles inválidos reasignados a {$fallbackRole})";
         }
 
         Bootstrap::jsonResponse([
@@ -672,7 +779,12 @@ class MeetingController
                 $targetDir = ($ws === '' || $ws === '.') ? $appRoot : $appRoot . '/' . ltrim($ws, './\\');
             }
         }
-        $cleanDir = Bootstrap::validateWorkspacePath($targetDir);
+        try {
+            $cleanDir = Bootstrap::validateWorkspacePath($targetDir);
+            Bootstrap::assertNotEngineCriticalDir($cleanDir);
+        } catch (\InvalidArgumentException $e) {
+            Bootstrap::fail($e->getMessage(), 422);
+        }
 
         $dateStr = date('Ymd_His');
         $safeId = preg_replace('/[^A-Za-z0-9_-]/', '', $meeting['id']);

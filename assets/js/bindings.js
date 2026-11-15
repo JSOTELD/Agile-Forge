@@ -458,9 +458,29 @@ export function handleProviderChange(providerId, selectedModel = null) {
     if (!sel) return;
     const models = p?.models || [];
     const current = selectedModel || p?.default_model;
-    sel.innerHTML = models.map(m => `<option value="${escapeHtml(m.id)}" ${m.id === current ? 'selected' : ''}>${escapeHtml(m.name || m.id)}${m.input_cost_per_m !== undefined ? ` — $${m.input_cost_per_m}/$${m.output_cost_per_m} por M tokens` : ''}</option>`).join('');
+    sel.innerHTML = models.map(m => {
+        const costStr = (m.input_cost_per_m !== undefined) ? ` — $${m.input_cost_per_m}/$${m.output_cost_per_m} por M tokens` : '';
+        return `<option value="${escapeHtml(m.id)}" ${m.id === current ? 'selected' : ''} title="${escapeHtml(m.recommended_for || '')}">${escapeHtml(m.name || m.id)}${costStr}</option>`;
+    }).join('');
     const ep = document.getElementById('ai-endpoint-input');
     if (ep) ep.value = p?.endpoint || '';
+
+    // Detalle dinámico de capacidades y recomendación oficial por rol
+    let hintEl = document.getElementById('ai-model-hint');
+    if (!hintEl && sel.parentNode) {
+        hintEl = document.createElement('p');
+        hintEl.id = 'ai-model-hint';
+        hintEl.className = 'text-[11px] text-indigo-300/90 mt-1.5 font-mono leading-relaxed';
+        sel.parentNode.appendChild(hintEl);
+    }
+    const updateHint = () => {
+        const curM = models.find(m => m.id === sel.value);
+        if (hintEl) {
+            hintEl.textContent = curM?.recommended_for ? `🎯 ${curM.recommended_for}` : '';
+        }
+    };
+    sel.onchange = updateHint;
+    updateHint();
 }
 
 export function openAiEngineModal() {

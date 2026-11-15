@@ -580,12 +580,14 @@ SQL;
     {
         $stmt = $pdo->prepare(
             "INSERT OR IGNORE INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json)
-             VALUES ('director', ?, 'The Chief', '👑', 'anthropic', 'claude-opus-5-5', ?, ?, ?)"
+             VALUES ('director', ?, 'The Chief', '👑', ?, ?, ?, ?, ?)"
         );
         $skills = ['director-toma-decisiones', 'director-gestion-equipo', 'director-priorizacion-valor', 'agile-project-manager', 'context-sentinel'];
         $name = 'Director General (Jefe Máximo)';
         $description = 'Recibe tus instrucciones, decide prioridades, delega en los agentes especialistas, registra las decisiones y te rinde cuentas.';
         $specialty = 'Dirección estratégica, toma de decisiones, priorización por valor, delegación y control del equipo de agentes';
+        $aiProvider = 'google';
+        $aiModel = 'gemini-4-argon';
         // RFC-001: los datos salen del pack core (plugin/agileforge/packs/core/director.md) si está disponible
         try {
             require_once __DIR__ . '/services/RoleRegistry.php';
@@ -594,10 +596,24 @@ SQL;
             $description = is_string($def['description'] ?? null) ? $def['description'] : $description;
             $specialty = is_string($def['specialty'] ?? null) ? $def['specialty'] : $specialty;
             $skills = is_array($def['skills'] ?? null) && $def['skills'] ? array_values($def['skills']) : $skills;
+            if (is_string($def['model'] ?? null) && trim($def['model']) !== '' && $def['model'] !== 'inherit') {
+                $rawModel = trim($def['model']);
+                $aliasMap = [
+                    'argon'    => 'gemini-4-argon',
+                    'hydrogen' => 'gemini-4-hydrogen',
+                    'flash'    => 'gemini-3.8-flash',
+                    'opus'     => 'claude-opus-5-5',
+                    'sonnet'   => 'claude-sonnet-5-5',
+                    'haiku'    => 'claude-haiku-5-5',
+                    'fable'    => 'claude-fable-5-2',
+                ];
+                $aiModel = $aliasMap[$rawModel] ?? $rawModel;
+                $aiProvider = str_starts_with($aiModel, 'claude-') ? 'anthropic' : 'google';
+            }
         } catch (\Throwable $e) {
             // sin pack: valores de siempre
         }
-        $stmt->execute([$name, $description, $specialty, json_encode($skills, JSON_UNESCAPED_UNICODE)]);
+        $stmt->execute([$name, $aiProvider, $aiModel, $description, $specialty, json_encode($skills, JSON_UNESCAPED_UNICODE)]);
         $rs = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES ('director', ?)");
         foreach ($skills as $sk) {
             $rs->execute([$sk]);
@@ -747,6 +763,21 @@ SQL;
                 : (stripos($model, 'opus') !== false ? 'claude-opus-5-5' : 'claude-sonnet-5-5');
         }
         if ($providerId === 'google') {
+            if (stripos($model, '2.5-pro') !== false || stripos($model, '2.5 pro') !== false) {
+                return 'gemini-2.5-pro';
+            }
+            if (stripos($model, '2.5-flash') !== false || stripos($model, '2.5 flash') !== false) {
+                return 'gemini-2.5-flash';
+            }
+            if (stripos($model, '3.1-pro') !== false || stripos($model, '3.1 pro') !== false) {
+                return 'gemini-3.1-pro-preview';
+            }
+            if (stripos($model, '3.1-flash-lite') !== false || stripos($model, 'flash-lite') !== false) {
+                return 'gemini-3.1-flash-lite';
+            }
+            if (stripos($model, '3-flash') !== false || stripos($model, '3.0-flash') !== false || stripos($model, '3 flash') !== false) {
+                return 'gemini-3-flash-preview';
+            }
             return stripos($model, 'argon') !== false ? 'gemini-4-argon'
                 : (stripos($model, 'hydrogen') !== false ? 'gemini-4-hydrogen'
                 : (stripos($model, '3.8') !== false ? 'gemini-3.8-flash' : (string)($provider['default_model'] ?? 'gemini-4-hydrogen')));

@@ -4,7 +4,7 @@
  *
  *   php bin/roles.php list     [--workspace=DIR]
  *   php bin/roles.php validate [--workspace=DIR]
- *   php bin/roles.php agents   [--workspace=DIR] [--prefix=mcp__srv__] [--dry-run] [--force]
+ *   php bin/roles.php agents   [--workspace=DIR] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]
  *
  * list      Roles del pack core y del proyecto, con su origen y capacidades.
  * validate  Validación fija (nivel 1): formato, id, capacidades de la lista cerrada, modelo,
@@ -143,7 +143,11 @@ switch ($cmd) {
             err("Prefijo MCP no válido: {$prefix} (forma: mcp__<servidor>__)");
             exit(2);
         }
-        $dir = rtrim($ws, '/\\') . '/.claude/agents';
+        $targetOpt = is_string($opts['target'] ?? null) ? strtolower(trim($opts['target'])) : 'claude';
+        if (!in_array($targetOpt, ['claude', 'antigravity', 'gemini', 'all'], true)) {
+            err("Target no válido: {$targetOpt} (valores permitidos: claude, antigravity, gemini, all)");
+            exit(2);
+        }
         $written = 0;
         $found = 0;
         foreach ($reg->all() as $id => $r) {
@@ -151,30 +155,58 @@ switch ($cmd) {
                 continue;
             }
             $found++;
-            $target = $dir . '/' . str_replace('_', '-', $id) . '.md';
-            $content = renderAgent($r, $prefix);
-            if (is_file($target) && empty($opts['force']) && !str_contains((string)file_get_contents($target), MARKER)) {
-                out("  · {$target} existe y no lo generó AgileForge: no se toca (usa --force para sustituirlo).");
-                continue;
+            $kebabId = str_replace('_', '-', $id);
+            $outputs = [];
+            if ($targetOpt === 'claude' || $targetOpt === 'all') {
+                $outputs[] = [
+                    'path'    => rtrim($ws, '/\\') . '/.claude/agents/' . $kebabId . '.md',
+                    'content' => renderAgent($r, $prefix, 'claude'),
+                ];
             }
-            if (!empty($opts['dry-run'])) {
-                out("── {$target}");
-                out($content);
-                continue;
+            if ($targetOpt === 'antigravity' || $targetOpt === 'gemini' || $targetOpt === 'all') {
+                $outputs[] = [
+                    'path'    => rtrim($ws, '/\\') . '/.gemini/agents/' . $kebabId . '.md',
+                    'content' => renderAgent($r, $prefix, 'gemini'),
+                ];
             }
-            if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
-                err("No se pudo crear {$dir}");
-                exit(1);
+            if ($targetOpt === 'antigravity' || $targetOpt === 'all') {
+                $outputs[] = [
+                    'path'    => rtrim($ws, '/\\') . '/.agents/skills/af-' . $kebabId . '/SKILL.md',
+                    'content' => renderAntigravitySkill($r, $prefix),
+                ];
             }
-            file_put_contents($target, $content);
-            $written++;
-            out("  ✓ {$target}");
+
+            foreach ($outputs as $outSpec) {
+                $target = $outSpec['path'];
+                $content = $outSpec['content'];
+                $dir = dirname($target);
+                if (is_file($target) && empty($opts['force']) && !str_contains((string)file_get_contents($target), MARKER)) {
+                    out("  · {$target} existe y no lo generó AgileForge: no se toca (usa --force para sustituirlo).");
+                    continue;
+                }
+                if (!empty($opts['dry-run'])) {
+                    out("── {$target}");
+                    out($content);
+                    continue;
+                }
+                if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+                    err("No se pudo crear {$dir}");
+                    exit(1);
+                }
+                $tmp = $target . '.tmp.' . getmypid();
+                if (file_put_contents($tmp, $content) === false || !@rename($tmp, $target)) {
+                    @unlink($tmp);
+                    file_put_contents($target, $content);
+                }
+                $written++;
+                out("  ✓ {$target}");
+            }
         }
         out($found ? "{$written} subagente(s) escritos. Prefijo MCP usado: {$prefix}" : 'No hay roles del proyecto en ' . $localDir);
         exit(0);
 
     default:
-        err('Uso: php bin/roles.php list|validate|agents [--workspace=DIR] [--prefix=mcp__srv__] [--dry-run] [--force]');
+        err('Uso: php bin/roles.php list|validate|agents [--workspace=DIR] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]');
         exit(2);
 }
 
@@ -217,7 +249,7 @@ function yamlStr(string $s): string
     return '"' . addcslashes($s, "\"\\\n") . '"';
 }
 
-function renderAgent(array $r, string $prefix): string
+function renderAgent(array $r, string $prefix, string $target = 'claude'): string
 {
     $readOnly = ['Read', 'Grep', 'Glob', 'board__get_sprint_status', 'board__list_tasks', 'board__get_task',
         'board__get_role_brief', 'board__add_comment', 'board__list_memories', 'board__get_memory'];
@@ -233,10 +265,20 @@ function renderAgent(array $r, string $prefix): string
         array_map('strval', (array)($r['disallowedTools'] ?? []))
     )));
 
+    $rawModel = (string)($r['model'] ?? 'inherit');
+    if ($target !== 'claude') {
+        $aliasMap = [
+            'argon'    => 'gemini-4-argon',
+            'hydrogen' => 'gemini-4-hydrogen',
+            'flash'    => 'gemini-3.8-flash',
+        ];
+        $rawModel = $aliasMap[strtolower($rawModel)] ?? $rawModel;
+    }
+
     $lines = ['---', 'name: ' . str_replace('_', '-', $r['id'])];
     $desc = trim(($r['name'] ?? $r['id']) . '. ' . ($r['description'] ?? ''));
     $lines[] = 'description: ' . yamlStr($desc);
-    $lines[] = 'model: ' . ($r['model'] ?? 'inherit');
+    $lines[] = 'model: ' . $rawModel;
     if (!empty($r['effort'])) {
         $lines[] = 'effort: ' . $r['effort'];
     }
@@ -267,6 +309,45 @@ function renderAgent(array $r, string $prefix): string
     $lines[] = '## En el tablero AgileForge';
     $lines[] = "- Tu id de rol es `{$r['id']}`: úsalo en role_key / reviewer_role.";
     $lines[] = '- Capacidades: ' . ($r['capabilities'] ? implode(', ', $r['capabilities']) : 'ninguna (solo lectura y comentarios)') . '.';
+    $lines[] = '- Antes de empezar, lee tu brief con get_role_brief.';
+    return implode("\n", $lines) . "\n";
+}
+
+function renderAntigravitySkill(array $r, string $prefix): string
+{
+    $readOnly = ['Read', 'Grep', 'Glob', 'board__get_sprint_status', 'board__list_tasks', 'board__get_task',
+        'board__get_role_brief', 'board__add_comment', 'board__list_memories', 'board__get_memory'];
+    $declared = array_map('strval', (array)($r['tools'] ?? []));
+    $tools = array_merge($readOnly, $declared, array_map(fn($t) => 'board__' . $t, capabilityTools($r['capabilities'])));
+    $tools = array_values(array_unique(array_map(
+        fn($t) => str_starts_with($t, 'board__') ? $prefix . substr($t, 7) : $t,
+        $tools
+    )));
+    $disallowed = array_values(array_unique(array_merge(
+        array_diff(RoleRegistry::RISKY_TOOLS, $declared),
+        array_map('strval', (array)($r['disallowedTools'] ?? []))
+    )));
+
+    $kebabId = str_replace('_', '-', $r['id']);
+    $desc = trim(($r['name'] ?? $r['id']) . '. ' . ($r['description'] ?? ''));
+
+    $lines = [
+        '---',
+        'name: af-' . $kebabId,
+        'description: ' . yamlStr($desc),
+        '---',
+        MARKER,
+        '',
+        trim((string)($r['body'] ?? '')) ?: '# ' . ($r['name'] ?? $r['id']),
+        '',
+        '## En el tablero AgileForge',
+        "- Tu id de rol es `{$r['id']}`: úsalo en role_key / reviewer_role.",
+        '- Capacidades: ' . ($r['capabilities'] ? implode(', ', $r['capabilities']) : 'ninguna (solo lectura y comentarios)') . '.',
+        '- Herramientas permitidas: ' . implode(', ', $tools) . '.',
+    ];
+    if ($disallowed) {
+        $lines[] = '- Herramientas prohibidas (disallowedTools): ' . implode(', ', $disallowed) . '.';
+    }
     $lines[] = '- Antes de empezar, lee tu brief con get_role_brief.';
     return implode("\n", $lines) . "\n";
 }
