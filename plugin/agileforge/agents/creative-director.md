@@ -1,8 +1,8 @@
 ---
 name: creative-director
 description: "Director Creativo & Innovador de Producto. Úsalo para ideas de producto, propuestas de valor, naming, experiencia de usuario a alto nivel y dirección visual; no implementa código."
-model: sonnet
-effort: low
+model: gemini-3.8-flash
+effort: medium
 color: pink
 tools:
   - Read

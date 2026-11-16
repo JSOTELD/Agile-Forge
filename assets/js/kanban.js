@@ -19,12 +19,11 @@ export function renderKanban() {
     const prioFilter = document.getElementById('kanban-filter-priority')?.value || 'all';
     const skillFilter = document.getElementById('kanban-filter-skill')?.value || 'all';
 
-    // Poblar selector de roles en el filtro
+    // Poblar selector de roles en el filtro (sincrónico, sin carreras de setTimeout)
     const roleSel = document.getElementById('kanban-filter-role');
     if (roleSel && roleSel.options.length !== roles.length + 1) {
         const keep = roleSel.value;
         roleSel.length = 1;
-        setTimeout(() => { roleSel.value = [...roleSel.options].some(o => o.value === keep) ? keep : 'all'; }, 0);
         roles.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.id;
@@ -32,18 +31,24 @@ export function renderKanban() {
             opt.title = r.id;
             roleSel.appendChild(opt);
         });
+        roleSel.value = [...roleSel.options].some(o => o.value === keep) ? keep : 'all';
     }
 
-    // Poblar selector de skills en el filtro
+    // Poblar selector de skills en el filtro (refresca cuando el catálogo o proyecto cambia)
     const skillSel = document.getElementById('kanban-filter-skill');
-    if (skillSel && skillSel.options.length <= 1) {
-        const skillsCatalog = appData.skills_catalog || [];
+    const skillsCatalog = appData.skills_catalog || [];
+    const currentProjectId = appData.current_project?.id || appData.active_project || '';
+    if (skillSel && (skillSel.options.length !== skillsCatalog.length + 1 || skillSel.dataset.project !== currentProjectId)) {
+        const keepSkill = skillSel.value;
+        skillSel.dataset.project = currentProjectId;
+        skillSel.length = 1;
         skillsCatalog.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.id;
             opt.textContent = `⚡ ${s.name || s.id}`;
             skillSel.appendChild(opt);
         });
+        skillSel.value = [...skillSel.options].some(o => o.value === keepSkill) ? keepSkill : 'all';
     }
 
     const cols = {

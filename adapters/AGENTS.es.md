@@ -60,3 +60,11 @@ flowchart LR
 ## 4. Modo lector
 
 Un servidor iniciado como lector (`dist/viewer.js` o `AGILEFORGE_MODE=vista`) expone solo herramientas de lectura (10) y usa el token de solo lectura. Si solo tienes esas, puedes observar e informar, pero no tomar, editar ni revisar.
+
+## 5. Grafo de conocimiento (opcional)
+
+Si el proyecto tiene `graphify-out/graph.json` (lo construye el Curador de grafos con [graphify](https://github.com/Graphify-Labs/graphify)), consúltalo **antes** de buscar o leer archivos: cuesta menos y dice qué leer.
+
+- `graphify query "<pregunta>" --budget 1500` · `graphify path "A" "B"` · `graphify explain "X"`; cita el `source_location` y confirma en el código lo marcado como `INFERRED`.
+- No lo reconstruyas por tu cuenta: en Claude Code lo mantiene `/agileforge:grafo actualizar`; en otro cliente, solo si el humano lo pide, `GRAPHIFY_BACKEND=none graphify update .` (sin LLM, 0 tokens).
+- La bibliografía para personas (vault de Obsidian en `.agileforge/vault/`) no es para agentes: no la uses como fuente de verdad del tablero.

@@ -42,11 +42,12 @@ export function registerReadTools(server: McpServer, c: ReadClient): void {
   server.registerTool('list_meetings', {
     description: 'Lista reuniones recientes (compacto: sin turnos completos).',
     inputSchema: {
+      project: z.string().optional().describe('ID de proyecto (por defecto todos)'),
       limit: z.number().int().min(1).max(50).default(5),
       compact: z.boolean().default(true).describe('false = incluye turnos completos'),
     },
     annotations: READ_ONLY,
-  }, (a) => run(() => c.get('meetings', { limit: a.limit, compact: a.compact === false ? undefined : 1 }), ['success']));
+  }, (a) => run(() => c.get('meetings', { project: a.project, limit: a.limit, compact: a.compact === false ? undefined : 1 }), ['success']));
 
   server.registerTool('get_meeting', {
     description: 'Acta completa de una reunión con todos sus turnos.',
@@ -56,9 +57,12 @@ export function registerReadTools(server: McpServer, c: ReadClient): void {
 
   server.registerTool('list_decisions', {
     description: 'Decisiones de arquitectura (ADR) más recientes.',
-    inputSchema: { limit: z.number().int().min(1).max(100).default(10) },
+    inputSchema: {
+      project: z.string().optional().describe('ID de proyecto (por defecto todos)'),
+      limit: z.number().int().min(1).max(100).default(10),
+    },
     annotations: READ_ONLY,
-  }, (a) => run(() => c.get('decisions', { limit: a.limit }), ['success']));
+  }, (a) => run(() => c.get('decisions', { project: a.project, limit: a.limit }), ['success']));
 
   server.registerTool('get_activity', {
     description: 'Actividad reciente del equipo (eventos del tablero), más nueva primero.',

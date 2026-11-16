@@ -203,7 +203,6 @@ class ProjectController
                     $pts = $points[$idx % count($points)];
 
                     $suggestedTasks[] = [
-                        'id'              => 'US-' . (200 + $idx),
                         'title'           => "Refactor/Evolución: {$subject}",
                         'story_points'    => $pts,
                         'assigned_to'     => $role,
@@ -229,7 +228,6 @@ class ProjectController
             $frontend = in_array('frontend_master', $roleIds, true) ? 'frontend_master' : $board->defaultAssignee();
             $suggestedTasks = [
                 [
-                    'id'              => 'US-201',
                     'title'           => "Auditoría de estructura y dependencias de {$name}",
                     'story_points'    => 3,
                     'assigned_to'     => $architect,
@@ -241,7 +239,6 @@ class ProjectController
                     'skills'          => ['clean-code']
                 ],
                 [
-                    'id'              => 'US-202',
                     'title'           => "Revisión de accesibilidad y diseño visual",
                     'story_points'    => 2,
                     'assigned_to'     => $frontend,
@@ -255,16 +252,22 @@ class ProjectController
             ];
         }
 
-        $pdo = Database::getPdo();
+        $baseId = $id;
+        Database::transaction(function (PDO $pdo) use (&$id, $baseId, $name, $cleanPath, &$suggestedTasks) {
+            // Verificar o regenerar ID de proyecto de forma única dentro de la transacción
+            $chk = $pdo->prepare("SELECT COUNT(*) FROM projects WHERE id = ?");
+            $candidate = $baseId;
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                $chk->execute([$candidate]);
+                $exists = (int)$chk->fetchColumn() > 0;
+                $chk->closeCursor();
+                if (!$exists) {
+                    $id = $candidate;
+                    break;
+                }
+                $candidate = $baseId . '-' . random_int(10, 9999);
+            }
 
-        // Verificar o regenerar ID
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM projects WHERE id = ?");
-        $chk->execute([$id]);
-        if ((int)$chk->fetchColumn() > 0) {
-            $id .= '-' . rand(10, 99);
-        }
-
-        Database::transaction(function (PDO $pdo) use ($id, $name, $cleanPath, $suggestedTasks) {
             $pdo->exec("UPDATE projects SET active = 0");
 
             $pStmt = $pdo->prepare("INSERT INTO projects (id, name, path, active) VALUES (?, ?, ?, 1)");
@@ -283,16 +286,18 @@ class ProjectController
                 "Alineación del equipo de agentes con el código importado en {$cleanPath}."
             ]);
 
-            // Insertar tareas sugeridas en Backlog
+            // Insertar tareas sugeridas en Backlog con ID correlativo dinámico (BoardService::nextId)
             $tStmt = $pdo->prepare(
                 "INSERT INTO tasks (id, project_id, title, story_points, assigned_to, priority, status, user_story, dod, description, skills_json, prompt_template)
                  VALUES (?, ?, ?, ?, ?, ?, 'backlog', ?, ?, ?, ?, ?)"
             );
 
-            foreach ($suggestedTasks as $t) {
+            foreach ($suggestedTasks as &$t) {
+                $taskId = BoardService::nextId($pdo, 'tasks', 'US-');
+                $t['id'] = $taskId;
                 $prompt = "Actúa como {$t['assigned_to']}. Ejecuta la tarea: {$t['title']}. DoD: {$t['dod']}";
                 $tStmt->execute([
-                    $t['id'],
+                    $taskId,
                     $id,
                     $t['title'],
                     $t['story_points'],
@@ -305,6 +310,7 @@ class ProjectController
                     $prompt
                 ]);
             }
+            unset($t);
         });
 
         $this->repo->setSetting('active_workspace', $cleanPath);

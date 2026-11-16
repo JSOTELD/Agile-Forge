@@ -32,11 +32,11 @@ class DirectorService
     private int $consultations = 0;
     private float $startedAt = 0.0;
 
-    public function __construct(?Repository $repo = null)
+    public function __construct(?Repository $repo = null, ?BoardService $board = null, ?EngineService $engines = null)
     {
         $this->repo = $repo ?? new Repository();
-        $this->engines = new EngineService($this->repo);
-        $this->board = new BoardService($this->repo);
+        $this->engines = $engines ?? new EngineService($this->repo);
+        $this->board = $board ?? new BoardService($this->repo);
     }
 
     /**
@@ -70,6 +70,8 @@ class DirectorService
 
         if ($engine['kind'] === 'api' && $engine['provider'] === 'anthropic') {
             $res = $this->runWithClaudeTools($engine, $system, $history);
+        } elseif ($engine['kind'] === 'api' && $engine['provider'] === 'google') {
+            $res = $this->runWithGoogleTools($engine, $system, $history);
         } else {
             $res = $this->runWithJsonProtocol($engine, $system, $history);
         }
@@ -146,6 +148,133 @@ class DirectorService
     }
 
     // ------------------------------------------------------------------
+    // Google Gemini con herramientas nativas (functionDeclarations)
+    // ------------------------------------------------------------------
+
+    private function runWithGoogleTools(array $engine, string $system, array $history): array
+    {
+        $llm = $this->engines->llm();
+        $normModel = $llm->normalizeModel('google', (string)$engine['model']);
+        $contents = [];
+        foreach ($this->alternate($history) as $m) {
+            $contents[] = [
+                'role'  => $m['role'] === 'assistant' ? 'model' : 'user',
+                'parts' => [['text' => (string)$m['content']]],
+            ];
+        }
+
+        $funcDecls = $this->googleFunctionDeclarations();
+        $inTok = 0;
+        $outTok = 0;
+        $reply = '';
+
+        for ($round = 0; $round < self::MAX_ROUNDS; $round++) {
+            $genConfig = ['maxOutputTokens' => 4096];
+            if (str_starts_with($normModel, 'gemini-3') || str_starts_with($normModel, 'gemini-4')) {
+                $genConfig['thinkingConfig'] = ['thinkingLevel' => 'low'];
+            }
+
+            $payload = [
+                'systemInstruction' => ['parts' => [['text' => $system]]],
+                'contents'          => $contents,
+                'tools'             => [['functionDeclarations' => $funcDecls]],
+                'toolConfig'        => ['functionCallingConfig' => ['mode' => 'AUTO']],
+                'generationConfig'  => $genConfig,
+            ];
+
+            $res = $llm->googleRaw($normModel, $payload, 150);
+
+            $inTok += (int)($res['usageMetadata']['promptTokenCount'] ?? 0);
+            $outTok += (int)($res['usageMetadata']['candidatesTokenCount'] ?? 0)
+                + (int)($res['usageMetadata']['thoughtsTokenCount'] ?? 0);
+
+            $calls = $llm->googleFunctionCalls($res);
+            if (!$calls) {
+                $reply = $llm->googleText($res);
+                break;
+            }
+
+            // Preservar parts íntegros del turno del modelo (incluyendo thought / thoughtSignature en Gemini 2.5/3/4)
+            $modelContent = $res['candidates'][0]['content'] ?? ['role' => 'model', 'parts' => []];
+            $modelContent['role'] = 'model';
+            $contents[] = $modelContent;
+
+            $responseParts = [];
+            foreach ($calls as $fc) {
+                $out = $this->executeTool($fc['name'], $fc['args']);
+                $responseParts[] = [
+                    'functionResponse' => [
+                        'name'     => $fc['name'],
+                        'response' => ['result' => $out],
+                    ],
+                ];
+            }
+            $contents[] = ['role' => 'user', 'parts' => $responseParts];
+
+            if ($this->outOfTime()) {
+                $reply = $this->summaryFallback('Se agotó el tiempo antes de terminar.');
+                break;
+            }
+        }
+
+        if ($reply === '') {
+            $reply = $this->summaryFallback('Alcancé el máximo de pasos para una sola instrucción.');
+        }
+
+        $cost = $llm->calculateCost('google', $normModel, $inTok, $outTok);
+        $sprintId = (string)($this->repo->getActiveSprint()['id'] ?? 'default');
+        $llm->recordUsage(self::ROLE_ID, null, $sprintId, 'google', $normModel, $inTok, $outTok, $inTok + $outTok, $cost, 'director');
+
+        return ['reply' => $reply, 'tokens' => $inTok + $outTok, 'cost_usd' => $cost];
+    }
+
+    /**
+     * Convierte toolDefinitions() (esquema Anthropic input_schema) a functionDeclarations de Gemini.
+     * Omite arrays enum vacíos y enum en tipos no-string (Gemini OpenAPI Schema solo admite enum en string) para evitar HTTP 400.
+     */
+    public function googleFunctionDeclarations(): array
+    {
+        $decls = [];
+        foreach ($this->toolDefinitions() as $t) {
+            $props = [];
+            foreach ($t['input_schema']['properties'] ?? [] as $k => $prop) {
+                if (array_key_exists('enum', $prop)) {
+                    if (empty($prop['enum'])) {
+                        unset($prop['enum']);
+                    } elseif (($prop['type'] ?? '') !== 'string') {
+                        $vals = implode(', ', $prop['enum']);
+                        $hint = "Valores sugeridos: {$vals}.";
+                        $prop['description'] = !empty($prop['description'])
+                            ? trim((string)$prop['description']) . ' ' . $hint
+                            : $hint;
+                        unset($prop['enum']);
+                    }
+                }
+                $props[$k] = $prop;
+            }
+            $params = ['type' => 'object'];
+            if (!empty($props)) {
+                $params['properties'] = (object)$props;
+            }
+            if (!empty($t['input_schema']['required'])) {
+                $params['required'] = array_values($t['input_schema']['required']);
+            }
+            $decls[] = [
+                'name'        => $t['name'],
+                'description' => $t['description'],
+                'parameters'  => $params,
+            ];
+        }
+        return $decls;
+    }
+
+    /** Alias de compatibilidad para googleFunctionDeclarations(). */
+    public function geminiFunctionDeclarations(): array
+    {
+        return $this->googleFunctionDeclarations();
+    }
+
+    // ------------------------------------------------------------------
     // Otros motores: protocolo JSON
     // ------------------------------------------------------------------
 
@@ -154,11 +283,13 @@ class DirectorService
         $system .= "\n\n" . $this->jsonProtocolDoc();
         $messages = $history;
         $tokens = 0;
+        $costUsd = 0.0;
         $reply = '';
 
         for ($round = 0; $round < 4; $round++) {
             $res = $this->engines->ask($engine, $system, $messages, ['agent_role' => self::ROLE_ID, 'context_source' => 'director'], 1800);
             $tokens += (int)($res['total_tokens'] ?? 0);
+            $costUsd += (float)($res['estimated_cost_usd'] ?? 0.0);
             $text = (string)($res['text'] ?? '');
             $plan = $this->parseJson($text);
 
@@ -196,7 +327,7 @@ class DirectorService
         if ($reply === '') {
             $reply = $this->summaryFallback('Listo.');
         }
-        return ['reply' => $reply, 'tokens' => $tokens, 'cost_usd' => 0.0];
+        return ['reply' => $reply, 'tokens' => $tokens, 'cost_usd' => round($costUsd, 6)];
     }
 
     private function jsonProtocolDoc(): string
@@ -266,14 +397,14 @@ class DirectorService
             ],
             [
                 'name' => 'actualizar_historia',
-                'description' => 'Reasigna, reprioriza, re-estima o mueve una historia (backlog, en_progreso, revision). No puede marcarla como completada: eso lo aprueba el usuario.',
+                'description' => 'Reasigna, reprioriza, re-estima o mueve una historia (backlog, en_progreso). No puede pasarla a revisión sin evidencia ni marcarla como completada.',
                 'input_schema' => ['type' => 'object', 'properties' => [
                     'task_id'     => $str,
                     'titulo'      => $str,
                     'asignado_a'  => ['type' => 'string', 'enum' => $roles],
                     'prioridad'   => ['type' => 'string', 'enum' => BoardService::PRIORITIES],
                     'puntos'      => ['type' => 'integer', 'enum' => BoardService::FIBONACCI],
-                    'estado'      => ['type' => 'string', 'enum' => ['backlog', 'en_progreso', 'revision']],
+                    'estado'      => ['type' => 'string', 'enum' => ['backlog', 'en_progreso']],
                     'dod'         => $str,
                     'descripcion' => $str,
                 ], 'required' => ['task_id']],
@@ -323,6 +454,9 @@ class DirectorService
                     if (!$t) {
                         return $this->fail($name, 'No existe la historia ' . ($in['task_id'] ?? ''), false);
                     }
+                    if (!empty($t['project_id']) && (string)$t['project_id'] !== $this->board->activeProjectId()) {
+                        return $this->fail($name, "La historia {$t['id']} pertenece al proyecto '{$t['project_id']}', no al proyecto activo", false);
+                    }
                     $data = array_intersect_key($t, array_flip(['id', 'title', 'status', 'assigned_to', 'priority', 'story_points', 'user_story', 'dod', 'description', 'locked_by']));
                     $data['comentarios'] = array_map(fn($c) => ($c['author_name'] ?? '') . ': ' . mb_substr((string)$c['content'], 0, 300), array_slice($t['comments'] ?? [], -5));
                     return $this->ok($name, "Leyó {$t['id']}", $data, false);
@@ -355,8 +489,12 @@ class DirectorService
 
                 case 'comentar_historia':
                     $id = (string)($in['task_id'] ?? '');
-                    if (!$this->repo->getTask($id)) {
+                    $t = $this->repo->getTask($id);
+                    if (!$t) {
                         return $this->fail($name, "No existe la historia {$id}");
+                    }
+                    if (!empty($t['project_id']) && (string)$t['project_id'] !== $this->board->activeProjectId()) {
+                        return $this->fail($name, "La historia {$id} pertenece al proyecto '{$t['project_id']}', no al proyecto activo");
                     }
                     $text = trim((string)($in['comentario'] ?? ''));
                     if ($text === '') {

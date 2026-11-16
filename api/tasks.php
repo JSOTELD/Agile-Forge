@@ -48,8 +48,11 @@ $repo = new Repository();
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-// Petición GET: Devuelve el estado completo del tablero y del equipo
+// Petición GET: Devuelve el estado completo del tablero y del equipo (o salud de grafos si action=graph_health)
 if ($method === 'GET') {
+    if (($_GET['action'] ?? '') === 'graph_health') {
+        (new SettingController())->graphHealth();
+    }
     $state = $repo->getFullState();
     Bootstrap::jsonResponse($state);
 }
@@ -57,7 +60,10 @@ if ($method === 'GET') {
 // Peticiones POST / Mutaciones: Exigir JSON y despachar por acción
 if ($method === 'POST') {
     $input = Bootstrap::requireJsonBody();
-    $action = (string)($input['action'] ?? '');
+    if (array_key_exists('action', $input) && $input['action'] !== null && !is_string($input['action'])) {
+        Bootstrap::fail('El campo "action" debe ser una cadena de texto.', 422);
+    }
+    $action = trim((string)($input['action'] ?? ''));
 
     if ($action === '') {
         Bootstrap::jsonResponse(['error' => 'Acción no especificada en el cuerpo de la petición'], 400);
@@ -140,6 +146,14 @@ if ($method === 'POST') {
             $settingCtrl->saveUiPreferences($input);
             break;
 
+        case 'graph_health':
+            $settingCtrl->graphHealth();
+            break;
+
+        case 'sync_bitacora':
+            $settingCtrl->syncBitacora($input);
+            break;
+
         case 'audit_workspace_legal':
             $settingCtrl->auditWorkspaceLegal();
             break;
@@ -194,7 +208,8 @@ if ($method === 'POST') {
             $checklist = is_array($input['checklist'] ?? null) ? $input['checklist'] : [];
             $reviewerRole = (string)($input['reviewer_role'] ?? $input['reviewer'] ?? '');
             $verification = is_array($input['verification'] ?? null) ? $input['verification'] : null;
-            $taskCtrl->review($taskId, $decision, $checklist, $reviewerRole, $verification);
+            $client = is_string($input['client'] ?? null) && $input['client'] !== '' ? $input['client'] : 'mcp';
+            $taskCtrl->review($taskId, $decision, $checklist, $reviewerRole, $verification, $client);
             break;
 
         case 'add_comment':

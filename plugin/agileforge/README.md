@@ -56,6 +56,7 @@ Optional: `AGILEFORGE_ENGINE_TOOLS=on` also registers `director_instruction` and
 | `/agileforge:director <instruction>` | The main thread acts as Director: decides, records, creates and delegates |
 | `/agileforge:equipo [agent]` | Agents with model, effort and specialty |
 | `/agileforge:probar [scope]` | Tester (v0, experimental): tries to break the business rules in a disposable environment and logs each confirmed bug (`[BUG]…`) |
+| `/agileforge:grafo [action]` | Graph Curator (v0, experimental): `estado`, `construir`, `actualizar`, `bitacora`, `consultar "<question>"`, `fuente <url>`. Keeps the graphify graph the agents query and an Obsidian vault used as the project's bibliography |
 
 For a whole session as Director (opus/high, delegates with the Agent tool): `claude --agent agileforge:director`.
 
@@ -72,14 +73,30 @@ For a whole session as Director (opus/high, delegates with the Agent tool): `cla
 | legal-compliance | legal_counsel | sonnet | low |
 | project-manager | project_manager | haiku | low |
 | Tester (v0, experimental) | — | opus | high |
+| graph-curator (v0, experimental) | — | sonnet | medium |
 
-Only backend, frontend and chief-architect edit files. QA runs verification commands but does not edit. The Tester is not a board role: it only writes tests in the folder its recipe allows (`.agileforge/testing.md`), never touches source code or real data, and does not claim, submit or approve stories. **Governance:** `claim_task` before editing; delivery comes with evidence (`submit_for_review`); nobody approves their own work; only QA (`review_task`) or a human in the web app can move a story to `completada`.
+Only backend, frontend and chief-architect edit files. QA runs verification commands but does not edit. The Tester is not a board role: it only writes tests in the folder its recipe allows (`.agileforge/testing.md`), never touches source code or real data, and does not claim, submit or approve stories. The Graph Curator is not a board role either: it only writes `graphify-out/`, the vault and `.graphifyignore` (see [Knowledge graphs](#knowledge-graphs-graph-curator)). **Governance:** `claim_task` before editing; delivery comes with evidence (`submit_for_review`); nobody approves their own work; only QA (`review_task`) or a human in the web app can move a story to `completada`.
 
 **Changing model or effort:**
 
 - For one task: ask for it ("delegate to backend with opus"); Claude passes `model`/`effort` for that invocation.
 - For every subagent: `CLAUDE_CODE_SUBAGENT_MODEL` (with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` it overrides the frontmatter) and `CLAUDE_CODE_EFFORT_LEVEL`.
 - Permanently: in a local clone, edit `model:` and `effort:` in `plugin/agileforge/agents/<agent>.md`, install from that local marketplace and run `/reload-plugins`. Do not edit the plugin cache: updates overwrite it.
+
+## Knowledge graphs (Graph Curator)
+
+`/agileforge:grafo` keeps two graphs of the open project, built with [graphify](https://github.com/Graphify-Labs/graphify) (`uv tool install graphifyy`):
+
+| graph | for | where |
+|---|---|---|
+| **AI graph** | the agents, who query it (`graphify query`, `path`, `explain`) instead of reading files | `graphify-out/` (`graph.json`, `GRAPH_REPORT.md`, `wiki/index.md`) |
+| **Bibliography graph** | people: an Obsidian vault of everything that was done | `.agileforge/vault/`: `codigo/` (graphify), `bitacora/` (stories, ADRs, meetings, sprints, memory and roles from the board), `fuentes/` (source cards), `notas/` (yours) |
+
+- Code is parsed locally with tree-sitter: **0 tokens** by default (`GRAPHIFY_BACKEND=none`). Docs only enter the AI graph if the recipe picks an engine (`ollama` keeps it local).
+- **Windows, AgileForge repo:** double-click `bin\grafo-instalar.cmd`: it installs graphify if missing (uv, pipx or pip), adds it to the user PATH, shows you the recipe so you approve it yourself, and builds both graphs without spending tokens (log in `data\logs\grafo-instalar.log`).
+- It needs an approved recipe, `.agileforge/grafos.md` (template: `templates/grafos.md`); without it, the curator proposes a draft and stops.
+- `scripts/bitacora.mjs` exports the board to the vault: read-only (the view token is enough), incremental, and it never overwrites notes it did not generate or that someone edited.
+- The `knowledge-graph` skill tells the other agents to query the graph before grepping; the curator stores a short "Mapa del grafo (graphify)" note in the team memory.
 
 ## Notices
 

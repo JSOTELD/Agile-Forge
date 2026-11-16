@@ -154,8 +154,8 @@ if (fs.existsSync(dbPath)) {
   if (php) {
     const walCheck = spawnSync(
       php,
-      ['-r', `$pdo = new PDO('sqlite:${dbPath.replace(/\\/g, '/')}'); echo $pdo->query('PRAGMA journal_mode')->fetchColumn();`],
-      { encoding: 'utf8' }
+      ['-r', '$pdo = new PDO("sqlite:" . getenv("AF_DOCTOR_DB")); echo $pdo->query("PRAGMA journal_mode")->fetchColumn();'],
+      { encoding: 'utf8', env: { ...process.env, AF_DOCTOR_DB: dbPath } }
     );
     const jMode = (walCheck.stdout || '').trim().toLowerCase();
     if (jMode === 'wal') {

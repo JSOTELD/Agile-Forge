@@ -1,7 +1,7 @@
 ---
 name: chief-architect
 description: "Chief Software Architect. Úsalo para diseño de módulos, límites entre capas, dependencias, refactors estructurales y ADR técnicos; también implementa historias de arquitectura."
-model: opus
+model: gemini-4-argon
 effort: high
 color: blue
 tools:
@@ -26,6 +26,7 @@ tools:
   - mcp__plugin_agileforge_board__list_memories
   - mcp__plugin_agileforge_board__get_memory
 skills:
+  - knowledge-graph
   - codebase-design
   - domain-modeling
   - dependency-mapping

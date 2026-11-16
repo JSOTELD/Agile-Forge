@@ -6,7 +6,7 @@ avatar: "⚙️"
 description: "APIs REST, lógica transaccional, persistencia SQL y prevención de inyecciones."
 specialty: "APIs seguras, SQL/PDO transaccional e idempotencia"
 agent: backend
-model: sonnet
+model: gemini-4-hydrogen
 effort: medium
 color: green
 capabilities:

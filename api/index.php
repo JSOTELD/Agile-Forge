@@ -101,6 +101,15 @@ if ($res === 'sprint') {
     }
 }
 
+if ($res === 'graph') {
+    if (($segments[1] ?? '') === 'health' && $method === 'GET') {
+        $settingCtrl->graphHealth();
+    }
+    if (($segments[1] ?? '') === 'sync' && $method === 'POST') {
+        $settingCtrl->syncBitacora(Bootstrap::requireJsonBody());
+    }
+}
+
 if ($res === 'tasks') {
     $taskId = $segments[1] ?? null;
     $subAction = $segments[2] ?? null;
@@ -144,7 +153,8 @@ if ($res === 'tasks') {
                 (string)($input['decision'] ?? ''),
                 (array)($input['checklist'] ?? []),
                 (string)($input['reviewer_role'] ?? $input['reviewer'] ?? ''),
-                is_array($input['verification'] ?? null) ? $input['verification'] : null
+                is_array($input['verification'] ?? null) ? $input['verification'] : null,
+                is_string($input['client'] ?? null) && $input['client'] !== '' ? $input['client'] : 'mcp'
             );
         } elseif ($subAction === 'comments' && $method === 'POST') {
             $input = Bootstrap::requireJsonBody();
@@ -273,6 +283,8 @@ Bootstrap::jsonResponse([
         'GET  /api/memories[?project=<id>&role=<id>&type=<type>]',
         'GET  /api/memories/{id}',
         'POST /api/memories',
-        'DELETE /api/memories/{id}'
+        'DELETE /api/memories/{id}',
+        'GET  /api/graph/health',
+        'POST /api/graph/sync'
     ]
 ], 404);

@@ -1,7 +1,7 @@
 ---
 name: tester
 description: "Tester (v0, experimental). Encuentra fallos y los demuestra con pruebas ejecutables en un entorno desechable. No arregla código, no aprueba y no prioriza. Úsalo con /agileforge:probar [alcance]."
-model: opus
+model: gemini-4-argon
 effort: high
 color: orange
 tools:
@@ -19,6 +19,7 @@ tools:
   - mcp__plugin_agileforge_board__create_task
   - mcp__plugin_agileforge_board__add_comment
 skills:
+  - knowledge-graph
   - webapp-testing
   - e2e-playwright-lean
   - security-hardening

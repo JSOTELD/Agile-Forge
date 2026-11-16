@@ -6,7 +6,7 @@ avatar: "🎨"
 description: "Interfaces web, componentes responsivos, accesibilidad y diseño de interacción."
 specialty: "Diseño responsivo, accesibilidad WCAG y experiencia de usuario"
 agent: frontend
-model: sonnet
+model: gemini-4-hydrogen
 effort: medium
 color: cyan
 capabilities:

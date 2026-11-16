@@ -16,6 +16,7 @@ Sustituye a la antigua `graphify`: un mapa ligero obtenido con herramientas del 
 Antes de renombrar, mover o eliminar archivos, cambiar un contrato, tocar una tabla o evaluar el impacto de una historia.
 
 ## Pasos
+0. Si existe `graphify-out/graph.json`, empieza por el grafo (skill `knowledge-graph`): `graphify explain "<objetivo>"` da los dependientes y dependencias directas, y `graphify path "A" "B"` cómo se conectan. Usa los pasos siguientes para confirmar lo `INFERRED` y lo que el grafo no ve (rutas dinámicas, SQL).
 1. Fija el objetivo: el símbolo, archivo o tabla cuyo impacto quieres conocer.
 2. Dependientes directos (quién lo usa): `grep -rn "nombre" --include=*.php --include=*.ts --include=*.js` (excluye `vendor/`, `node_modules/`, `dist/`). Para PHP busca `require`, `include`, `use`, nombres de clase y de función; para TS, `import ... from`.
 3. Dependencias salientes: lee los `require`/`import` del archivo objetivo.

@@ -303,6 +303,21 @@ class Database
 
         CREATE INDEX IF NOT EXISTS idx_agent_memories_lookup 
         ON agent_memories(project_id, role_id, is_active, importance_score);
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_status
+        ON tasks(project_id, status);
+
+        CREATE INDEX IF NOT EXISTS idx_comments_task
+        ON comments(task_id);
+
+        CREATE INDEX IF NOT EXISTS idx_token_usage_sprint_role
+        ON ai_token_usage(sprint_id, agent_role);
+
+        CREATE INDEX IF NOT EXISTS idx_meetings_project
+        ON meetings(project_id);
+
+        CREATE INDEX IF NOT EXISTS idx_decisions_project
+        ON decisions(project_id);
 SQL;
 
         $pdo->exec($sql);
@@ -319,6 +334,7 @@ SQL;
         self::addColumnIfMissing($pdo, 'sprints', 'budget_usd', 'REAL DEFAULT 0.0');
         self::backfillSprintEnds($pdo);
         self::repairBoardData($pdo);
+        self::seedSoftwarePackRoles($pdo);
 
         self::runDataMigrations($pdo);
     }
@@ -580,12 +596,14 @@ SQL;
     {
         $stmt = $pdo->prepare(
             "INSERT OR IGNORE INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json)
-             VALUES ('director', ?, 'The Chief', '👑', 'anthropic', 'claude-opus-5-5', ?, ?, ?)"
+             VALUES ('director', ?, 'The Chief', '👑', ?, ?, ?, ?, ?)"
         );
         $skills = ['director-toma-decisiones', 'director-gestion-equipo', 'director-priorizacion-valor', 'agile-project-manager', 'context-sentinel'];
         $name = 'Director General (Jefe Máximo)';
         $description = 'Recibe tus instrucciones, decide prioridades, delega en los agentes especialistas, registra las decisiones y te rinde cuentas.';
         $specialty = 'Dirección estratégica, toma de decisiones, priorización por valor, delegación y control del equipo de agentes';
+        $aiProvider = 'google';
+        $aiModel = 'gemini-4-argon';
         // RFC-001: los datos salen del pack core (plugin/agileforge/packs/core/director.md) si está disponible
         try {
             require_once __DIR__ . '/services/RoleRegistry.php';
@@ -594,13 +612,86 @@ SQL;
             $description = is_string($def['description'] ?? null) ? $def['description'] : $description;
             $specialty = is_string($def['specialty'] ?? null) ? $def['specialty'] : $specialty;
             $skills = is_array($def['skills'] ?? null) && $def['skills'] ? array_values($def['skills']) : $skills;
+            if (is_string($def['model'] ?? null) && trim($def['model']) !== '' && $def['model'] !== 'inherit') {
+                $rawModel = trim($def['model']);
+                $aliasMap = [
+                    'argon'    => 'gemini-4-argon',
+                    'hydrogen' => 'gemini-4-hydrogen',
+                    'flash'    => 'gemini-3.8-flash',
+                    'opus'     => 'claude-opus-5-5',
+                    'sonnet'   => 'claude-sonnet-5-5',
+                    'haiku'    => 'claude-haiku-5-5',
+                    'fable'    => 'claude-fable-5-2',
+                ];
+                $aiModel = $aliasMap[$rawModel] ?? $rawModel;
+                $aiProvider = str_starts_with($aiModel, 'claude-') ? 'anthropic' : 'google';
+            }
         } catch (\Throwable $e) {
             // sin pack: valores de siempre
         }
-        $stmt->execute([$name, $description, $specialty, json_encode($skills, JSON_UNESCAPED_UNICODE)]);
+        $stmt->execute([$name, $aiProvider, $aiModel, $description, $specialty, json_encode($skills, JSON_UNESCAPED_UNICODE)]);
         $rs = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES ('director', ?)");
         foreach ($skills as $sk) {
             $rs->execute([$sk]);
+        }
+        self::seedSoftwarePackRoles($pdo);
+    }
+
+    /** Siembra los roles especialistas de ingeniería de sistemas (plugin/agileforge/packs/software/*.md) en la tabla roles. */
+    public static function seedSoftwarePackRoles(PDO $pdo): void
+    {
+        try {
+            require_once __DIR__ . '/services/RoleRegistry.php';
+            $softDir = \AgileForge\Services\RoleRegistry::packDir('software');
+            if (!is_dir($softDir)) {
+                return;
+            }
+            $aliasMap = [
+                'argon'    => 'gemini-4-argon',
+                'hydrogen' => 'gemini-4-hydrogen',
+                'flash'    => 'gemini-3.8-flash',
+                'opus'     => 'claude-opus-5-5',
+                'sonnet'   => 'claude-sonnet-5-5',
+                'haiku'    => 'claude-haiku-5-5',
+                'fable'    => 'claude-fable-5-2',
+            ];
+            $insRole = $pdo->prepare(
+                "INSERT OR IGNORE INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $insSkill = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES (?, ?)");
+            foreach (glob(rtrim($softDir, '/\\') . '/*.md') ?: [] as $file) {
+                [$def] = \AgileForge\Services\RoleRegistry::parseFile($file);
+                $id = trim((string)($def['id'] ?? ''));
+                if ($id === '') {
+                    continue;
+                }
+                $rName = trim((string)($def['name'] ?? $id));
+                $rAlias = trim((string)($def['alias'] ?? $rName));
+                $rAvatar = trim((string)($def['avatar'] ?? '🤖'));
+                $rDesc = trim((string)($def['description'] ?? ''));
+                $rSpec = trim((string)($def['specialty'] ?? $rDesc));
+                $rSkills = is_array($def['skills'] ?? null) ? array_values(array_map('strval', $def['skills'])) : [];
+                $rawModel = trim((string)($def['model'] ?? 'gemini-4-hydrogen'));
+                $rModel = $aliasMap[$rawModel] ?? ($rawModel !== '' && $rawModel !== 'inherit' ? $rawModel : 'gemini-4-hydrogen');
+                $rProv = str_starts_with($rModel, 'claude-') ? 'anthropic' : 'google';
+                $insRole->execute([
+                    $id,
+                    $rName,
+                    $rAlias,
+                    $rAvatar,
+                    $rProv,
+                    $rModel,
+                    $rDesc,
+                    $rSpec,
+                    json_encode($rSkills, JSON_UNESCAPED_UNICODE)
+                ]);
+                foreach ($rSkills as $sk) {
+                    $insSkill->execute([$id, $sk]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('AgileForge seedSoftwarePackRoles: ' . $e->getMessage());
         }
     }
 
@@ -745,6 +836,26 @@ SQL;
         if ($providerId === 'anthropic') {
             return stripos($model, 'haiku') !== false ? 'claude-haiku-5-5'
                 : (stripos($model, 'opus') !== false ? 'claude-opus-5-5' : 'claude-sonnet-5-5');
+        }
+        if ($providerId === 'google') {
+            if (stripos($model, '2.5-pro') !== false || stripos($model, '2.5 pro') !== false) {
+                return 'gemini-2.5-pro';
+            }
+            if (stripos($model, '2.5-flash') !== false || stripos($model, '2.5 flash') !== false) {
+                return 'gemini-2.5-flash';
+            }
+            if (stripos($model, '3.1-pro') !== false || stripos($model, '3.1 pro') !== false) {
+                return 'gemini-3.1-pro-preview';
+            }
+            if (stripos($model, '3.1-flash-lite') !== false || stripos($model, 'flash-lite') !== false) {
+                return 'gemini-3.1-flash-lite';
+            }
+            if (stripos($model, '3-flash') !== false || stripos($model, '3.0-flash') !== false || stripos($model, '3 flash') !== false) {
+                return 'gemini-3-flash-preview';
+            }
+            return stripos($model, 'argon') !== false ? 'gemini-4-argon'
+                : (stripos($model, 'hydrogen') !== false ? 'gemini-4-hydrogen'
+                : (stripos($model, '3.8') !== false ? 'gemini-3.8-flash' : (string)($provider['default_model'] ?? 'gemini-4-hydrogen')));
         }
         return (string)($provider['default_model'] ?? $model);
     }

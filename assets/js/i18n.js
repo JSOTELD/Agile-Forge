@@ -86,7 +86,7 @@ export const translations = {
         role_lead_architect: 'Arquitecto',
         role_creative_director: 'Dir. Creativo',
         role_director: 'Director',
-        cost_plugin_tip: 'En modo plugin el trabajo corre en Claude Code: el panel no gasta tokens.',
+        cost_plugin_tip: 'En modo plugin el trabajo corre en Claude Code / Antigravity: el panel no gasta tokens.',
         cost_plugin_na: 'No aplica',
         sprint_points_tip: 'Puntos completados / puntos planificados para el sprint',
         sprint_points_lbl: 'Hechos / plan',
@@ -106,7 +106,7 @@ export const translations = {
         goal_contrast_d: 'Objetivo: texto con contraste AA (4,5:1) en todos los temas.',
         goal_contrast_t: 'Contraste legible',
         // Header
-        subtitle: 'Tu equipo de agentes de IA para Claude Code',
+        subtitle: 'Tu equipo de agentes de IA para Antigravity y Claude Code',
         search_btn: 'Buscar',
         theme_btn: 'Tema',
         ai_engine_lbl: 'Motor IA:',
@@ -184,13 +184,13 @@ export const translations = {
         // Vista y modo plugin
         view_btn: 'Vista',
         view_btn_title: 'Abrir AgileForge Vista (solo lectura) en otra pestaña',
-        plugin_notice: 'Modo plugin: el cerebro es Claude Code (instala el plugin AgileForge Control) · o añade una clave / activa la IA local',
-        plugin_engine_badge: '🧩 Claude Code',
-        plugin_engine_hint: 'Este rol trabaja desde Claude Code; no necesita motor en la web.',
-        director_plugin_note: 'Las instrucciones desde esta web necesitan un motor de IA. Desde Claude Code usa /director.',
-        director_plugin_toast: 'Desde Claude Code usa /director, o añade una clave / activa la IA local para dar instrucciones desde aquí.',
-        plugin_mode_title: 'Claude Code',
-        plugin_mode_msg: 'Modo plugin: este trabajo lo hace Claude Code desde tu terminal (/director, /reunion, /tomar). O añade una clave / activa la IA local para usar el motor desde aquí.',
+        plugin_notice: 'Modo plugin: el cerebro es Claude Code / Antigravity (instala el plugin AgileForge Control) · o añade una clave / activa la IA local',
+        plugin_engine_badge: '🧩 CLI Host',
+        plugin_engine_hint: 'Este rol trabaja desde Claude Code / Antigravity; no necesita motor en la web.',
+        director_plugin_note: 'Las instrucciones desde esta web necesitan un motor de IA. Desde tu terminal usa /director.',
+        director_plugin_toast: 'Desde tu terminal usa /director, o añade una clave / activa la IA local para dar instrucciones desde aquí.',
+        plugin_mode_title: 'Modo CLI / Plugin',
+        plugin_mode_msg: 'Modo plugin: este trabajo lo hace Claude Code o Antigravity desde tu terminal (/director, /reunion, /tomar). O añade una clave / activa la IA local para usar el motor desde aquí.',
 
         // Detalle de historia
         detail_agent: 'Agente',
@@ -284,7 +284,7 @@ export const translations = {
         role_lead_architect: 'Architect',
         role_creative_director: 'Creative Dir.',
         role_director: 'Director',
-        cost_plugin_tip: 'In plugin mode the work runs in Claude Code: the panel spends no tokens.',
+        cost_plugin_tip: 'In plugin mode the work runs in Claude Code / Antigravity: the panel spends no tokens.',
         cost_plugin_na: 'N/A',
         sprint_points_tip: 'Points completed / points planned for the sprint',
         sprint_points_lbl: 'Done / planned',
@@ -304,7 +304,7 @@ export const translations = {
         goal_contrast_d: 'Goal: AA text contrast (4.5:1) in every theme.',
         goal_contrast_t: 'Readable contrast',
         // Header
-        subtitle: 'Your AI agent team for Claude Code',
+        subtitle: 'Your AI agent team for Antigravity and Claude Code',
         search_btn: 'Search',
         theme_btn: 'Theme',
         ai_engine_lbl: 'AI Engine:',
@@ -382,13 +382,13 @@ export const translations = {
         // View and plugin mode
         view_btn: 'View',
         view_btn_title: 'Open AgileForge View (read-only) in another tab',
-        plugin_notice: 'Plugin mode: the brain is Claude Code (install the AgileForge Control plugin) · or add a key / turn on local AI',
-        plugin_engine_badge: '🧩 Claude Code',
-        plugin_engine_hint: 'This role works from Claude Code; it needs no engine in the web app.',
-        director_plugin_note: 'Instructions from this page need an AI engine. From Claude Code use /director.',
-        director_plugin_toast: 'From Claude Code use /director, or add a key / turn on local AI to give instructions from here.',
-        plugin_mode_title: 'Claude Code',
-        plugin_mode_msg: 'Plugin mode: this work is done by Claude Code from your terminal (/director, /reunion, /tomar). Or add a key / turn on local AI to use the engine from here.',
+        plugin_notice: 'Plugin mode: the brain is Claude Code / Antigravity (install the AgileForge Control plugin) · or add a key / turn on local AI',
+        plugin_engine_badge: '🧩 CLI Host',
+        plugin_engine_hint: 'This role works from Claude Code / Antigravity; it needs no engine in the web app.',
+        director_plugin_note: 'Instructions from this page need an AI engine. From your terminal use /director.',
+        director_plugin_toast: 'From your terminal use /director, or add a key / turn on local AI to give instructions from here.',
+        plugin_mode_title: 'CLI / Plugin Mode',
+        plugin_mode_msg: 'Plugin mode: this work is done by Claude Code or Antigravity from your terminal (/director, /reunion, /tomar). Or add a key / turn on local AI to use the engine from here.',
 
         // Story detail
         detail_agent: 'Agent',
@@ -463,6 +463,18 @@ export function applyLanguageToDOM() {
         const key = el.getAttribute('data-i18n-title');
         if (dict[key]) {
             el.setAttribute('title', dict[key]);
+            // WCAG AA: si el elemento tiene aria-label, sincronizarlo con el título traducido
+            if (el.hasAttribute('aria-label')) {
+                el.setAttribute('aria-label', dict[key]);
+            }
+        }
+    });
+
+    // Elementos con data-i18n-aria
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+        const key = el.getAttribute('data-i18n-aria');
+        if (dict[key]) {
+            el.setAttribute('aria-label', dict[key]);
         }
     });
 
@@ -478,7 +490,7 @@ export function applyLanguageToDOM() {
 
     // Actualizar título de documento
     document.title = currentLanguage === 'es'
-        ? 'AgileForge · Tu equipo de agentes de IA para Claude Code'
-        : 'AgileForge · Your AI agent team for Claude Code';
+        ? 'AgileForge · Tu equipo de agentes de IA para Antigravity y Claude Code'
+        : 'AgileForge · Your AI agent team for Antigravity and Claude Code';
 }
 

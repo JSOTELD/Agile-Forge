@@ -6,7 +6,7 @@ avatar: "⚖️"
 description: "Revisión de privacidad, protección de datos personales y términos de servicio."
 specialty: "Privacidad, cumplimiento normativo y contratos"
 agent: legal-compliance
-model: sonnet
+model: gemini-3.8-flash
 effort: low
 color: orange
 capabilities:

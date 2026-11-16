@@ -1,7 +1,7 @@
 ---
 name: project-manager
 description: "Project Manager & Scrum Master. Úsalo para estado del sprint, daily, descomposición de trabajo en historias, impedimentos y facilitación de reuniones."
-model: haiku
+model: gemini-3.8-flash
 effort: low
 color: yellow
 tools:

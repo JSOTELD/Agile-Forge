@@ -1,7 +1,7 @@
 ---
 name: legal-compliance
 description: "Abogado & Compliance Officer. Úsalo para revisar privacidad, datos personales, términos, avisos legales y riesgos regulatorios de una funcionalidad. Orientativo: no es asesoría legal profesional."
-model: sonnet
+model: gemini-3.8-flash
 effort: low
 color: orange
 tools:

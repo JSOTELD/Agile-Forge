@@ -41,7 +41,7 @@ graph TD
    - **Control** (full): 21 `zod`-validated tools (task locks, evidence-based delivery, meeting minutes, ADRs, sprints). **View** (read-only): 10 tools. Two more tools, `director_instruction` and `ask_agent`, are registered only with `AGILEFORGE_ENGINE_TOOLS=on`.
    - Native URI resources: `agileforge://sprint/current`, `agileforge://task/{id}`, `agileforge://roles`.
 4. **Official Claude Code plugins (`plugin/agileforge/` and `plugin/agileforge-vista/`)**
-   - **AgileForge Control:** 8 sub-agents (**Managing Director**, Project Manager, Creative Director, Chief Architect, Frontend Master, Backend Master, QA Sentinel, Legal Counsel), 27 skills in real `SKILL.md` files, 7 slash commands and a `SessionStart` hook with a sprint summary.
+   - **AgileForge Control:** 10 sub-agents (**Managing Director**, Project Manager, Creative Director, Chief Architect, Frontend Master, Backend Master, QA Sentinel, Legal Counsel, Tester and Graph Curator), 33 skills in real `SKILL.md` files, 9 slash commands and a `SessionStart` hook with a sprint summary.
    - **AgileForge View:** read-only, with the `observador` agent and 5 commands.
 5. **Modular web frontend (native ES modules)**
    - `app.js`, `state.js`, `ui.js`, `kanban.js`, `chat.js`, `meetings.js`, `director.js`, `bindings.js`, `skills.js`, `ux-lab.js`, `projects.js`, `legal.js`, `local-ai.js`, `i18n.js`.
@@ -139,11 +139,12 @@ Each agent has its own model and effort, so the expensive model is used only whe
 | legal-compliance | sonnet | low |
 | project-manager | haiku | low |
 | Tester (v0, experimental) | opus | high |
+| Graph Curator (v0, experimental) | sonnet | medium |
 | observador (View) | haiku | low |
 
 ### Commands
 
-- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <type> <topic>`, `/agileforge:director <instruction>`, `/agileforge:equipo`, `/agileforge:probar [scope]` (Tester, v0, experimental).
+- **Control:** `/agileforge:sprint`, `/agileforge:daily`, `/agileforge:tomar <US-id>`, `/agileforge:dod <US-id>`, `/agileforge:reunion <type> <topic>`, `/agileforge:director <instruction>`, `/agileforge:equipo`, `/agileforge:probar [scope]` (Tester, v0, experimental), `/agileforge:grafo [action]` (Graph Curator, v0, experimental: a graphify graph for the agents and an Obsidian vault as the project's bibliography).
 - **View:** `/agileforge-vista:estado`, `/agileforge-vista:tablero`, `/agileforge-vista:reuniones`, `/agileforge-vista:decisiones`, `/agileforge-vista:actividad`.
 
 ### Governance: who can complete a story

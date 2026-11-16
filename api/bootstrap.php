@@ -183,12 +183,26 @@ class Bootstrap
         $file = $tempDir . '/' . $hashKey . '.json';
 
         $currentCount = 1;
-        if (file_exists($file)) {
-            $data = json_decode((string)file_get_contents($file), true) ?: [];
-            $currentCount = (int)($data['count'] ?? 0) + 1;
+        $fp = @fopen($file, 'c+');
+        if ($fp !== false) {
+            if (@flock($fp, LOCK_EX)) {
+                $raw = stream_get_contents($fp);
+                $data = $raw !== false && $raw !== '' ? (json_decode($raw, true) ?: []) : [];
+                $currentCount = (int)($data['count'] ?? 0) + 1;
+                rewind($fp);
+                ftruncate($fp, 0);
+                fwrite($fp, (string)json_encode(['count' => $currentCount, 'time' => $now]));
+                fflush($fp);
+                @flock($fp, LOCK_UN);
+            }
+            @fclose($fp);
+        } else {
+            if (file_exists($file)) {
+                $data = json_decode((string)file_get_contents($file), true) ?: [];
+                $currentCount = (int)($data['count'] ?? 0) + 1;
+            }
+            @file_put_contents($file, json_encode(['count' => $currentCount, 'time' => $now]), LOCK_EX);
         }
-
-        @file_put_contents($file, json_encode(['count' => $currentCount, 'time' => $now]), LOCK_EX);
 
         // Limpiar archivos viejos (1 de cada 100 peticiones)
         if (rand(1, 100) === 1) {
@@ -416,14 +430,15 @@ class Bootstrap
         $ok = match (true) {
             $n === 1 => in_array($a, ['overview', 'events', 'meetings', 'decisions', 'tasks', 'memories'], true),
             $n === 2 => ($a === 'meetings' || $a === 'tasks' || $a === 'memories') && $segments[1] !== ''
-                || ($a === 'sprint' && $segments[1] === 'status'),
+                || ($a === 'sprint' && $segments[1] === 'status')
+                || ($a === 'graph' && $segments[1] === 'health'),
             $n === 3 => $a === 'roles' && $segments[1] !== '' && $segments[2] === 'brief',
             default => false,
         };
         if (!$ok) {
             self::fail(
                 'Token de vista de solo lectura: esta ruta no está permitida. Rutas GET permitidas: overview, events, meetings, '
-                . 'meetings/{id}, decisions, tasks, tasks/{id}, sprint/status y roles/{id}/brief. Para el resto usa el token principal.',
+                . 'meetings/{id}, decisions, tasks, tasks/{id}, sprint/status, graph/health y roles/{id}/brief. Para el resto usa el token principal.',
                 403
             );
         }
@@ -470,6 +485,23 @@ class Bootstrap
         }
 
         return $real;
+    }
+
+    /** Prohibe escribir archivos de usuario dentro de carpetas críticas del motor (data/, api/, config/, .git/). */
+    public static function assertNotEngineCriticalDir(string $resolvedDir): void
+    {
+        $engineRoot = realpath(dirname(__DIR__)) ?: dirname(__DIR__);
+        $normEngine = rtrim(str_replace('\\', '/', $engineRoot), '/');
+        $normTarget = rtrim(str_replace('\\', '/', realpath($resolvedDir) ?: $resolvedDir), '/');
+        $cmpEngine = PHP_OS_FAMILY === 'Windows' ? strtolower($normEngine) : $normEngine;
+        $cmpTarget = PHP_OS_FAMILY === 'Windows' ? strtolower($normTarget) : $normTarget;
+
+        foreach (['data', 'api', 'config', '.git'] as $dir) {
+            $blocked = $cmpEngine . '/' . $dir;
+            if ($cmpTarget === $blocked || str_starts_with($cmpTarget, $blocked . '/')) {
+                throw new \InvalidArgumentException("Ruta no permitida: no se puede escribir dentro del directorio crítico '{$dir}/' del motor.");
+            }
+        }
     }
 
     public static function jsonResponse(array $data, int $code = 200, bool $pretty = true): void

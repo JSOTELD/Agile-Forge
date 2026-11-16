@@ -106,7 +106,7 @@ export function renderDirectorPanel() {
         ${asked ? `<p class="text-[11px] text-slate-400 mb-1.5"><span class="text-slate-500">Tú:</span> ${escapeHtml(asked.text.slice(0, 300))}</p>` : ''}
         <div class="text-xs text-slate-200 leading-relaxed">${richText(last.text)}</div>
         ${actionChips(last.meta?.actions)}
-        <p class="text-[10px] text-slate-500 font-mono mt-2">${escapeHtml(last.timestamp || '')}${last.ai_model ? ' · ' + escapeHtml(last.ai_model) : ''}${last.meta?.cost_usd ? ' · $' + Number(last.meta.cost_usd).toFixed(4) : ''}</p>`;
+        <p class="text-[10px] text-slate-500 font-mono mt-2">${escapeHtml(last.timestamp || '')}${last.ai_model ? ' · ' + escapeHtml(last.ai_model) : ''}${(last.meta?.cost_usd !== undefined && last.meta?.cost_usd !== null) ? ' · $' + Number(last.meta.cost_usd).toFixed(4) : ''}</p>`;
 }
 
 export async function sendDirectorInstruction(e) {

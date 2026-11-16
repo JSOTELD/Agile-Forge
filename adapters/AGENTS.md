@@ -60,3 +60,11 @@ flowchart LR
 ## 4. Read-only mode
 
 A server started as viewer (`dist/viewer.js` or `AGILEFORGE_MODE=vista`) exposes only read tools (10) and uses the read-only token. If you only have those, you may observe and report, but not claim, edit or review.
+
+## 5. Knowledge graph (optional)
+
+If the project has `graphify-out/graph.json` (built by the Graph Curator with [graphify](https://github.com/Graphify-Labs/graphify)), query it **before** searching or reading files: it is cheaper and tells you what to read.
+
+- `graphify query "<question>" --budget 1500` · `graphify path "A" "B"` · `graphify explain "X"`; cite the `source_location` and confirm anything marked `INFERRED` in the code.
+- Do not rebuild it on your own: in Claude Code it is kept up to date by `/agileforge:grafo actualizar`; in another client, only if the human asks, `GRAPHIFY_BACKEND=none graphify update .` (no LLM, 0 tokens).
+- The human-facing bibliography (Obsidian vault in `.agileforge/vault/`) is not for agents: do not use it as the source of truth for the board.

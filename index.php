@@ -488,118 +488,6 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
             color: #0f172a !important;
         }
 
-        html.theme-light .kanban-col .text-amber-300,
-        html.theme-paper .kanban-col .text-amber-300 {
-            color: #b45309 !important;
-        }
-
-        html.theme-light .kanban-col .text-purple-300,
-        html.theme-paper .kanban-col .text-purple-300 {
-            color: #7e22ce !important;
-        }
-
-        html.theme-light .kanban-col .text-emerald-300,
-        html.theme-paper .kanban-col .text-emerald-300 {
-            color: #047857 !important;
-        }
-
-        html.theme-light .kanban-col .text-slate-200,
-        html.theme-paper .kanban-col .text-slate-200 {
-            color: #334155 !important;
-        }
-
-        html.theme-light .kanban-col #col-count-backlog,
-        html.theme-paper .kanban-col #col-count-backlog {
-            background-color: #f1f5f9 !important;
-            color: #475569 !important;
-            border: 1px solid #e2e8f0 !important;
-        }
-
-        html.theme-light .kanban-col #col-count-en_progreso,
-        html.theme-paper .kanban-col #col-count-en_progreso {
-            background-color: #fef3c7 !important;
-            color: #92400e !important;
-            border: 1px solid #fde68a !important;
-        }
-
-        html.theme-light .kanban-col #col-count-revision,
-        html.theme-paper .kanban-col #col-count-revision {
-            background-color: #f3e8ff !important;
-            color: #6b21a8 !important;
-            border: 1px solid #e9d5ff !important;
-        }
-
-        html.theme-light .kanban-col #col-count-completada,
-        html.theme-paper .kanban-col #col-count-completada {
-            background-color: #d1fae5 !important;
-            color: #065f46 !important;
-            border: 1px solid #a7f3d0 !important;
-        }
-
-        /* 5. Barra de Filtros en Modo Día */
-        html.theme-light #kanban-search,
-        html.theme-paper #kanban-search,
-        html.theme-light #kanban-filter-role,
-        html.theme-paper #kanban-filter-role,
-        html.theme-light #kanban-filter-priority,
-        html.theme-paper #kanban-filter-priority,
-        html.theme-light #kanban-filter-skill,
-        html.theme-paper #kanban-filter-skill,
-        html.theme-light #kanban-filter-count,
-        html.theme-paper #kanban-filter-count {
-            background-color: #ffffff !important;
-            color: #0f172a !important;
-            border-color: #cbd5e1 !important;
-        }
-
-        /* 6. Botones de Cabecera con bordes nítidos */
-        html.theme-light header button,
-        html.theme-paper header button {
-            background-color: #ffffff !important;
-            border-color: #cbd5e1 !important;
-            color: #1e293b !important;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-        }
-
-        html.theme-light header button:hover,
-        html.theme-paper header button:hover {
-            background-color: #f8fafc !important;
-            border-color: #94a3b8 !important;
-            color: #0f172a !important;
-        }
-
-        html.theme-light header .text-slate-400,
-        html.theme-paper header .text-slate-400 {
-            color: #64748b !important;
-        }
-
-        html.theme-light header .text-slate-200,
-        html.theme-paper header .text-slate-200 {
-            color: #1e293b !important;
-        }
-
-        /* 7. Tabs de Navegación */
-        html.theme-light .tab-inactive,
-        html.theme-paper .tab-inactive {
-            color: #475569 !important;
-        }
-
-        html.theme-light .tab-inactive:hover,
-        html.theme-paper .tab-inactive:hover {
-            color: #0f172a !important;
-            background-color: #f1f5f9 !important;
-        }
-
-        /* 8. Barra de Proyecto */
-        html.theme-light nav .bg-slate-900\/60,
-        html.theme-paper nav .bg-slate-900\/60,
-        html.theme-light #project-selector,
-        html.theme-paper #project-selector {
-            background-color: #ffffff !important;
-            border-color: #cbd5e1 !important;
-            color: #0f172a !important;
-        }
-
         /* 9. Notificaciones Toast en Modo Día */
         html.theme-light .toast-card,
         html.theme-paper .toast-card {
@@ -868,10 +756,10 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
 
         /* ===== Componentes del rediseño (no dependen de clases de Tailwind compiladas) ===== */
 
-        /* Avatares de rol: imagen de marca o, si no existe, el emoji del rol */
-        .role-avatar { display: inline-block; flex: none; border-radius: 28%; object-fit: cover; background: #0b1020; box-shadow: 0 0 0 1px rgba(148, 163, 184, .35); vertical-align: middle; }
+        /* Avatares de rol: imagen de marca (adaptativa claro/oscuro) o, si no existe, el emoji del rol */
+        .role-avatar { display: inline-block; flex: none; border-radius: 28%; object-fit: cover; background: #0b1020; box-shadow: 0 0 0 1px rgba(148, 163, 184, .35); vertical-align: middle; transition: background 0.2s ease, box-shadow 0.2s ease; }
         .role-avatar-emoji { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 1; }
-        html.theme-light .role-avatar, html.theme-paper .role-avatar { box-shadow: 0 0 0 1px rgba(15, 23, 42, .18); }
+        html.theme-light .role-avatar, html.theme-paper .role-avatar { background: #f1f5f9; box-shadow: 0 0 0 1px rgba(15, 23, 42, .18), 0 1px 2px rgba(15, 23, 42, .06); }
 
         /* Prioridad: color + icono + texto (nunca solo color) */
         .prio-badge { display: inline-flex; align-items: center; gap: .25rem; padding: .05rem .4rem; border-radius: .375rem; border: 1px solid transparent; font-size: 10px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
@@ -1011,6 +899,55 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
                     <span aria-hidden="true">💬</span>
                     <span id="chat-badge" class="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
                 </button>
+                <!-- Pill e indicador ligero de Salud de Grafos (M5) -->
+                <div class="relative inline-block" id="graph-health-container">
+                    <button type="button" id="graph-health-pill" onclick="toggleGraphHealthPopover()" class="hdr-icon-btn flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300 hover:border-indigo-500/50 transition" title="Salud de Grafos (Graphify y Bitácora)" aria-expanded="false" aria-controls="graph-health-popover" aria-label="Salud de Grafos">
+                        <span id="graph-health-indicator" class="w-2 h-2 rounded-full bg-slate-500 shrink-0"></span>
+                        <span class="text-xs" aria-hidden="true">🕸️</span>
+                        <span id="graph-health-label" class="hidden sm:inline text-[11px] font-bold">Grafo</span>
+                    </button>
+
+                    <!-- Popover desplegable de salud de grafos -->
+                    <div id="graph-health-popover" class="hidden absolute right-0 top-full mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl z-50 text-xs space-y-3" role="dialog" aria-label="Estado de los Grafos">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <h4 class="font-bold text-white flex items-center gap-1.5">
+                                <span>🕸️</span> Salud de Grafos
+                            </h4>
+                            <span id="graph-health-badge-status" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">Cargando…</span>
+                        </div>
+
+                        <!-- Grafo de Código (Graphify) -->
+                        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                            <span class="font-bold text-slate-200 block text-[11px] flex items-center gap-1">
+                                <span>📦</span> Grafo de Código (Graphify)
+                            </span>
+                            <div class="grid grid-cols-3 gap-1 text-[10px] font-mono text-slate-400 py-1">
+                                <div>Nodos: <strong id="graph-stat-nodes" class="text-indigo-300">—</strong></div>
+                                <div>Aristas: <strong id="graph-stat-edges" class="text-indigo-300">—</strong></div>
+                                <div>Comunidades: <strong id="graph-stat-communities" class="text-indigo-300">—</strong></div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 font-mono" id="graph-stat-commit">Commit: —</p>
+                        </div>
+
+                        <!-- Bóveda Obsidian (Bitácora) -->
+                        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+                            <span class="font-bold text-slate-200 block text-[11px] flex items-center gap-1">
+                                <span>📓</span> Bóveda Obsidian
+                            </span>
+                            <p class="text-[10px] text-slate-400 font-mono" id="graph-stat-vault">Notas: — · Actualizado: —</p>
+                        </div>
+
+                        <!-- Acciones -->
+                        <div class="pt-1 flex items-center justify-between gap-2">
+                            <button type="button" onclick="syncBitacoraAction()" id="graph-sync-btn" class="flex-1 py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shadow transition flex items-center justify-center gap-1">
+                                <span>🔄</span> Sincronizar Bitácora
+                            </button>
+                            <button type="button" onclick="refreshGraphHealth()" class="py-1.5 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold" title="Refrescar estado">
+                                <span>⚡</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <button onclick="openNewTaskModal()" class="btn-primary">
                     <span aria-hidden="true">+</span> <span data-i18n="new_task_btn">Nueva historia</span>
                 </button>
@@ -2138,7 +2075,7 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
                                 class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 font-medium text-xs focus:border-purple-500 outline-none">
                             <option value="anthropic">🟣 Anthropic Claude (Claude Code / API)</option>
                             <option value="openai">🟢 OpenAI (GPT-4o, o3-mini, API)</option>
-                            <option value="google">✨ Google Gemini (Gemini 2.5 Pro, Antigravity)</option>
+                            <option value="google">✨ Google Gemini (Gemini 4 Argon, Hydrogen, 3.8 Flash — Antigravity)</option>
                             <option value="deepseek">🐳 DeepSeek (DeepSeek-R1 Reasoner / V3)</option>
                             <option value="ollama">🦙 Ollama Local (100% en tu PC)</option>
                         </select>

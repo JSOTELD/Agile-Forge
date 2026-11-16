@@ -3,8 +3,8 @@
  * AgileForge - RoleRegistry (RFC-001, fase 1)
  *
  * Los roles se definen en archivos Markdown con frontmatter:
- *   - pack core:          plugin/agileforge/packs/core/<id>.md   (los 8 roles del tablero)
- *   - roles del proyecto: <workspace>/.agileforge/roles/<id>.md   (nuevos o que sustituyen a uno del core)
+ *   - packs del plugin:   plugin/agileforge/packs/<pack>/<id>.md  (core = 8 roles base; software = especialistas)
+ *   - roles del proyecto: <workspace>/.agileforge/roles/<id>.md   (nuevos o que sustituyen a uno del pack)
  *
  * El código decide por CAPACIDADES (lista cerrada de 9), no por IDs fijos.
  * La base de datos sigue guardando nombre, avatar, motor y skills de cada rol para el panel;
@@ -36,7 +36,7 @@ final class RoleRegistry
     /** Capacidades de un rol de la base que no tiene archivo (comportamiento previo al registro). */
     public const DEFAULT_CAPABILITIES = ['can_claim_tasks', 'can_submit_evidence'];
 
-    public const MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable', 'inherit'];
+    public const MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable', 'argon', 'hydrogen', 'flash', 'inherit'];
     public const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
     public const COLORS = ['red', 'green', 'blue', 'purple', 'yellow', 'cyan', 'orange', 'pink'];
 
@@ -44,6 +44,7 @@ final class RoleRegistry
     public const RISKY_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit'];
     public const NATIVE_TOOLS = ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent', 'TodoWrite'];
 
+    public const PACKS = ['core', 'software'];
     public const ID_PATTERN = '/^[a-z][a-z0-9_]{1,47}$/';
 
     /** @var array<string, self> */
@@ -88,9 +89,17 @@ final class RoleRegistry
         return dirname(__DIR__, 2);
     }
 
+    public static function packDir(string $pack = 'core'): string
+    {
+        if (!in_array($pack, self::PACKS, true)) {
+            throw new \InvalidArgumentException("Pack desconocido: «{$pack}». Permitidos: " . implode(', ', self::PACKS) . '.');
+        }
+        return self::appRoot() . '/plugin/agileforge/packs/' . $pack;
+    }
+
     public static function corePackDir(): string
     {
-        return self::appRoot() . '/plugin/agileforge/packs/core';
+        return self::packDir('core');
     }
 
     /** Carpeta del proyecto: ruta absoluta tal cual; vacía o "." es la raíz de la app; relativa, contra la raíz. */
@@ -112,7 +121,10 @@ final class RoleRegistry
     {
         $ws = $project === null ? '' : self::workspacePath($project);
         if (!isset(self::$cache[$ws])) {
-            $sources = [['dir' => self::corePackDir(), 'source' => 'core']];
+            $sources = [
+                ['dir' => self::corePackDir(), 'source' => 'core'],
+                ['dir' => self::packDir('software'), 'source' => 'software'],
+            ];
             if ($ws !== '') {
                 $local = rtrim($ws, '/\\') . '/.agileforge/roles';
                 if (realpath($local) !== realpath(self::corePackDir())) {
@@ -327,8 +339,8 @@ final class RoleRegistry
         }
         if (isset($data['model'])) {
             $model = $data['model'];
-            if (!is_string($model) || !(in_array($model, self::MODEL_ALIASES, true) || preg_match('/^claude-[a-z0-9.-]+$/', $model))) {
-                $e[] = '«model» debe ser sonnet, opus, haiku, fable, inherit o un ID claude-….';
+            if (!is_string($model) || !(in_array($model, self::MODEL_ALIASES, true) || preg_match('/^(claude|gemini)-[a-z0-9.-]+$/', $model))) {
+                $e[] = '«model» debe ser sonnet, opus, haiku, fable, argon, hydrogen, flash, inherit o un ID gemini-… / claude-….';
             }
         }
         if (isset($data['effort']) && !in_array($data['effort'], self::EFFORTS, true)) {

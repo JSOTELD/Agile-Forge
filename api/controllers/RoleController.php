@@ -16,6 +16,7 @@ use AgileForge\Services\LlmService;
 use PDO;
 
 require_once dirname(__DIR__) . '/services/EngineService.php';
+require_once dirname(__DIR__) . '/services/RoleRegistry.php';
 
 class RoleController
 {
@@ -30,9 +31,11 @@ class RoleController
     {
         $pdo = Database::getPdo();
         $stmt = $pdo->query("SELECT * FROM roles ORDER BY id ASC");
+        $reg = \AgileForge\Services\RoleRegistry::forProject($this->repo->getActiveProject() ?: null);
         $roles = [];
         while ($row = $stmt->fetch()) {
             $row['assigned_skills'] = json_decode($row['assigned_skills_json'] ?? '[]', true);
+            $row['capabilities'] = $reg->capabilities((string)$row['id']);
             $roles[] = $row;
         }
         Bootstrap::jsonResponse(['success' => true, 'count' => count($roles), 'roles' => $roles]);

@@ -708,3 +708,256 @@ test('datos antiguos: prioridades en inglés se migran a las vigentes al abrir l
     assert.deepEqual(JSON.parse(out), { 'US-P1': 'alta', 'US-P2': 'media', 'US-P3': 'critica', 'US-P4': 'baja' });
     fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('M5: GET /api/graph/health y tasks.php?action=graph_health (con VIEW_TOKEN y TOKEN) y auth de sync', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+
+  for (const tok of [TOKEN, VIEW_TOKEN]) {
+    const r1 = await api('GET', 'index.php/graph/health', undefined, tok);
+    assert.equal(r1.status, 200, r1.text.slice(0, 200));
+    assert.equal(r1.json.success, true);
+    assert.ok(['missing', 'stale', 'fresh'].includes(r1.json.status));
+    assert.ok(r1.json.recipe && r1.json.code_graph && r1.json.vault);
+    assert.ok(!r1.text.includes(TOKEN) && !r1.text.includes(VIEW_TOKEN));
+  }
+
+  // tasks.php?action=graph_health solo acepta TOKEN principal (ADR-004: VIEW_TOKEN devuelve 403 en tasks.php)
+  const r2Full = await api('GET', 'tasks.php?action=graph_health', undefined, TOKEN);
+  assert.equal(r2Full.status, 200, r2Full.text.slice(0, 200));
+  assert.equal(r2Full.json.success, true);
+  assert.ok(['missing', 'stale', 'fresh'].includes(r2Full.json.status));
+  const r2View = await api('GET', 'tasks.php?action=graph_health', undefined, VIEW_TOKEN);
+  assert.equal(r2View.status, 403);
+
+  // POST /api/graph/sync requiere client === 'web' y token principal
+  assert.equal((await api('POST', 'index.php/graph/sync', { client: 'mcp' }, TOKEN)).status, 403);
+  assert.equal((await api('POST', 'index.php/graph/sync', { client: 'web' }, VIEW_TOKEN)).status, 403);
+
+  // Workspace temporal con artefactos de grafos sintéticos para validar métricas exactas
+  const before = await api('GET', 'index.php/state');
+  const origProj = before.json.current_project?.id || 'default';
+  const origJuris = before.json.jurisdiction;
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'af-graph-health-'));
+  try {
+    fs.mkdirSync(path.join(ws, '.agileforge', 'vault', 'bitacora'), { recursive: true });
+    fs.mkdirSync(path.join(ws, '.agileforge', 'vault', 'codigo'), { recursive: true });
+    fs.mkdirSync(path.join(ws, 'graphify-out'), { recursive: true });
+    fs.writeFileSync(path.join(ws, '.agileforge', 'grafos.md'), '---\nestado: aprobada\n---\n**Proyecto del tablero:** `test-proj`\n');
+    fs.writeFileSync(path.join(ws, 'graphify-out', 'GRAPH_REPORT.md'), '# Graph Report (2026-11-15)\nBuilt from commit: `abcdef1`\n- 120 nodes · 340 edges · 7 communities\n');
+    fs.writeFileSync(path.join(ws, 'graphify-out', 'graph.json'), '{}');
+    fs.writeFileSync(path.join(ws, '.agileforge', 'vault', 'bitacora', '_indice.md'), '# Indice\n');
+    fs.writeFileSync(path.join(ws, '.agileforge', 'vault', 'codigo', 'Sample.md'), '# Sample\n');
+    fs.writeFileSync(path.join(ws, '.agileforge', 'vault', '.agileforge-bitacora.json'), JSON.stringify({
+      renderer: 2,
+      project: 'test-proj',
+      generated_at: '2026-11-15T20:00:00Z',
+      files: { 'a.md': { hash: '1' }, 'b.md': { hash: '2' } },
+    }));
+
+    const cp = await action('create_project', { name: 'Proyecto Grafos M5 ' + Date.now(), path: ws, client: 'web' });
+    assert.equal(cp.status, 200);
+    const pid = cp.json.project_id;
+    assert.ok(pid);
+    await action('switch_project', { project_id: pid });
+
+    const health = await api('GET', 'index.php/graph/health', undefined, VIEW_TOKEN);
+    assert.equal(health.status, 200);
+    assert.equal(health.json.status, 'fresh');
+    assert.equal(health.json.recipe.exists, true);
+    assert.equal(health.json.recipe.status, 'aprobada');
+    assert.equal(health.json.recipe.project, 'test-proj');
+    assert.equal(health.json.code_graph.exists, true);
+    assert.equal(health.json.code_graph.nodes, 120);
+    assert.equal(health.json.code_graph.edges, 340);
+    assert.equal(health.json.code_graph.communities, 7);
+    assert.equal(health.json.code_graph.built_commit, 'abcdef1');
+    assert.equal(health.json.vault.exists, true);
+    assert.equal(health.json.vault.index_exists, true);
+    assert.equal(health.json.vault.notes_count, 2);
+    assert.equal(health.json.vault.code_notes_count, 1);
+  } finally {
+    await action('switch_project', { project_id: origProj });
+    if (origJuris) await action('update_jurisdiction', origJuris);
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('BUG-01 y BUG-10: tipos no-string en regulations y action no escalar responden 422 sin PHP warning ni TypeError 500', async () => {
+  const before = await api('GET', 'index.php/state');
+  const origJuris = before.json.jurisdiction;
+  try {
+    assert.equal((await action('update_jurisdiction', { regulations: [['nested']] })).status, 422);
+    assert.equal((await action('update_jurisdiction', { regulations: [123] })).status, 422);
+    assert.equal((await action('update_jurisdiction', { regulations: 'no-es-array' })).status, 422);
+
+    const okJuris = await action('update_jurisdiction', { regulations: ['Ley 29733', '  GDPR  ', 'Ley 29733'] });
+    assert.equal(okJuris.status, 200);
+    assert.deepEqual(okJuris.json.jurisdiction.regulations, ['Ley 29733', 'GDPR']);
+
+    // BUG-10: action no escalar en POST tasks.php
+    assert.equal((await api('POST', 'tasks.php', { action: ['bad'] })).status, 422);
+    assert.equal((await api('POST', 'tasks.php', { action: { k: 1 } })).status, 422);
+  } finally {
+    if (origJuris) await action('update_jurisdiction', origJuris);
+  }
+});
+
+test('BUG-02: submit_for_review rechaza elementos no-string o vacíos en files_changed y tests_run (422)', async () => {
+  const t = await newTask();
+  await action('claim_task', { task_id: t.id, role_key: 'backend_architect' });
+
+  const cases = [
+    { files_changed: [{ path: 'a.php' }], tests_run: ['npm test'], summary: 'Resumen válido de más de veinte caracteres' },
+    { files_changed: ['   '], tests_run: ['npm test'], summary: 'Resumen válido de más de veinte caracteres' },
+    { files_changed: [EVIDENCE.files_changed[0]], tests_run: [['npm test']], summary: 'Resumen válido de más de veinte caracteres' },
+    { files_changed: [EVIDENCE.files_changed[0]], tests_run: ['  '], summary: 'Resumen válido de más de veinte caracteres' },
+  ];
+  for (const ev of cases) {
+    const res = await action('submit_for_review', { task_id: t.id, role_key: 'backend_architect', evidence: ev });
+    assert.equal(res.status, 422, `${JSON.stringify(ev)} -> ${res.status}`);
+  }
+});
+
+test('BUG-03: import_workspace consecutivo en dos workspaces asigna IDs correlativos sin colisión 500', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const before = await api('GET', 'index.php/state');
+  const origProj = before.json.current_project?.id || 'default';
+  const ws1 = fs.mkdtempSync(path.join(os.tmpdir(), 'af-imp1-'));
+  const ws2 = fs.mkdtempSync(path.join(os.tmpdir(), 'af-imp2-'));
+  try {
+    fs.writeFileSync(path.join(ws1, 'README.md'), '# Repo 1\n');
+    fs.writeFileSync(path.join(ws2, 'README.md'), '# Repo 2\n');
+    const ts = Date.now();
+    const imp1 = await action('import_workspace', { path: ws1, name: `Imp Uno ${ts}` });
+    assert.equal(imp1.status, 200, imp1.text.slice(0, 200));
+    const imp2 = await action('import_workspace', { path: ws2, name: `Imp Dos ${ts}` });
+    assert.equal(imp2.status, 200, imp2.text.slice(0, 200));
+
+    assert.notEqual(imp1.json.project_id, imp2.json.project_id);
+    const t1 = (await api('GET', `index.php/tasks?project=${encodeURIComponent(imp1.json.project_id)}`)).json.tasks.map((x) => x.id);
+    const t2 = (await api('GET', `index.php/tasks?project=${encodeURIComponent(imp2.json.project_id)}`)).json.tasks.map((x) => x.id);
+    assert.ok(t1.length > 0 && t2.length > 0);
+    for (const id of t1) {
+      assert.ok(!t2.includes(id), `ID colisionado ${id}`);
+    }
+  } finally {
+    await action('switch_project', { project_id: origProj });
+    fs.rmSync(ws1, { recursive: true, force: true });
+    fs.rmSync(ws2, { recursive: true, force: true });
+  }
+});
+
+test('BUG-04 y BUG-10: start_meeting (id duplicado 409, project_id inexistente 422) y close_meeting (alias y tipos)', async () => {
+  assert.equal((await action('start_meeting', {
+    topic: 'Proyecto inexistente',
+    participants: ['director', 'lead_architect'],
+    project_id: 'no-existe-' + Date.now(),
+  })).status, 422);
+
+  const dupId = 'MEET-DUP-' + Date.now();
+  const first = await action('start_meeting', {
+    id: dupId,
+    topic: 'Reunión duplicada',
+    participants: ['director', 'lead_architect'],
+  });
+  assert.equal(first.status, 200, first.text.slice(0, 200));
+
+  const second = await action('start_meeting', {
+    id: dupId,
+    topic: 'Reunión duplicada 2',
+    participants: ['director', 'lead_architect'],
+  });
+  assert.equal(second.status, 409);
+
+  // close_meeting con assigned_to no string -> 422
+  const badAssigned = await action('close_meeting', {
+    meeting_id: dupId,
+    summary: 'Resumen prueba',
+    resolution: 'Resolución prueba',
+    action_items: [{ title: 'Item malo', assigned_to: ['array'], story_points: 2 }],
+  });
+  assert.equal(badAssigned.status, 422);
+
+  // close_meeting normaliza alias 'chief-architect' -> 'lead_architect'
+  const okClose = await action('close_meeting', {
+    meeting_id: dupId,
+    summary: 'Resumen válido',
+    resolution: 'Resolución válida',
+    action_items: [{ title: 'Item con alias', assigned_to: 'chief-architect', story_points: 2 }],
+  });
+  assert.equal(okClose.status, 200);
+  const shown = await api('GET', `index.php/meetings/${dupId}`);
+  assert.equal(shown.status, 200);
+  assert.equal(shown.json.meeting.action_items[0].assigned_to, 'lead_architect');
+});
+
+test('BUG-06: record_decision protege ADRs entre proyectos (409) y GET decisions/meetings?project= filtra', async () => {
+  const before = await api('GET', 'index.php/state');
+  const origProj = before.json.current_project?.id || 'default';
+  const pA = await action('create_project', { name: 'ADR Proj A ' + Date.now(), path: ROOT, client: 'web' });
+  const pB = await action('create_project', { name: 'ADR Proj B ' + Date.now(), path: ROOT, client: 'web' });
+  assert.equal(pA.status, 200);
+  assert.equal(pB.status, 200);
+  const idA = pA.json.project_id;
+  const idB = pB.json.project_id;
+  assert.ok(idA && idB && idA !== idB);
+
+  try {
+    const adrId = 'ADR-ISOLATION-' + Date.now();
+    const createA = await api('POST', 'index.php/decisions', {
+      id: adrId,
+      project_id: idA,
+      title: 'Decisión original A',
+      decision: 'Mantener aislamiento',
+      status: 'accepted',
+    });
+    assert.equal(createA.status, 201, createA.text.slice(0, 200));
+
+    // Intentar sobrescribir el mismo ID desde el proyecto B -> 409
+    const overwriteB = await api('POST', 'index.php/decisions', {
+      id: adrId,
+      project_id: idB,
+      title: 'Intento sobrescritura',
+      decision: 'Hack cross-project',
+    });
+    assert.equal(overwriteB.status, 409);
+
+    const listA = await api('GET', `index.php/decisions?project=${encodeURIComponent(idA)}`);
+    const listB = await api('GET', `index.php/decisions?project=${encodeURIComponent(idB)}`);
+    assert.ok(listA.json.decisions.some((d) => d.id === adrId));
+    assert.ok(!listB.json.decisions.some((d) => d.id === adrId));
+
+    // Reuniones también filtradas por ?project=
+    const mA = await action('start_meeting', { project_id: idA, topic: 'Meet A ' + Date.now(), participants: ['director', 'lead_architect'] });
+    const mB = await action('start_meeting', { project_id: idB, topic: 'Meet B ' + Date.now(), participants: ['director', 'lead_architect'] });
+    const midA = mA.json.meeting?.id || mA.json.id;
+    const midB = mB.json.meeting?.id || mB.json.id;
+    const meetsA = await api('GET', `index.php/meetings?project=${encodeURIComponent(idA)}`);
+    const meetsB = await api('GET', `index.php/meetings?project=${encodeURIComponent(idB)}`);
+    assert.ok(meetsA.json.meetings.some((m) => m.id === midA));
+    assert.ok(!meetsA.json.meetings.some((m) => m.id === midB));
+    assert.ok(meetsB.json.meetings.some((m) => m.id === midB));
+    assert.ok(!meetsB.json.meetings.some((m) => m.id === midA));
+  } finally {
+    await action('switch_project', { project_id: origProj });
+  }
+});
+
+test('BUG-07: save_meeting_to_workspace y generate_legal_doc bloquean directorios críticos del motor (422)', async () => {
+  const m = await action('start_meeting', { topic: 'Reunión seguridad ruta', participants: ['director', 'lead_architect'] });
+  assert.equal(m.status, 200);
+  const meetId = m.json.meeting?.id || m.json.id;
+
+  for (const dir of ['data', 'api', 'config']) {
+    const abs = path.join(ROOT, dir);
+    const saveRes = await action('save_meeting_to_workspace', { meeting_id: meetId, workspace: abs });
+    assert.equal(saveRes.status, 422, `save_meeting_to_workspace en ${dir} -> ${saveRes.status}`);
+
+    const legalRes = await action('generate_legal_doc', { doc_type: 'privacidad', save_to_workspace: true, workspace: abs });
+    assert.equal(legalRes.status, 422, `generate_legal_doc en ${dir} -> ${legalRes.status}`);
+  }
+
+  assert.equal((await action('save_meeting_to_workspace', { meeting_id: meetId, workspace: '../fuera' })).status, 422);
+});
