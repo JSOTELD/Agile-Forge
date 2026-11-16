@@ -160,6 +160,17 @@ class BoardService
             'legal_compliance'  => 'legal_counsel',
             'creative-director' => 'creative_director',
             'project-manager'   => 'project_manager',
+            'devops-release'    => 'devops_release',
+            'devops_release'    => 'devops_release',
+            'data-performance'  => 'data_performance',
+            'data_performance'  => 'data_performance',
+            'mcp-integrator'    => 'mcp_integrator',
+            'mcp_integrator'    => 'mcp_integrator',
+            'a11y-ux-auditor'   => 'a11y_ux_auditor',
+            'a11y_ux_auditor'   => 'a11y_ux_auditor',
+            'graph-curator'     => 'graph_curator',
+            'graph_curator'     => 'graph_curator',
+            'tester'            => 'tester',
         ];
         if (isset($legacyMap[$low]) && isset($idsByLow[$legacyMap[$low]])) {
             return $idsByLow[$legacyMap[$low]];

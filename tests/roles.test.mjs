@@ -335,3 +335,116 @@ test('M2a y BUG-08: seedDirectorRole, catálogo/costos Gemini y googleFunctionDe
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Etapa 2 D3: pack software, --pack=core|software|all y materialización Antigravity sin mutar historias en tester/graph-curator', () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'af-pack-sw-'));
+  try {
+    const valSw = rolesCli(['validate', `--workspace=${ws}`, '--pack=software']);
+    assert.equal(valSw.code, 0, valSw.out);
+    assert.match(valSw.out, /6 archivo\(s\), 0 con errores/);
+
+    const valAll = rolesCli(['validate', `--workspace=${ws}`, '--pack=all']);
+    assert.equal(valAll.code, 0, valAll.out);
+    assert.match(valAll.out, /14 archivo\(s\), 0 con errores/);
+
+    const badPack = rolesCli(['validate', `--workspace=${ws}`, '--pack=invalido']);
+    assert.equal(badPack.code, 2);
+
+    const genSw = rolesCli(['agents', `--workspace=${ws}`, '--pack=software', '--target=antigravity']);
+    assert.equal(genSw.code, 0, genSw.out);
+
+    const expectedSlugs = [
+      'devops-release',
+      'data-performance',
+      'mcp-integrator',
+      'a11y-ux-auditor',
+      'tester',
+      'graph-curator',
+    ];
+    for (const slug of expectedSlugs) {
+      const agentPath = path.join(ws, '.gemini', 'agents', `${slug}.md`);
+      const skillPath = path.join(ws, '.agents', 'skills', `af-${slug}`, 'SKILL.md');
+      assert.ok(fs.existsSync(agentPath), `falta ${agentPath}`);
+      assert.ok(fs.existsSync(skillPath), `falta ${skillPath}`);
+    }
+
+    for (const slug of ['tester', 'graph-curator']) {
+      const agentMd = fs.readFileSync(path.join(ws, '.gemini', 'agents', `${slug}.md`), 'utf8');
+      const skillMd = fs.readFileSync(path.join(ws, '.agents', 'skills', `af-${slug}`, 'SKILL.md'), 'utf8');
+      for (const forbidden of ['claim_task', 'review_task', 'submit_for_review']) {
+        assert.doesNotMatch(agentMd, new RegExp(`__${forbidden}\\b`), `${slug} agente no debe recibir ${forbidden}`);
+        assert.doesNotMatch(skillMd, new RegExp(`__${forbidden}\\b`), `${slug} skill no debe recibir ${forbidden}`);
+      }
+    }
+    const curatorMd = fs.readFileSync(path.join(ws, '.gemini', 'agents', 'graph-curator.md'), 'utf8');
+    assert.doesNotMatch(curatorMd, /__create_task\b/, 'graph-curator no debe recibir create_task');
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test('Etapa 2 D2, índices SQLite y aliases del pack software en BoardService::matchRoleId()', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'af-etapa2-db-'));
+  const db = path.join(dir, 'etapa2.sqlite');
+  const phpBin = process.env.AGILEFORGE_PHP || PHP;
+  try {
+    const phpScript = [
+      'require_once "api/bootstrap.php";',
+      'require_once "api/Database.php";',
+      'require_once "api/Repository.php";',
+      'require_once "api/services/LlmService.php";',
+      'require_once "api/services/BoardService.php";',
+      '$pdo = \\AgileForge\\Database::getPdo();',
+      '$indexes = $pdo->query("SELECT name FROM sqlite_master WHERE type = \'index\' AND name LIKE \'idx_%\' ORDER BY name")->fetchAll(PDO::FETCH_COLUMN);',
+      '$pdo->prepare("INSERT INTO ai_token_usage (agent_role, sprint_id, provider, model, input_tokens, output_tokens, total_tokens, estimated_cost_usd) VALUES (?,?,?,?,?,?,?,?)")',
+      '    ->execute(["data_performance", "sp-etapa2", "google", "gemini-4-hydrogen", 1200, 300, 1500, 0.0045]);',
+      '$llm = new \\AgileForge\\Services\\LlmService();',
+      '$usage = $llm->getUsageSummary("sp-etapa2");',
+      'foreach (["devops_release", "data_performance", "mcp_integrator", "a11y_ux_auditor", "graph_curator", "tester"] as $rid) {',
+      '  $pdo->prepare("INSERT OR IGNORE INTO roles (id, name, alias) VALUES (?, ?, ?)")->execute([$rid, $rid, $rid]);',
+      '}',
+      '$board = new \\AgileForge\\Services\\BoardService(new \\AgileForge\\Repository($pdo));',
+      '$aliases = [',
+      '  "devops-release"   => $board->matchRoleId("devops-release"),',
+      '  "data-performance" => $board->matchRoleId("data-performance"),',
+      '  "mcp-integrator"   => $board->matchRoleId("mcp-integrator"),',
+      '  "a11y-ux-auditor"  => $board->matchRoleId("a11y-ux-auditor"),',
+      '  "graph-curator"    => $board->matchRoleId("graph-curator"),',
+      '  "tester"           => $board->matchRoleId("tester"),',
+      '];',
+      'echo json_encode(["indexes" => $indexes, "usage" => $usage, "aliases" => $aliases]);',
+    ].join("\n");
+    const out = execFileSync(phpBin, ['-r', phpScript], {
+      cwd: ROOT,
+      env: { ...process.env, AGILEFORGE_DB_PATH: db },
+      encoding: 'utf8',
+    });
+    const res = JSON.parse(out);
+
+    for (const idx of [
+      'idx_agent_memories_lookup',
+      'idx_tasks_project_status',
+      'idx_comments_task',
+      'idx_token_usage_sprint_role',
+      'idx_meetings_project',
+      'idx_decisions_project',
+    ]) {
+      assert.ok(res.indexes.includes(idx), `falta índice SQLite ${idx}`);
+    }
+
+    assert.equal(res.usage.by_agent.length, 1);
+    assert.equal(res.usage.by_agent[0].agent_role, 'data_performance');
+    assert.equal(res.usage.by_agent[0].model, 'gemini-4-hydrogen');
+
+    assert.deepEqual(res.aliases, {
+      'devops-release': 'devops_release',
+      'data-performance': 'data_performance',
+      'mcp-integrator': 'mcp_integrator',
+      'a11y-ux-auditor': 'a11y_ux_auditor',
+      'graph-curator': 'graph_curator',
+      tester: 'tester',
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

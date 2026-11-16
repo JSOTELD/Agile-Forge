@@ -3,8 +3,8 @@
  * AgileForge - RoleRegistry (RFC-001, fase 1)
  *
  * Los roles se definen en archivos Markdown con frontmatter:
- *   - pack core:          plugin/agileforge/packs/core/<id>.md   (los 8 roles del tablero)
- *   - roles del proyecto: <workspace>/.agileforge/roles/<id>.md   (nuevos o que sustituyen a uno del core)
+ *   - packs del plugin:   plugin/agileforge/packs/<pack>/<id>.md  (core = 8 roles base; software = especialistas)
+ *   - roles del proyecto: <workspace>/.agileforge/roles/<id>.md   (nuevos o que sustituyen a uno del pack)
  *
  * El código decide por CAPACIDADES (lista cerrada de 9), no por IDs fijos.
  * La base de datos sigue guardando nombre, avatar, motor y skills de cada rol para el panel;
@@ -44,6 +44,7 @@ final class RoleRegistry
     public const RISKY_TOOLS = ['Bash', 'Edit', 'Write', 'NotebookEdit'];
     public const NATIVE_TOOLS = ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent', 'TodoWrite'];
 
+    public const PACKS = ['core', 'software'];
     public const ID_PATTERN = '/^[a-z][a-z0-9_]{1,47}$/';
 
     /** @var array<string, self> */
@@ -88,9 +89,17 @@ final class RoleRegistry
         return dirname(__DIR__, 2);
     }
 
+    public static function packDir(string $pack = 'core'): string
+    {
+        if (!in_array($pack, self::PACKS, true)) {
+            throw new \InvalidArgumentException("Pack desconocido: «{$pack}». Permitidos: " . implode(', ', self::PACKS) . '.');
+        }
+        return self::appRoot() . '/plugin/agileforge/packs/' . $pack;
+    }
+
     public static function corePackDir(): string
     {
-        return self::appRoot() . '/plugin/agileforge/packs/core';
+        return self::packDir('core');
     }
 
     /** Carpeta del proyecto: ruta absoluta tal cual; vacía o "." es la raíz de la app; relativa, contra la raíz. */

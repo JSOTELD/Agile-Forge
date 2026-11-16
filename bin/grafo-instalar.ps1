@@ -3,8 +3,8 @@
 # 2) Con la receta .agileforge/grafos.md aprobada: grafo de la IA en graphify-out/ (solo codigo, 0 tokens),
 #    notas del codigo en .agileforge/vault/codigo/ y bitacora del tablero en .agileforge/vault/bitacora/.
 # Registro: data\logs\grafo-instalar.log
-# Uso: doble clic en bin\grafo-instalar.cmd   |   bin\grafo-instalar.cmd -SoloInstalar
-param([switch]$SoloInstalar)
+# Uso: doble clic en bin\grafo-instalar.cmd   |   bin\grafo-instalar.cmd -SoloInstalar [-NoPause]
+param([switch]$SoloInstalar, [switch]$NoPause)
 
 $ErrorActionPreference = 'Continue'
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -19,7 +19,7 @@ function Fin($code) {
     Stop-Transcript | Out-Null
     Write-Host ''
     if ($code -eq 0) { Write-Host 'Listo.' -ForegroundColor Green } else { Write-Host 'Se detuvo antes de terminar (ver arriba).' -ForegroundColor Yellow }
-    Read-Host 'Pulsa Enter para cerrar'
+    if (-not $NoPause) { Read-Host 'Pulsa Enter para cerrar' }
     exit $code
 }
 
@@ -136,7 +136,7 @@ Write-Host ".graphifyignore: $($todo.Count - 1) exclusiones"
 # ---------------------------------------------------------------- 3. grafo de la IA
 $env:GRAPHIFY_BACKEND = 'none'   # nunca llamar a un LLM: ni para extraer ni para nombrar comunidades
 Paso 3 'Grafo de la IA (solo codigo, 0 tokens)'
-if (Test-Path 'graphify-out\graph.json') { $c = G update . } else { $c = G extract . --code-only }
+$c = G extract . --code-only
 if ($c -ne 0) { Write-Host 'graphify no pudo construir el grafo.' -ForegroundColor Yellow; Fin 1 }
 if ((G cluster-only .) -ne 0) { Fin 1 }
 if ((G export wiki) -ne 0) { Write-Host 'Aviso: no se pudo generar la wiki.' -ForegroundColor Yellow }

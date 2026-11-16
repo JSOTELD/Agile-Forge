@@ -756,10 +756,10 @@ $afVersion = is_array($afManifest) && preg_match('/^\d+\.\d+\.\d+$/', (string)($
 
         /* ===== Componentes del rediseño (no dependen de clases de Tailwind compiladas) ===== */
 
-        /* Avatares de rol: imagen de marca o, si no existe, el emoji del rol */
-        .role-avatar { display: inline-block; flex: none; border-radius: 28%; object-fit: cover; background: #0b1020; box-shadow: 0 0 0 1px rgba(148, 163, 184, .35); vertical-align: middle; }
+        /* Avatares de rol: imagen de marca (adaptativa claro/oscuro) o, si no existe, el emoji del rol */
+        .role-avatar { display: inline-block; flex: none; border-radius: 28%; object-fit: cover; background: #0b1020; box-shadow: 0 0 0 1px rgba(148, 163, 184, .35); vertical-align: middle; transition: background 0.2s ease, box-shadow 0.2s ease; }
         .role-avatar-emoji { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 1; }
-        html.theme-light .role-avatar, html.theme-paper .role-avatar { box-shadow: 0 0 0 1px rgba(15, 23, 42, .18); }
+        html.theme-light .role-avatar, html.theme-paper .role-avatar { background: #f1f5f9; box-shadow: 0 0 0 1px rgba(15, 23, 42, .18), 0 1px 2px rgba(15, 23, 42, .06); }
 
         /* Prioridad: color + icono + texto (nunca solo color) */
         .prio-badge { display: inline-flex; align-items: center; gap: .25rem; padding: .05rem .4rem; border-radius: .375rem; border: 1px solid transparent; font-size: 10px; font-weight: 700; line-height: 1.5; white-space: nowrap; }

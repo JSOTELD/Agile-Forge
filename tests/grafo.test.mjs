@@ -268,3 +268,18 @@ test('M1 y BUG-09: bitacora.mjs normaliza alias en memorias/comentarios/turnos, 
     fs.rmSync(path.dirname(vault), { recursive: true, force: true });
   }
 });
+
+test('Etapa 2 D1 y aliases pack software en normalizeRole() de bitacora.mjs', () => {
+  assert.equal(normalizeRole('devops-release'), 'devops_release');
+  assert.equal(normalizeRole('data-performance'), 'data_performance');
+  assert.equal(normalizeRole('mcp-integrator'), 'mcp_integrator');
+  assert.equal(normalizeRole('a11y-ux-auditor'), 'a11y_ux_auditor');
+  assert.equal(normalizeRole('graph-curator'), 'graph_curator');
+  assert.equal(normalizeRole('tester'), 'tester');
+
+  const ps = read(ROOT, 'bin', 'grafo-instalar.ps1');
+  assert.match(ps, /\[switch\]\$NoPause/);
+  assert.match(ps, /if\s*\(-not\s*\$NoPause\)/);
+  assert.match(ps, /G\s+extract\s+\.\s+--code-only/);
+  assert.doesNotMatch(ps, /G\s+update\s+\./);
+});

@@ -88,3 +88,39 @@ test('todos los PHP y los módulos JS tienen sintaxis válida', () => {
     assert.equal(r.status, 0, `${path.relative(ROOT, f)}: ${r.stderr}`);
   }
 });
+
+test('Etapa 2 D4: 28 avatares PNG (oscuro + -light) y soporte reactivo en roles.js y ui.js', () => {
+  const roles = [
+    'director', 'creative_director', 'lead_architect', 'backend_architect',
+    'frontend_master', 'qa_security_guard', 'legal_counsel', 'project_manager',
+    'tester', 'graph_curator', 'devops_release', 'data_performance',
+    'mcp_integrator', 'a11y_ux_auditor',
+  ];
+  const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const avatarsDir = path.join(ROOT, 'assets', 'brand', 'avatars');
+  for (const id of roles) {
+    for (const file of [`${id}.png`, `${id}-light.png`]) {
+      const full = path.join(avatarsDir, file);
+      assert.ok(fs.existsSync(full), `falta avatar ${file}`);
+      const buf = fs.readFileSync(full);
+      assert.ok(buf.length > 100, `avatar vacío: ${file}`);
+      assert.ok(buf.subarray(0, 8).equals(pngSig), `avatar no es PNG válido: ${file}`);
+    }
+  }
+
+  const rolesJs = read('assets', 'js', 'roles.js');
+  assert.match(rolesJs, /data-avatar-id=/);
+  assert.match(rolesJs, /-light\.png/);
+  assert.match(rolesJs, /data-tried-dark/);
+  for (const id of ['graph_curator', 'devops_release', 'data_performance', 'mcp_integrator', 'a11y_ux_auditor', 'tester']) {
+    assert.match(rolesJs, new RegExp(`\\b${id}\\s*:`), `falta SHORT_LABELS para ${id} en roles.js`);
+  }
+
+  const uiJs = read('assets', 'js', 'ui.js');
+  assert.match(uiJs, /\.role-avatar\[data-avatar-id\]/);
+  assert.match(uiJs, /-light\.png/);
+
+  for (const slug of ['devops-release', 'data-performance', 'mcp-integrator', 'a11y-ux-auditor']) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'plugin', 'agileforge', 'agents', `${slug}.md`)), `falta subagente ${slug}.md`);
+  }
+});

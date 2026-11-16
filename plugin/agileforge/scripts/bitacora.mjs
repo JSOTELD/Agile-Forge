@@ -38,14 +38,27 @@ const ROLE_ALIASES = {
   legal_compliance: 'legal_counsel',
   'creative-director': 'creative_director',
   'project-manager': 'project_manager',
+  'devops-release': 'devops_release',
+  devops_release: 'devops_release',
+  'data-performance': 'data_performance',
+  data_performance: 'data_performance',
+  'mcp-integrator': 'mcp_integrator',
+  mcp_integrator: 'mcp_integrator',
+  'a11y-ux-auditor': 'a11y_ux_auditor',
+  a11y_ux_auditor: 'a11y_ux_auditor',
+  'graph-curator': 'graph_curator',
+  graph_curator: 'graph_curator',
+  tester: 'tester',
 };
 export const normalizeRole = (id) => {
   const k = String(id ?? '').trim();
-  return ROLE_ALIASES[k] || k;
+  return ROLE_ALIASES[k] || ROLE_ALIASES[k.toLowerCase()] || k;
 };
 const CANONICAL_ROLES = new Set([
   'director', 'lead_architect', 'backend_architect', 'frontend_master',
   'qa_security_guard', 'project_manager', 'creative_director', 'legal_counsel',
+  'devops_release', 'data_performance', 'mcp_integrator', 'a11y_ux_auditor',
+  'graph_curator', 'tester',
 ]);
 const FOLDERS = { US: 'historias', ADR: 'decisiones', MEET: 'reuniones', MEM: 'memoria' };
 const STATUS_LABEL = { backlog: 'Backlog', en_progreso: 'En progreso', revision: 'En revisión', completada: 'Completada' };

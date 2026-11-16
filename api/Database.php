@@ -303,6 +303,21 @@ class Database
 
         CREATE INDEX IF NOT EXISTS idx_agent_memories_lookup 
         ON agent_memories(project_id, role_id, is_active, importance_score);
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_project_status
+        ON tasks(project_id, status);
+
+        CREATE INDEX IF NOT EXISTS idx_comments_task
+        ON comments(task_id);
+
+        CREATE INDEX IF NOT EXISTS idx_token_usage_sprint_role
+        ON ai_token_usage(sprint_id, agent_role);
+
+        CREATE INDEX IF NOT EXISTS idx_meetings_project
+        ON meetings(project_id);
+
+        CREATE INDEX IF NOT EXISTS idx_decisions_project
+        ON decisions(project_id);
 SQL;
 
         $pdo->exec($sql);

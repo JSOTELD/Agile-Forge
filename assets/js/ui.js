@@ -177,6 +177,17 @@ function updateThemeIndicators(themeId) {
             }
         }
     });
+
+    // Conmutar avatares de roles en vivo según tema claro/oscuro sin recargar la página
+    document.querySelectorAll('.role-avatar[data-avatar-id]').forEach(img => {
+        const id = img.dataset.avatarId;
+        if (!id) return;
+        const targetSrc = isLight ? `assets/brand/avatars/${id}-light.png` : `assets/brand/avatars/${id}.png`;
+        if (img.getAttribute('src') !== targetSrc) {
+            img.dataset.triedDark = isLight ? 'false' : 'true';
+            img.src = targetSrc;
+        }
+    });
 }
 
 function formatThemeName(themeId) {

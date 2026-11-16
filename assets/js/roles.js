@@ -18,6 +18,12 @@ const SHORT_LABELS = {
     qa_security_guard: 'QA',
     legal_counsel: 'Legal',
     project_manager: 'PM',
+    graph_curator: 'Curador Grafo',
+    devops_release: 'DevOps & Release',
+    data_performance: 'Datos & Perf',
+    mcp_integrator: 'Integrador MCP',
+    a11y_ux_auditor: 'Auditor A11y/UX',
+    tester: 'Tester',
 };
 
 const STATUS_LABELS = {
@@ -78,7 +84,7 @@ export function roleEmoji(roleOrId) {
 }
 
 /**
- * Avatar del rol como HTML seguro. Usa assets/brand/avatars/<id>.png si el id es un identificador simple;
+ * Avatar del rol como HTML seguro. Usa assets/brand/avatars/<id>.png (o <id>-light.png en tema claro);
  * si la imagen no existe o falla, la sustituye el emoji del rol (ver el listener de errores de abajo).
  * La imagen es decorativa (alt=""): el nombre del rol va siempre en texto junto a ella.
  */
@@ -89,7 +95,14 @@ export function avatarFor(roleOrId, size = 24) {
     if (!id || !SAFE_ID.test(id)) {
         return `<span class="role-avatar-emoji" aria-hidden="true">${escapeHtml(emoji)}</span>`;
     }
-    return `<img class="role-avatar" src="assets/brand/avatars/${id}.png" alt="" width="${px}" height="${px}" loading="lazy" decoding="async" data-fallback="${escapeHtml(emoji)}">`;
+    const isLight = typeof document !== 'undefined' && (
+        document.documentElement.classList.contains('theme-light') ||
+        document.documentElement.classList.contains('theme-paper') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.documentElement.getAttribute('data-theme') === 'paper'
+    );
+    const src = isLight ? `assets/brand/avatars/${id}-light.png` : `assets/brand/avatars/${id}.png`;
+    return `<img class="role-avatar" src="${src}" alt="" width="${px}" height="${px}" loading="lazy" decoding="async" data-avatar-id="${id}" data-fallback="${escapeHtml(emoji)}" data-tried-dark="${isLight ? 'false' : 'true'}">`;
 }
 
 /** Texto legible de un estado del tablero. */
@@ -112,11 +125,17 @@ export function priorityLabel(priority) {
 }
 
 // Los eventos "error" de las imágenes no burbujean, pero sí pasan por la fase de captura:
-// un único listener sustituye por el emoji cualquier avatar que no cargue (rol sin imagen propia).
+// Listener con fallback en 2 pasos: si falla <id>-light.png intenta <id>.png; si falla también, sustituye por emoji.
 if (typeof document !== 'undefined') {
     document.addEventListener('error', (ev) => {
         const img = ev.target;
         if (!(img instanceof HTMLImageElement) || !img.classList.contains('role-avatar')) return;
+        const id = img.dataset.avatarId;
+        if (id && img.dataset.triedDark !== 'true') {
+            img.dataset.triedDark = 'true';
+            img.src = `assets/brand/avatars/${id}.png`;
+            return;
+        }
         const span = document.createElement('span');
         span.className = 'role-avatar-emoji';
         span.setAttribute('aria-hidden', 'true');

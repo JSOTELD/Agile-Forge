@@ -2,17 +2,17 @@
 /**
  * AgileForge - registro de roles en archivos (RFC-001, fase 1)
  *
- *   php bin/roles.php list     [--workspace=DIR]
- *   php bin/roles.php validate [--workspace=DIR]
- *   php bin/roles.php agents   [--workspace=DIR] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]
+ *   php bin/roles.php list     [--workspace=DIR] [--pack=core|software|all]
+ *   php bin/roles.php validate [--workspace=DIR] [--pack=core|software|all]
+ *   php bin/roles.php agents   [--workspace=DIR] [--pack=core|software|all] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]
  *
- * list      Roles del pack core y del proyecto, con su origen y capacidades.
+ * list      Roles del pack indicado (por defecto core) y del proyecto, con su origen y capacidades.
  * validate  Validación fija (nivel 1): formato, id, capacidades de la lista cerrada, modelo,
  *           herramientas, skills del catálogo y claves de API escritas por error. Sale con 1 si hay errores.
- * agents    Genera .claude/agents/<id>.md en el proyecto para cada rol del proyecto
- *           (<workspace>/.agileforge/roles/*.md). Siempre con lista explícita de herramientas:
- *           sin "tools" Claude Code daría TODAS al subagente. Los roles del core ya tienen su
- *           subagente en el plugin y no se generan.
+ * agents    Genera subagentes (.claude/agents/<id>.md, .gemini/agents/<id>.md y/o .agents/skills/af-<id>/SKILL.md)
+ *           para los roles del proyecto (<workspace>/.agileforge/roles/*.md) y, si se indica --pack=software|all,
+ *           para los del pack. Siempre con lista explícita de herramientas: sin "tools" Claude Code daría
+ *           TODAS al subagente. Con --pack=core (por defecto), los roles del core ya están en el plugin.
  *
  * Sin --workspace se usa la carpeta del proyecto activo del tablero (o la raíz de AgileForge).
  */
@@ -81,8 +81,25 @@ function skillCatalog(string $root): array
 
 $ws = workspace($opts, $root);
 $localDir = rtrim($ws, '/\\') . '/.agileforge/roles';
-$sources = [['dir' => RoleRegistry::corePackDir(), 'source' => 'core']];
-if (realpath($localDir) !== realpath(RoleRegistry::corePackDir())) {
+$packOpt = is_string($opts['pack'] ?? null) ? strtolower(trim($opts['pack'])) : 'core';
+if (!in_array($packOpt, ['core', 'software', 'all'], true)) {
+    err("Pack no válido: {$packOpt} (valores permitidos: core, software, all)");
+    exit(2);
+}
+
+$packs = $packOpt === 'all' ? ['core', 'software'] : [$packOpt];
+$sources = [];
+$packRealDirs = [];
+foreach ($packs as $p) {
+    $dir = RoleRegistry::packDir($p);
+    $sources[] = ['dir' => $dir, 'source' => $p];
+    $real = realpath($dir);
+    if ($real !== false) {
+        $packRealDirs[] = $real;
+    }
+}
+$localReal = realpath($localDir);
+if ($localReal === false || !in_array($localReal, $packRealDirs, true)) {
     $sources[] = ['dir' => $localDir, 'source' => 'project'];
 }
 
@@ -151,13 +168,17 @@ switch ($cmd) {
         $written = 0;
         $found = 0;
         foreach ($reg->all() as $id => $r) {
-            if ($r['source'] !== 'project') {
+            $src = (string)($r['source'] ?? '');
+            $isProject = $src === 'project';
+            $isSoftware = $src === 'software' && ($packOpt === 'software' || $packOpt === 'all');
+            $isCoreMulti = $src === 'core' && $packOpt === 'all' && in_array($targetOpt, ['antigravity', 'gemini', 'all'], true);
+            if (!$isProject && !$isSoftware && !$isCoreMulti) {
                 continue;
             }
             $found++;
             $kebabId = str_replace('_', '-', $id);
             $outputs = [];
-            if ($targetOpt === 'claude' || $targetOpt === 'all') {
+            if (($targetOpt === 'claude' || $targetOpt === 'all') && $src !== 'core') {
                 $outputs[] = [
                     'path'    => rtrim($ws, '/\\') . '/.claude/agents/' . $kebabId . '.md',
                     'content' => renderAgent($r, $prefix, 'claude'),
@@ -206,7 +227,7 @@ switch ($cmd) {
         exit(0);
 
     default:
-        err('Uso: php bin/roles.php list|validate|agents [--workspace=DIR] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]');
+        err('Uso: php bin/roles.php list|validate|agents [--workspace=DIR] [--pack=core|software|all] [--prefix=mcp__srv__] [--target=claude|antigravity|gemini|all] [--dry-run] [--force]');
         exit(2);
 }
 
@@ -249,7 +270,8 @@ function yamlStr(string $s): string
     return '"' . addcslashes($s, "\"\\\n") . '"';
 }
 
-function renderAgent(array $r, string $prefix, string $target = 'claude'): string
+/** Calcula listas explícitas de herramientas permitidas y prohibidas para un rol. */
+function resolveRoleTools(array $r, string $prefix): array
 {
     $readOnly = ['Read', 'Grep', 'Glob', 'board__get_sprint_status', 'board__list_tasks', 'board__get_task',
         'board__get_role_brief', 'board__add_comment', 'board__list_memories', 'board__get_memory'];
@@ -264,6 +286,12 @@ function renderAgent(array $r, string $prefix, string $target = 'claude'): strin
         array_diff(RoleRegistry::RISKY_TOOLS, $declared),
         array_map('strval', (array)($r['disallowedTools'] ?? []))
     )));
+    return [$tools, $disallowed];
+}
+
+function renderAgent(array $r, string $prefix, string $target = 'claude'): string
+{
+    [$tools, $disallowed] = resolveRoleTools($r, $prefix);
 
     $rawModel = (string)($r['model'] ?? 'inherit');
     if ($target !== 'claude') {
@@ -315,18 +343,7 @@ function renderAgent(array $r, string $prefix, string $target = 'claude'): strin
 
 function renderAntigravitySkill(array $r, string $prefix): string
 {
-    $readOnly = ['Read', 'Grep', 'Glob', 'board__get_sprint_status', 'board__list_tasks', 'board__get_task',
-        'board__get_role_brief', 'board__add_comment', 'board__list_memories', 'board__get_memory'];
-    $declared = array_map('strval', (array)($r['tools'] ?? []));
-    $tools = array_merge($readOnly, $declared, array_map(fn($t) => 'board__' . $t, capabilityTools($r['capabilities'])));
-    $tools = array_values(array_unique(array_map(
-        fn($t) => str_starts_with($t, 'board__') ? $prefix . substr($t, 7) : $t,
-        $tools
-    )));
-    $disallowed = array_values(array_unique(array_merge(
-        array_diff(RoleRegistry::RISKY_TOOLS, $declared),
-        array_map('strval', (array)($r['disallowedTools'] ?? []))
-    )));
+    [$tools, $disallowed] = resolveRoleTools($r, $prefix);
 
     $kebabId = str_replace('_', '-', $r['id']);
     $desc = trim(($r['name'] ?? $r['id']) . '. ' . ($r['description'] ?? ''));

@@ -629,7 +629,7 @@ class LlmService
         $stmt->execute($params);
         $overall = $stmt->fetch() ?: [];
 
-        $byAgentSql = "SELECT agent_role, COUNT(*) as calls, SUM(total_tokens) as tokens, SUM(estimated_cost_usd) as cost_usd
+        $byAgentSql = "SELECT agent_role, MAX(model) as model, COUNT(*) as calls, SUM(total_tokens) as tokens, SUM(estimated_cost_usd) as cost_usd
                        FROM ai_token_usage";
         if ($sprintId !== null) {
             $byAgentSql .= " WHERE sprint_id = ?";
