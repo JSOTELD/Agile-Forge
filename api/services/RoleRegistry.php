@@ -121,7 +121,10 @@ final class RoleRegistry
     {
         $ws = $project === null ? '' : self::workspacePath($project);
         if (!isset(self::$cache[$ws])) {
-            $sources = [['dir' => self::corePackDir(), 'source' => 'core']];
+            $sources = [
+                ['dir' => self::corePackDir(), 'source' => 'core'],
+                ['dir' => self::packDir('software'), 'source' => 'software'],
+            ];
             if ($ws !== '') {
                 $local = rtrim($ws, '/\\') . '/.agileforge/roles';
                 if (realpath($local) !== realpath(self::corePackDir())) {

@@ -135,7 +135,7 @@ import { avatarFor, roleLabel, statusLabel, roleCan, capabilityLabel } from './r
 // RFC-001: chips con lo que el rol puede hacer en el tablero, y de dónde sale su definición
 function renderCapabilities(r) {
     const caps = Array.isArray(r.capabilities) ? r.capabilities : [];
-    const src = { core: t('role_src_core', 'pack core'), project: t('role_src_project', 'rol del proyecto'), db: t('role_src_db', 'sin archivo de rol') }[r.role_source] || '';
+    const src = { core: t('role_src_core', 'pack core'), software: t('role_src_software', 'pack software'), project: t('role_src_project', 'rol del proyecto'), db: t('role_src_db', 'sin archivo de rol') }[r.role_source] || '';
     const chips = caps.length
         ? caps.map(c => `<span class="cap-chip" title="${escapeHtml(c)}">${escapeHtml(capabilityLabel(c))}</span>`).join('')
         : `<span class="cap-chip cap-chip-none">${escapeHtml(t('caps_none', 'Solo lectura y comentarios'))}</span>`;
@@ -683,9 +683,9 @@ export function renderRoles() {
                             ${(p.models || []).map(m => {
                                 const costTag = (m.input_cost_per_m !== undefined) ? ` ($${m.input_cost_per_m}/$${m.output_cost_per_m}M)` : '';
                                 const isRec = (r.ai_model === m.id) || (p.id === 'google' && (
-                                    ((r.id === 'director' || r.id === 'lead_architect') && m.id === 'gemini-4-argon') ||
-                                    ((r.id === 'frontend_master' || r.id === 'backend_architect' || r.id === 'qa_security_guard') && m.id === 'gemini-4-hydrogen') ||
-                                    ((r.id === 'project_manager' || r.id === 'creative_director' || r.id === 'legal_counsel') && m.id === 'gemini-3.8-flash')
+                                    ((r.id === 'director' || r.id === 'lead_architect' || r.id === 'tester') && m.id === 'gemini-4-argon') ||
+                                    ((r.id === 'frontend_master' || r.id === 'backend_architect' || r.id === 'qa_security_guard' || r.id === 'devops_release' || r.id === 'data_performance' || r.id === 'mcp_integrator' || r.id === 'graph_curator') && m.id === 'gemini-4-hydrogen') ||
+                                    ((r.id === 'project_manager' || r.id === 'creative_director' || r.id === 'legal_counsel' || r.id === 'a11y_ux_auditor') && m.id === 'gemini-3.8-flash')
                                 ));
                                 return `<option value="${escapeHtml(p.id)}::${escapeHtml(m.id)}" ${currentVal === `${p.id}::${m.id}` ? 'selected' : ''}>${escapeHtml(m.name || m.id)}${costTag}${isRec ? ' ★ Recomendado' : ''}</option>`;
                             }).join('')}

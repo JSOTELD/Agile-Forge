@@ -334,6 +334,7 @@ SQL;
         self::addColumnIfMissing($pdo, 'sprints', 'budget_usd', 'REAL DEFAULT 0.0');
         self::backfillSprintEnds($pdo);
         self::repairBoardData($pdo);
+        self::seedSoftwarePackRoles($pdo);
 
         self::runDataMigrations($pdo);
     }
@@ -632,6 +633,65 @@ SQL;
         $rs = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES ('director', ?)");
         foreach ($skills as $sk) {
             $rs->execute([$sk]);
+        }
+        self::seedSoftwarePackRoles($pdo);
+    }
+
+    /** Siembra los roles especialistas de ingeniería de sistemas (plugin/agileforge/packs/software/*.md) en la tabla roles. */
+    public static function seedSoftwarePackRoles(PDO $pdo): void
+    {
+        try {
+            require_once __DIR__ . '/services/RoleRegistry.php';
+            $softDir = \AgileForge\Services\RoleRegistry::packDir('software');
+            if (!is_dir($softDir)) {
+                return;
+            }
+            $aliasMap = [
+                'argon'    => 'gemini-4-argon',
+                'hydrogen' => 'gemini-4-hydrogen',
+                'flash'    => 'gemini-3.8-flash',
+                'opus'     => 'claude-opus-5-5',
+                'sonnet'   => 'claude-sonnet-5-5',
+                'haiku'    => 'claude-haiku-5-5',
+                'fable'    => 'claude-fable-5-2',
+            ];
+            $insRole = $pdo->prepare(
+                "INSERT OR IGNORE INTO roles (id, name, alias, avatar, ai_provider, ai_model, description, specialty, assigned_skills_json)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            $insSkill = $pdo->prepare("INSERT OR IGNORE INTO role_skills (role_id, skill_id) VALUES (?, ?)");
+            foreach (glob(rtrim($softDir, '/\\') . '/*.md') ?: [] as $file) {
+                [$def] = \AgileForge\Services\RoleRegistry::parseFile($file);
+                $id = trim((string)($def['id'] ?? ''));
+                if ($id === '') {
+                    continue;
+                }
+                $rName = trim((string)($def['name'] ?? $id));
+                $rAlias = trim((string)($def['alias'] ?? $rName));
+                $rAvatar = trim((string)($def['avatar'] ?? '🤖'));
+                $rDesc = trim((string)($def['description'] ?? ''));
+                $rSpec = trim((string)($def['specialty'] ?? $rDesc));
+                $rSkills = is_array($def['skills'] ?? null) ? array_values(array_map('strval', $def['skills'])) : [];
+                $rawModel = trim((string)($def['model'] ?? 'gemini-4-hydrogen'));
+                $rModel = $aliasMap[$rawModel] ?? ($rawModel !== '' && $rawModel !== 'inherit' ? $rawModel : 'gemini-4-hydrogen');
+                $rProv = str_starts_with($rModel, 'claude-') ? 'anthropic' : 'google';
+                $insRole->execute([
+                    $id,
+                    $rName,
+                    $rAlias,
+                    $rAvatar,
+                    $rProv,
+                    $rModel,
+                    $rDesc,
+                    $rSpec,
+                    json_encode($rSkills, JSON_UNESCAPED_UNICODE)
+                ]);
+                foreach ($rSkills as $sk) {
+                    $insSkill->execute([$id, $sk]);
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('AgileForge seedSoftwarePackRoles: ' . $e->getMessage());
         }
     }
 
